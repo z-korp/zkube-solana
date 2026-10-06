@@ -49,7 +49,7 @@ namespace ZKube.Integration.App.Tests
                 (Throws(new HttpRequestException("An error occurred while sending the request", new SocketException(111))), FailureKind.NoNetwork, "The network could not be reached."),
                 (Throws(new HttpRequestException("An error occurred while sending the request",
                     new WebException("Error: SecureChannelFailure", new AuthenticationException("handshake"), WebExceptionStatus.SecureChannelFailure, null))),
-                    FailureKind.Insecure, "A secure connection to Solana could not be made."),
+                    FailureKind.Insecure, "Solana could not be reached over a secure connection."),
                 (() => "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}", FailureKind.RpcError, "Solana could not handle this request."),
                 (() => "<html>gateway</html>", FailureKind.UnreadableReply, "Solana answered in a way this app could not read."),
             };

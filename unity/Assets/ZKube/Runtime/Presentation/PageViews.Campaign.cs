@@ -31,7 +31,7 @@ namespace ZKube.Presentation
             if (value.Locked != null) { Waiting(value); return; }
             var kit = Kit;
             var trial = value.Trials[Focus(value.Trials, 0)];
-            var play = new PageAction { Name = "Play level", Label = (trial.Playing ? "Resume level " : "Play level ") + Number(value.Realm, trial.Level),
+            var play = new PageAction { Name = "Play level", Label = trial.Playing ? Words.LevelResume(Number(value.Realm, trial.Level)) : Words.LevelPlay(Number(value.Realm, trial.Level)),
                 Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open, Icon = SkinSlots.IconPlay };
             var header = MapHeader(value, kit, true);
             Rect headerRect = default, room = default;
@@ -47,7 +47,7 @@ namespace ZKube.Presentation
         }
         // The realm stepper of a realm that is not open, whose page has the room: one bar on the tabs.
         private Piece RealmStepper(CampaignPageView value, ScreenKit kit) =>
-            kit.Stepper("Realm stepper", "Map place", "Realm " + value.Realm + " of " + Protocol.Realms.Length, null, null,
+            kit.Stepper("Realm stepper", "Map place", Words.RealmOf(value.Realm, Protocol.Realms.Length), null, null,
                 Arrow(value.Previous, "Previous realm"), Arrow(value.Next, "Next realm"));
 
         // The header card: the realm's name, left-aligned, and its stars; the open
@@ -56,7 +56,7 @@ namespace ZKube.Presentation
         private Piece MapHeader(CampaignPageView value, ScreenKit kit, bool placed)
         {
             float u = kit.U; var inside = kit.Inside();
-            string name = catalog.Realm(value.Realm).realmName, place = "Realm " + value.Realm + " of " + Protocol.Realms.Length;
+            string name = catalog.Realm(value.Realm).realmName, place = Words.RealmOf(value.Realm, Protocol.Realms.Length);
             string total = "/" + Protocol.CampaignTargets.Length * 3;
             var stars = inside.Beside(10, inside.Icon("Map stars icon", SkinSlots.StarLit, 28),
                 inside.Value("Map stars", value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>"));
@@ -251,19 +251,19 @@ namespace ZKube.Presentation
             var kit = Kit; float u = kit.U; var inside = kit.Inside();
             float medal = Step(144, 112) * u, mark = 44 * u;
             float titleDp = 24 * kit.K, reasonDp = kit.CaptionDp;
-            float titleHeight = inside.Block("The path is waiting", inside.Width, titleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
+            float titleHeight = inside.Block(Words.CampaignWaiting, inside.Width, titleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
             float reasonHeight = inside.Block(value.Locked, inside.Width, reasonDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
             var body = new List<Piece> { Piece.Grow,
                 new Piece(medal, rect => ui.Medallion("Waiting guardian", new Rect(rect.center.x - medal / 2, rect.y, medal, medal), ui.Art.Sprite("boss__portrait"), shell.Page)),
                 kit.Card(null, new[] {
                     new Piece(mark, rect => Tinted("Waiting lock", SkinSlots.IconLock, new Rect(rect.center.x - mark / 2, rect.y, mark, mark), SkinTokens.TextMuted, shell.Page)),
-                    new Piece(titleHeight, rect => inside.Text("Waiting title", "The path is waiting", rect, titleDp, SkinTokens.Text, SkinUi.Type.Display, ScreenKit.TitleLeading)),
+                    new Piece(titleHeight, rect => inside.Text("Waiting title", Words.CampaignWaiting, rect, titleDp, SkinTokens.Text, SkinUi.Type.Display, ScreenKit.TitleLeading)),
                     new Piece(reasonHeight, rect => inside.Text("Waiting reason", value.Locked, rect, reasonDp, SkinTokens.Text, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
                         TextAlignmentOptions.Left)) }, "Waiting card") };
             if (value.StoreProblem != null)
             {
                 body.Add(kit.Note(value.StoreProblem, "Store problem", SkinTokens.Negative));
-                body.Add(kit.Note("Check your connection and try again.", "Store problem help", SkinTokens.TextMuted));
+                body.Add(kit.Note(Words.StoreProblemHelp, "Store problem help", SkinTokens.TextMuted));
             }
             body.Add(Piece.Grow);
             Place(kit, new ScreenKit.Slots { Title = MapHeader(value, kit, false), Body = body, Primary = Control(value.Purchase), Tertiary = Control(value.Restore),
@@ -318,9 +318,9 @@ namespace ZKube.Presentation
             if (skip)
             {
                 // Skip (.x3 corner): a quiet pill hanging from the page's edge, 12u in from the right.
-                float h = kit.Touch(40), w = ui.TextWidth("Skip", 15, SkinUi.Type.Number) + 32 * u;
+                float h = kit.Touch(40), w = ui.TextWidth(Words.ActionSkip, 15, SkinUi.Type.Number) + 32 * u;
                 var rect = new Rect(safe.xMax - 12 * u - w, kit.Edge - h, w, h);
-                ScreenKit.As(ui.TextButton("Skip lesson", rect, "Skip", Close, false, root, out _, sizeDp: 15), ScreenKit.Role.Skip);
+                ScreenKit.As(ui.TextButton("Skip lesson", rect, Words.ActionSkip, Close, false, root, out _, sizeDp: 15), ScreenKit.Role.Skip);
                 top = rect.y - 8 * u;
             }
             if (pages.Any(page => page.Picture != null))

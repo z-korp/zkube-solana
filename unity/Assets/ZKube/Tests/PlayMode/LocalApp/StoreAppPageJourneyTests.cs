@@ -382,7 +382,7 @@ namespace ZKube.Tests
             Assert.That(Buttons().Any(button => button.name == "Emblem 2"), Is.False, "A locked emblem takes no tap");
             Click(app, "Emblem 1"); yield return Page(StorePage.Profile);
             Assert.That(product.Read.WornEmblem, Is.EqualTo(1));
-            Assert.That(Texts(), Does.Contain("Wearing Mako’s emblem").And.Contain("Mako · worn"));
+            Assert.That(Texts(), Does.Contain("Wearing Mako’s emblem").And.Contain("Mako · Worn"));
         }
         private Button[] Buttons() => app.GetComponentsInChildren<Button>().Where(value => value.gameObject.activeInHierarchy).ToArray();
         private string[] Texts() => app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).Select(text => text.text).ToArray();

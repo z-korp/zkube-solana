@@ -26,8 +26,8 @@ namespace ZKube.Presentation
         }
         private TalkPage(PageCatalog.GuardianRule rule) { Rule = rule ?? throw new ArgumentNullException(nameof(rule)); Mood = "idle"; }
         public static TalkPage RulePage(PageCatalog.GuardianRule rule) => new TalkPage(rule);
-        public string RuleHeading => Rule == null ? null : "Earn a " + HudLayout.BonusName(Rule.bonus);
-        public string RuleSentence => Rule == null ? null : Rule.description.TrimEnd('.') + ".";
+        public string RuleHeading => Rule == null ? null : HudLayout.BonusEarn(Rule.bonus);
+        public string RuleSentence => Rule == null ? null : Words.FormatSentence(Rule.description);
 
         // The authored line for a moment, and the face it is spoken with. A
         // realm's first visit after its predecessor's guardian fell (Passage)

@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -60,8 +61,8 @@ namespace ZKube.Integration.App
             Controller.AttachRunHost(gameObject.AddComponent<MoneyBoardHost>());
         }
         public override string UnavailableMessage(Exception error) => error is MoneyConfigurationException ?
-            "Network configuration is unavailable." : error is PlatformNotSupportedException ?
-            "Wallet support requires the Android money application." : "The application could not start.";
+            Words.ArenaNetworkConfig : error is PlatformNotSupportedException ?
+            Words.ArenaStartupWalletPlatform : Words.StartupFailed;
         public override async Task Close()
         {
             Exception failure = null;

@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -55,6 +56,8 @@ namespace ZKube.Integration.Presentation
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             Flow = flow ?? throw new ArgumentNullException(nameof(flow));
             Flow.ExecutionStep = step => { actionStep = step; Present(); };
+            // Another language: this adapter's pages are built again from its words.
+            Words.Changed += Present;
             identity = clientIdentity ?? throw new ArgumentNullException(nameof(clientIdentity));
             now = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             injectedDensity = displayDensity; injectedScale = scale.HasValue ? BoardController.SupportedTextScale(scale.Value) : (float?)null;
@@ -118,7 +121,7 @@ namespace ZKube.Integration.Presentation
             RetireRead(); reads = new CancellationTokenSource(); long epoch = generation;
             Busy = true; failure = null; info = null; Present();
             try { await operation(epoch, reads.Token); }
-            catch (OperationCanceledException) { if (Current(epoch)) Fail("The page was interrupted while loading."); }
+            catch (OperationCanceledException) { if (Current(epoch)) Fail(Words.ArenaRefreshCancelled); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
             finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
@@ -145,10 +148,10 @@ namespace ZKube.Integration.Presentation
             Present();
         }
         private static string PublicStatus(string value) => value switch {
-            "missing-config" or "missing-daily" => "Arena opens soon",
-            "suspended" => "Daily is suspended", "paused" => "Daily play is paused", "not-open" => "Opens later today",
-            "open" => "Daily is open", "frozen" => "Entries are closed",
-            "finalized" => "Daily complete", _ => "Daily status unavailable"
+            "missing-config" or "missing-daily" => Words.ArenaStatusOpensSoon,
+            "suspended" => Words.ArenaStatusSuspended, "paused" => Words.ArenaStatusPaused, "not-open" => Words.ArenaStatusNotOpen,
+            "open" => Words.ArenaStatusOpen, "frozen" => Words.ArenaStatusFrozen,
+            "finalized" => Words.ArenaStatusFinalized, _ => Words.ArenaStatusUnknown
         };
         private static string SessionText(SessionAssessment value)
         {
@@ -164,7 +167,7 @@ namespace ZKube.Integration.Presentation
             {
                 // This observation is not a transaction receipt. Preserve an
                 // actual receipt, but acknowledge an empty check when none exists.
-                if (LastReceipt == null) { receiptNotice = "There is no transaction waiting to be checked."; receiptFamily = Family(); }
+                if (LastReceipt == null) { receiptNotice = Words.ArenaReceiptNoneWaiting; receiptFamily = Family(); }
                 return;
             }
             if (lastReceipt?.Signature != result.Signature) fullReceipt = false;
@@ -228,8 +231,8 @@ namespace ZKube.Integration.Presentation
                 if (shell.ArtworkError != null)
                 {
                     presenting = false; shownKey = null;
-                    views.Unavailable("This page could not be opened.", "Realm artwork unavailable.",
-                        PageAction("Try again", () => { shell.ReleaseArtwork(); _ = RefreshOverview(); }));
+                    views.Unavailable(Words.PageUnavailable, Words.ArenaArtUnavailable,
+                        PageAction(Words.ActionTryAgain, () => { shell.ReleaseArtwork(); _ = RefreshOverview(); }, name: "Try again"));
                     yield break;
                 }
             }
@@ -248,7 +251,7 @@ namespace ZKube.Integration.Presentation
             catch (Exception error)
             {
                 Debug.LogException(error); shownKey = null;
-                views.Unavailable("This page could not be opened.", error.Message, PageAction("Try again", () => _ = RefreshOverview()));
+                views.Unavailable(Words.PageUnavailable, null, PageAction(Words.ActionTryAgain, () => _ = RefreshOverview()));
             }
         }
 
@@ -299,7 +302,7 @@ namespace ZKube.Integration.Presentation
         }
         public void Detach()
         {
-            if (detached) return; detached = true; RetireRead();
+            if (detached) return; detached = true; RetireRead(); Words.Changed -= Present;
             boardHost?.Close();
             runBoard?.Close();
             publicRead = null; ownerRead = null; ClearProductObservations();
@@ -321,10 +324,10 @@ namespace ZKube.Integration.Presentation
         private static string Sol(ulong lamports) => MoneyText.Sol(lamports);
         private static string Short(string address) => address == null || address.Length <= 10 ? address :
             address.Substring(0, 4) + "…" + address.Substring(address.Length - 4);
-        private static string Day(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime
-            .ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-        private static string Utc(long seconds) => seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds() ? "a date outside the calendar" :
-            DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM · HH:mm", CultureInfo.InvariantCulture) + " UTC";
+        private static string Day(uint day) => Words.DateWithYear(DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime);
+        private static string Utc(long seconds) => seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds() ? Words.ArenaDateOutside :
+            Words.FormatDateTime(Words.Date(DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime),
+                DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("HH:mm", CultureInfo.InvariantCulture));
         private uint Today => NativeEngine.DayAt(now());
         private byte TodayRealm => dailyRead != null && dailyRead.TryValue(out var daily) ? daily.Lobby.Realm :
             publicRead != null && publicRead.TryValue(out var today) ? today.Realm : NativeEngine.Daily(Today).Realm;

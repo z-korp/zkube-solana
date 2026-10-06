@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using System.Threading.Tasks;
 using TMPro;
@@ -12,7 +13,7 @@ namespace ZKube.Presentation
         public abstract void Open(AppStartup startup);
         public abstract Task Close();
         public virtual string UnavailableMessage(Exception error) =>
-            Application.productName + " could not open your saved progress. Close and reopen the app to try again.";
+            Words.StartupUnavailable(Application.productName);
     }
 
     [Serializable] public sealed class AppStartupConfiguration
@@ -49,6 +50,7 @@ namespace ZKube.Presentation
         {
             if (stopping) return;
             Application.targetFrameRate = FrameRate;
+            Words.Use(AppPreferences.Language);
             StartCoroutine(ReleaseLaunchWindow());
             try
             {
@@ -62,7 +64,7 @@ namespace ZKube.Presentation
             catch (Exception error)
             {
                 _ = CloseIdentity();
-                UnavailableText = Configuration.Identity == null ? "The application could not start." : Configuration.Identity.UnavailableMessage(error);
+                UnavailableText = Configuration.Identity == null ? Words.StartupFailed : Configuration.Identity.UnavailableMessage(error);
                 var root = new GameObject("Application unavailable"); root.transform.SetParent(transform, false);
                 unavailable = root.AddComponent<AppShell>(); unavailable.Initialize(Application.productName);
                 var label = AppShell.Rect("Unavailable status", unavailable.Content).gameObject.AddComponent<TextMeshProUGUI>();

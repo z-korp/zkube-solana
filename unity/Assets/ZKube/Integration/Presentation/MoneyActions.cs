@@ -21,7 +21,7 @@ namespace ZKube.Integration.Presentation
         // round of the wait is bounded, a little past the time a transaction can
         // still land; beyond it the page says it is still checking and the next
         // round starts by itself.
-        private const string StillChecking = "Still checking. This either completes or changes nothing.";
+        private static string StillChecking => Words.ArenaStillChecking;
         // An action in progress shows on its button: the loader and its step in
         // a word, never a line that stands still. The executor says when the
         // wallet has the request and when the transaction leaves; the follower's
@@ -35,8 +35,8 @@ namespace ZKube.Integration.Presentation
         private void Slow() { slow = true; followAgainAt = UnityEngine.Time.unscaledTime + (float)followRest.TotalSeconds; }
         private PageAction Progressing()
         {
-            string word = following || actionStep == "confirming" || PendingShown() ? "Confirming" : actionStep == "wallet" ? "Approve in wallet" : actionStep == "sending" ? "Sending" : "Preparing";
-            return new PageAction { Label = word, Name = "Action progress", Progress = word, Short = word == "Approve in wallet" ? "In wallet" : null };
+            string word = following || actionStep == "confirming" || PendingShown() ? Words.ArenaStepConfirming : actionStep == "wallet" ? Words.ArenaStepWallet : actionStep == "sending" ? Words.ArenaStepSending : Words.ArenaStepPreparing;
+            return new PageAction { Label = word, Name = "Action progress", Progress = word, Short = word == Words.ArenaStepWallet ? Words.ArenaStepWalletShort : null };
         }
         // The executor has already looked a few times in the first two seconds.
         // The follower looks every half second at first, then backs off: a
@@ -47,7 +47,7 @@ namespace ZKube.Integration.Presentation
         // a row, each spaced twice as far as the last, the follow stops and the
         // page says why with a retry: nothing loops on a reply it cannot read.
         private const int UnreadLooks = 3;
-        private static string CouldNotConfirm(ExecutionResult result) => "This is not confirmed yet. " + MoneyReceiptText.Refusal(result.Failure);
+        private static string CouldNotConfirm(ExecutionResult result) => Words.ArenaNotConfirmed(MoneyReceiptText.Refusal(result.Failure));
         private TimeSpan FollowPause(TimeSpan elapsed) =>
             TimeSpan.FromTicks(followEvery.Ticks * (elapsed.Ticks < followEvery.Ticks * 12 ? 1 : elapsed.Ticks < followEvery.Ticks * 40 ? 2 : 4));
         // result is the action's own pending result, or null to follow whatever this address has waiting.
@@ -113,7 +113,7 @@ namespace ZKube.Integration.Presentation
 
         private void Refuse(string family, string reason, Action retry) { refusal = reason; refusalFamily = family; refusalRetry = retry; Present(); }
         private void ClearRefusal() { refusal = null; refusalFamily = null; refusalRetry = null; }
-        private string Reason(Exception error) => error is MoneyConfigurationException ? "Network configuration is unavailable." :
+        private string Reason(Exception error) => error is MoneyConfigurationException ? Words.ArenaNetworkConfig :
             error is WalletRequestException wallet ? MoneyReceiptText.Refusal(wallet.Code) : MoneyReceiptText.Refusal(RequestFailure.Of(error));
 
         // Every wallet and device action runs here. Its page shows the request
@@ -174,7 +174,7 @@ namespace ZKube.Integration.Presentation
         {
             if (RefusalOn(family) == null) return false;
             page.Reason = RefusalLine(refusal);
-            page.Primary = PageAction("Try again", refusalRetry, available, icon: SkinSlots.IconRetry);
+            page.Primary = PageAction(Words.ActionTryAgain, refusalRetry, available, "Try again", SkinSlots.IconRetry);
             return true;
         }
         private void Requesting(PanelPageView page)
@@ -192,9 +192,9 @@ namespace ZKube.Integration.Presentation
         // Until the Arena launches, its pages say so and lead to the Campaign.
         private void OpensSoon(PanelPageView page)
         {
-            page.Blocks = new[] { PanelBlock.Title("Arena opens soon", centered: true),
-                PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", "Campaign", "Open", tagToken: SkinTokens.Positive)) };
-            page.Primary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable(), icon: SkinSlots.IconPlay);
+            page.Blocks = new[] { PanelBlock.Title(Words.ArenaStatusOpensSoon, centered: true),
+                PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", Words.ModeCampaign, Words.ArenaOpen, tagToken: SkinTokens.Positive)) };
+            page.Primary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
         }
     }
 }

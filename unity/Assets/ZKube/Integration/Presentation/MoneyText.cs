@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System.Globalization;
 using ZKube.Core;
 using ZKube.Presentation;
@@ -12,18 +13,18 @@ namespace ZKube.Integration.Presentation
         // meant (records, claims) or the day has none (a Classic day), Objective.
         public static string Board(string kind, PageCatalog catalog, uint? day = null)
         {
-            if (kind == "score") return "Score";
-            if (!day.HasValue) return "Objective";
+            if (kind == "score") return Words.ArenaBoardScore;
+            if (!day.HasValue) return Words.ArenaBoardObjective;
             var daily = NativeEngine.Daily(day.Value);
-            if (daily.Kind == 0) return "Objective";
+            if (daily.Kind == 0) return Words.ArenaBoardObjective;
             string name = catalog.ObjectiveName(daily.Kind, daily.Value);
-            return string.IsNullOrEmpty(name) ? "Objective" : char.ToUpperInvariant(name[0]) + name.Substring(1);
+            return string.IsNullOrEmpty(name) ? Words.ArenaBoardObjective : name;
         }
 
         // A SOL amount is its figure with at least two decimals (0.10, 0.005) and then the Solana mark, which the
         // kit draws in the version its surface takes. Only a sentence says the word instead.
         public static string Sol(ulong lamports) => Figure(lamports) + CurrencyMark.Tag;
-        public static string SolInWords(ulong lamports) => Figure(lamports) + " SOL";
-        private static string Figure(ulong lamports) => (lamports / 1000000000m).ToString("0.00#######", CultureInfo.InvariantCulture);
+        public static string SolInWords(ulong lamports) => Words.FormatSol(Figure(lamports));
+        private static string Figure(ulong lamports) => Words.Decimal(lamports / 1000000000m, "0.00#######");
     }
 }

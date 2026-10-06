@@ -131,6 +131,7 @@ namespace ZKube.Tests.MoneyOverview
                 ("Device", AppPage.Home, () => Opened(Adapter.OpenSession())),
                 ("Device", AppPage.Settings, () => Tapped(AppPage.Settings, "Manage")),
                 ("Operation", AppPage.Settings, () => Tapped(AppPage.Settings, "Last operation")),
+                ("Languages", AppPage.Settings, () => Tapped(AppPage.Settings, "Language: en")),
                 ("Profile Records", AppPage.Profile, () => Tapped(AppPage.Profile, "Your records")),
                 ("Profile Borders", AppPage.Profile, () => Tapped(AppPage.Profile, "Choose a border")) };
             foreach (var (panel, parent, open) in under)

@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using UnityEngine;
 
@@ -9,6 +10,29 @@ namespace ZKube.Presentation
         public static bool Muted => PlayerPrefs.GetInt("zkube.sound.muted", 0) == 1;
         public static bool Haptics => PlayerPrefs.GetInt("zkube.haptics.enabled", 0) == 1;
         public static float TextScale => PlayerPrefs.GetInt("zkube.text.larger", 0) == 1 ? 1.3f : 1;
+        // The player's language: the one chosen in Settings, else the device's.
+        // Words.Find reads a code it has no words for as the nearest it has, then English.
+        public static string Language => PlayerPrefs.GetString("zkube.language", DeviceLanguage());
+        public static void SetLanguage(string code) { PlayerPrefs.SetString("zkube.language", code); PlayerPrefs.Save(); Words.Use(code); }
+        public static string DeviceLanguage() => LanguageOf(Application.systemLanguage);
+        public static string LanguageOf(SystemLanguage device)
+        {
+            switch (device)
+            {
+                case SystemLanguage.French: return "fr";
+                case SystemLanguage.Spanish: return "es";
+                case SystemLanguage.Portuguese: return "pt-BR";
+                case SystemLanguage.German: return "de";
+                case SystemLanguage.Japanese: return "ja";
+                case SystemLanguage.Korean: return "ko";
+                case SystemLanguage.Russian: return "ru";
+                case SystemLanguage.Turkish: return "tr";
+                case SystemLanguage.Vietnamese: return "vi";
+                case SystemLanguage.Indonesian: return "id";
+                case SystemLanguage.Chinese: case SystemLanguage.ChineseSimplified: case SystemLanguage.ChineseTraditional: return "zh-Hans";
+                default: return "en";
+            }
+        }
         public static AudioPreferences Audio() => new AudioPreferences(
             PlayerPrefs.GetFloat, (key, value) => { PlayerPrefs.SetFloat(key, value); PlayerPrefs.Save(); });
         private static void Save(string key, bool value) { PlayerPrefs.SetInt(key, value ? 1 : 0); PlayerPrefs.Save(); }

@@ -1,0 +1,895 @@
+{
+ "arena.boards.sealed_claim_by": {
+  "de": {
+   "says": "Closed · collect by {date}",
+   "seal": "d6ad648c"
+  },
+  "es": {
+   "says": "Closed · claim before {date}",
+   "seal": "a4cdf541"
+  },
+  "fr": {
+   "says": "Closed · to collect before {date}",
+   "seal": "fec2ebb0"
+  },
+  "id": {
+   "says": "Final result · claim until {date}",
+   "seal": "bfbb145c"
+  },
+  "ja": {
+   "says": "Final · collect by {date}",
+   "seal": "26f9edcf"
+  },
+  "ko": {
+   "says": "Final · collect by {date}",
+   "seal": "63ba4e94"
+  },
+  "meaning": "The board is sealed and its rewards can be claimed until the stated date.",
+  "pt-BR": {
+   "says": "Closed · claim by {date}",
+   "seal": "7d195929"
+  },
+  "ru": {
+   "says": "Results are final · collect by {date}",
+   "seal": "544b7fc3"
+  },
+  "tr": {
+   "says": "Final · last date to collect {date}",
+   "seal": "19c91c04"
+  },
+  "vi": {
+   "says": "Finalized · deadline to collect {date}",
+   "seal": "58d2ac70"
+  },
+  "zh-Hans": {
+   "says": "Settled · claim before {date}",
+   "seal": "580ebe5f"
+  }
+ },
+ "arena.device.low.guide": {
+  "de": {
+   "says": "Top up the deposit to continue. Your wallet brings it back to {amount}.",
+   "seal": "e48241ab"
+  },
+  "es": {
+   "says": "Top up the deposit to continue. Your wallet brings it back to {amount}.",
+   "seal": "8f66b7f8"
+  },
+  "fr": {
+   "says": "Top up the deposit to continue. Your wallet brings it back to {amount}.",
+   "seal": "834afeeb"
+  },
+  "id": {
+   "says": "Add to the deposit to continue. Your wallet fills it back up to {amount}.",
+   "seal": "f9ab1a4e"
+  },
+  "ja": {
+   "says": "Top up the deposit to continue. It is brought back to {amount} from your wallet.",
+   "seal": "1ad01e22"
+  },
+  "ko": {
+   "says": "Top up the deposit to continue. Your wallet fills it back to {amount}.",
+   "seal": "f573f736"
+  },
+  "meaning": "The wallet tops the deposit back up to the stated amount; it is a deposit.",
+  "pt-BR": {
+   "says": "Top up the deposit to continue. Your wallet takes it back to {amount}.",
+   "seal": "9df1d68e"
+  },
+  "ru": {
+   "says": "Top up the deposit to continue. The wallet will bring it up to {amount}.",
+   "seal": "c5448108"
+  },
+  "tr": {
+   "says": "Top up the deposit to continue. Your wallet brings it back to the level of {amount}.",
+   "seal": "7f93b379"
+  },
+  "vi": {
+   "says": "Top up the deposit to continue. Your wallet will fill it up to {amount}.",
+   "seal": "7a5a623b"
+  },
+  "zh-Hans": {
+   "says": "Top up the deposit to continue. Your wallet brings it back to {amount}.",
+   "seal": "c797f392"
+  }
+ },
+ "arena.device.revoke.return": {
+  "de": {
+   "says": "The rest of the deposit goes back into your wallet. Your Kredits stay in your balance, and this device keeps its install key for a later new authorization.",
+   "seal": "74bd8d65"
+  },
+  "es": {
+   "says": "What is left of the deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key to authorize it again later.",
+   "seal": "6737161a"
+  },
+  "fr": {
+   "says": "The rest of the deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key for a later re-authorization.",
+   "seal": "2fbe9092"
+  },
+  "id": {
+   "says": "The rest of the deposit returns to your wallet. Kredits stay in your balance, and this device keeps its install key so that it can be authorized again later.",
+   "seal": "02a06b4c"
+  },
+  "ja": {
+   "says": "The rest of the deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key so it can be authorized again later.",
+   "seal": "6e4be28a"
+  },
+  "ko": {
+   "says": "The remaining deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key so it can be authorized again later.",
+   "seal": "f03d2553"
+  },
+  "meaning": "Disabling returns what is left of the deposit to the wallet; Kredits stay in the balance; the device keeps its install key.",
+  "pt-BR": {
+   "says": "What is left of the deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key to be authorized again later.",
+   "seal": "4697fee6"
+  },
+  "ru": {
+   "says": "The rest of the deposit returns to your wallet. Kredits stay in the balance, and the device keeps its install key so that it can be authorized again.",
+   "seal": "a0b9780c"
+  },
+  "tr": {
+   "says": "The remaining deposit returns to your wallet. Your Kredit balance stays where it is, and this device keeps its install key so that it can be authorized again later.",
+   "seal": "fccdff99"
+  },
+  "vi": {
+   "says": "The remaining deposit returns to your wallet. Kredits stay in the balance, and this device keeps its install key so that it can be authorized again later.",
+   "seal": "e862d2cc"
+  },
+  "zh-Hans": {
+   "says": "The remaining deposit returns to your wallet. Your Kredits stay in your balance, and this device keeps its install key so it can be authorized again later.",
+   "seal": "97e5f223"
+  }
+ },
+ "arena.device.setup.guide": {
+  "de": {
+   "says": "About {amount} per run. The rest comes back when you disable this device.",
+   "seal": "9d075208"
+  },
+  "es": {
+   "says": "About {amount} per run. The rest returns to you when you disable this device.",
+   "seal": "f7f5f14e"
+  },
+  "fr": {
+   "says": "About {amount} per run. The rest comes back to you when you disable this device.",
+   "seal": "f3f33328"
+  },
+  "id": {
+   "says": "About {amount} per run. The rest returns when you disable this device.",
+   "seal": "1d613bb6"
+  },
+  "ja": {
+   "says": "About {amount} a run. The rest comes back when you disable this device.",
+   "seal": "bb528772"
+  },
+  "ko": {
+   "says": "About {amount} a run. The rest comes back when you disable this device.",
+   "seal": "9092114a"
+  },
+  "meaning": "The device holds a deposit, not a fee: a run costs about the stated amount and the rest returns when the device is disabled.",
+  "pt-BR": {
+   "says": "About {amount} per run. The rest returns to you when you disable this device.",
+   "seal": "765ef0b8"
+  },
+  "ru": {
+   "says": "About {amount} per run. The remainder returns when you disable this device.",
+   "seal": "f1dfb5a3"
+  },
+  "tr": {
+   "says": "About {amount} per run. The rest returns when you disable this device.",
+   "seal": "b601bb90"
+  },
+  "vi": {
+   "says": "About {amount} per run. The rest returns when you turn this device off.",
+   "seal": "5094a06b"
+  },
+  "zh-Hans": {
+   "says": "About {amount} a run. When you disable this device, the rest is returned.",
+   "seal": "c44ab354"
+  }
+ },
+ "arena.entry.terms": {
+  "de": {
+   "says": "This entry costs money and is not refunded. It funds the next paid Daily.",
+   "seal": "0a8ab422"
+  },
+  "es": {
+   "says": "This entry is paid and is not refunded. It funds the next paid Daily.",
+   "seal": "e8b33791"
+  },
+  "fr": {
+   "says": "This entry is paid and non-refundable. It funds the next paid Daily.",
+   "seal": "5eebdea7"
+  },
+  "id": {
+   "says": "This entry is paid, with no refund of the money. Its price goes into the next paid Daily.",
+   "seal": "0d7eb6bd"
+  },
+  "ja": {
+   "says": "This entry is paid and cannot be refunded. It becomes the funds of the next paid Daily.",
+   "seal": "84958e84"
+  },
+  "ko": {
+   "says": "This entry is paid and is not refunded. It is used as prize money for the next paid Daily.",
+   "seal": "5fae810c"
+  },
+  "meaning": "A paid entry is never refunded. Its price goes to the next paid Daily.",
+  "pt-BR": {
+   "says": "This entry is paid and has no refund. It funds the next paid Daily.",
+   "seal": "3b1fbc39"
+  },
+  "ru": {
+   "says": "The entry is paid, and the money for it is not returned. It goes into the next paid Daily.",
+   "seal": "2002c9a7"
+  },
+  "tr": {
+   "says": "This entry is paid and is not refunded. Its price is passed on to the next paid Daily.",
+   "seal": "72c21ecc"
+  },
+  "vi": {
+   "says": "This entry must be paid for and is not refunded. The amount goes into the next paid Daily.",
+   "seal": "7377192f"
+  },
+  "zh-Hans": {
+   "says": "This entry must be paid for and is not refunded. The fee goes to the next paid Daily.",
+   "seal": "8e604823"
+  }
+ },
+ "arena.kredits.terms": {
+  "de": {
+   "says": "Kredits cannot be paid out, transferred or exchanged.",
+   "seal": "9e7bca6b"
+  },
+  "es": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "6ff5194b"
+  },
+  "fr": {
+   "says": "Kredits can be neither withdrawn, nor transferred, nor exchanged.",
+   "seal": "2ade5a2e"
+  },
+  "id": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "e15c14ca"
+  },
+  "ja": {
+   "says": "Kredits cannot be withdrawn, transferred or cashed.",
+   "seal": "358374e7"
+  },
+  "ko": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged for money.",
+   "seal": "e8c6b2c5"
+  },
+  "meaning": "Kredits are one-way: they cannot be withdrawn, transferred or exchanged.",
+  "pt-BR": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "819f887e"
+  },
+  "ru": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "24fe9ba6"
+  },
+  "tr": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "e99381bb"
+  },
+  "vi": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "da79150b"
+  },
+  "zh-Hans": {
+   "says": "Kredits cannot be withdrawn, transferred or exchanged.",
+   "seal": "d9fe7a58"
+  }
+ },
+ "arena.profile.border_rule": {
+  "de": {
+   "says": "Earned borders stay available. Ladder points stay forever and bring no rewards.",
+   "seal": "7bc071e1"
+  },
+  "es": {
+   "says": "Earned borders stay available. Ladder points are permanent and give no rewards.",
+   "seal": "bb96cb3d"
+  },
+  "fr": {
+   "says": "Earned borders stay available. Ladder points are permanent and give no reward.",
+   "seal": "96eb7d01"
+  },
+  "id": {
+   "says": "Borders already earned can still be worn. Ladder points are permanent and give no money.",
+   "seal": "7d7f36b6"
+  },
+  "ja": {
+   "says": "Borders you earned can always be used. Ladder points remain forever and are not a reward.",
+   "seal": "b528353b"
+  },
+  "ko": {
+   "says": "Borders you earned stay usable. Ladder points remain forever and bring no reward.",
+   "seal": "7b91da56"
+  },
+  "meaning": "Earned borders stay wearable. Ladder points are permanent and pay no money.",
+  "pt-BR": {
+   "says": "Earned borders stay available. League points are permanent and give no rewards.",
+   "seal": "a8b608ec"
+  },
+  "ru": {
+   "says": "Earned borders stay available. Ladder points are permanent and give no money rewards.",
+   "seal": "47d12554"
+  },
+  "tr": {
+   "says": "The borders you earned stay usable. Ladder points are permanent and give no money reward.",
+   "seal": "0183cc89"
+  },
+  "vi": {
+   "says": "Borders you earned can still be used. Ladder points are permanent and pay no prize money.",
+   "seal": "b419a246"
+  },
+  "zh-Hans": {
+   "says": "Borders you earned stay available. Ladder points are kept forever and bring no reward.",
+   "seal": "287a7b25"
+  }
+ },
+ "arena.refusal.expired.entry": {
+  "de": {
+   "says": "It never arrived. Your Kredit is safe. Try again.",
+   "seal": "678c81e2"
+  },
+  "es": {
+   "says": "It was never recorded. Your Kredit is safe. Try again.",
+   "seal": "b6ffdb1a"
+  },
+  "fr": {
+   "says": "It never arrived. Your Kredit is untouched. Try again.",
+   "seal": "85aa400a"
+  },
+  "id": {
+   "says": "The transaction was never recorded. Your Kredit is safe. Try again.",
+   "seal": "dbf4cf75"
+  },
+  "ja": {
+   "says": "The transaction did not arrive. Your Kredit has not gone down. Please try again.",
+   "seal": "b6af2846"
+  },
+  "ko": {
+   "says": "The transaction did not arrive. Your Kredit is as it was. Please try again.",
+   "seal": "b2f65e4f"
+  },
+  "meaning": "An entry that never landed spent no Kredit, and the player can enter again.",
+  "pt-BR": {
+   "says": "It was never recorded. Your Kredit is safe. Try again.",
+   "seal": "be873864"
+  },
+  "ru": {
+   "says": "The transaction did not get through. Your Kredit is intact. Try again.",
+   "seal": "7d9083ef"
+  },
+  "tr": {
+   "says": "The transaction did not reach the network. No Kredit was spent. Try again.",
+   "seal": "7ce41626"
+  },
+  "vi": {
+   "says": "The transaction was never recorded. Your Kredit is still whole. Try again.",
+   "seal": "8f244c5d"
+  },
+  "zh-Hans": {
+   "says": "It did not reach the chain; your Kredit is still there. Please try again.",
+   "seal": "dfcc6575"
+  }
+ },
+ "arena.rewards.claim_by": {
+  "de": {
+   "says": "{amount} · collect by {date}",
+   "seal": "e0750d35"
+  },
+  "es": {
+   "says": "{amount} · claim before {date}",
+   "seal": "94e6fc5d"
+  },
+  "fr": {
+   "says": "{amount} · to collect before {date}",
+   "seal": "b259bea5"
+  },
+  "id": {
+   "says": "{amount} · claim until {date}",
+   "seal": "e0037ca1"
+  },
+  "ja": {
+   "says": "{amount} · collect by {date}",
+   "seal": "74e181df"
+  },
+  "ko": {
+   "says": "{amount} · collect by {date}",
+   "seal": "815371b4"
+  },
+  "meaning": "A reward can be claimed until the stated date.",
+  "pt-BR": {
+   "says": "{amount} · claim by {date}",
+   "seal": "6b133366"
+  },
+  "ru": {
+   "says": "{amount} · collect by {date}",
+   "seal": "6891672f"
+  },
+  "tr": {
+   "says": "{amount} · last date to collect {date}",
+   "seal": "747ee158"
+  },
+  "vi": {
+   "says": "{amount} · deadline to collect {date}",
+   "seal": "250f1e4e"
+  },
+  "zh-Hans": {
+   "says": "{amount} · claim before {date}",
+   "seal": "fb783bfa"
+  }
+ },
+ "arena.rewards.window_closed": {
+  "de": {
+   "says": "Collection deadline passed",
+   "seal": "87702aa5"
+  },
+  "es": {
+   "says": "Claim period closed",
+   "seal": "16a3d339"
+  },
+  "fr": {
+   "says": "Collection deadline passed",
+   "seal": "cb35ec36"
+  },
+  "id": {
+   "says": "The claim period has ended",
+   "seal": "12fa5b6d"
+  },
+  "ja": {
+   "says": "Collection period over",
+   "seal": "75d8cde4"
+  },
+  "ko": {
+   "says": "Collection period ended",
+   "seal": "d3c103a2"
+  },
+  "meaning": "The claim window has ended; the reward can no longer be claimed.",
+  "pt-BR": {
+   "says": "Claim deadline closed",
+   "seal": "484c816a"
+  },
+  "ru": {
+   "says": "The time to collect has run out",
+   "seal": "68e318a0"
+  },
+  "tr": {
+   "says": "The time to collect has run out",
+   "seal": "e7bd70d9"
+  },
+  "vi": {
+   "says": "The time to collect has ended",
+   "seal": "1e7fe557"
+  },
+  "zh-Hans": {
+   "says": "The claim period has passed",
+   "seal": "e204fa55"
+  }
+ },
+ "lesson.arena.entry": {
+  "de": {
+   "says": "Each entry costs one Kredit. Play as often as you want: your best run counts.",
+   "seal": "8e98374a"
+  },
+  "es": {
+   "says": "Each entry costs one Kredit. Play as much as you want: your best run counts.",
+   "seal": "ed8b98ae"
+  },
+  "fr": {
+   "says": "Each entry costs one Kredit. Play as much as you want: only your best run counts.",
+   "seal": "10faf491"
+  },
+  "id": {
+   "says": "Each entry costs one Kredit. Play as often as you want; it is your best run that is counted.",
+   "seal": "8ca96ccc"
+  },
+  "ja": {
+   "says": "An entry is 1 Kredit each time. You can try as often as you like, and your best run is the one recorded.",
+   "seal": "354328d7"
+  },
+  "ko": {
+   "says": "Each entry costs 1 Kredit. You can play any number of times, and your best run is recorded.",
+   "seal": "4ebf1dd3"
+  },
+  "meaning": "One entry costs one Kredit; entries are unlimited; only the best run counts.",
+  "pt-BR": {
+   "says": "Each entry costs one Kredit. Play as much as you want: your best run counts.",
+   "seal": "06dd0374"
+  },
+  "ru": {
+   "says": "Each entry costs one Kredit. Play as much as you want: the best run is the one that counts.",
+   "seal": "5c6f8da7"
+  },
+  "tr": {
+   "says": "Each entry costs one Kredit. Play as much as you want; your best run counts.",
+   "seal": "30817e77"
+  },
+  "vi": {
+   "says": "Each entry costs one Kredit. Play as many times as you like; your best run is the one counted.",
+   "seal": "93b19628"
+  },
+  "zh-Hans": {
+   "says": "Each entry costs 1 Kredit. Play as many times as you like: only your best run counts.",
+   "seal": "9359e3ea"
+  }
+ },
+ "lesson.arena.ladder": {
+  "de": {
+   "says": "Each Daily you score in brings ladder points. They never expire.",
+   "seal": "ae558334"
+  },
+  "es": {
+   "says": "Each Daily you score in adds ladder points. They are never lost.",
+   "seal": "6e61e978"
+  },
+  "fr": {
+   "says": "Each Daily you score in adds ladder points. They are never erased.",
+   "seal": "722e2a39"
+  },
+  "id": {
+   "says": "Every Daily in which you score adds ladder points. Those points never decrease.",
+   "seal": "9ceb2426"
+  },
+  "ja": {
+   "says": "Each Daily you score in gives ladder points. The points do not decrease.",
+   "seal": "ce870704"
+  },
+  "ko": {
+   "says": "You get ladder points for each Daily you score in. Ladder points do not go down.",
+   "seal": "c2d2de0b"
+  },
+  "meaning": "Scoring in a Daily adds ladder points, and ladder points never decay.",
+  "pt-BR": {
+   "says": "Each Daily you score in adds league points. They are never lost.",
+   "seal": "b1f46cdb"
+  },
+  "ru": {
+   "says": "Every Daily in which you have points adds ladder points. They never expire.",
+   "seal": "619a0300"
+  },
+  "tr": {
+   "says": "Every Daily you score in adds ladder points. These points are never erased.",
+   "seal": "923fe348"
+  },
+  "vi": {
+   "says": "Every Daily you score in adds ladder points. These points are never lost.",
+   "seal": "c209f4f3"
+  },
+  "zh-Hans": {
+   "says": "Every Daily you score in brings ladder points. The points never decrease.",
+   "seal": "4d7961c4"
+  }
+ },
+ "lesson.arena.prize": {
+  "de": {
+   "says": "The front places share the prize. Collect it within thirty days.",
+   "seal": "ae8f7a39"
+  },
+  "es": {
+   "says": "The top places share the prize. Claim it within thirty days.",
+   "seal": "fb4328ed"
+  },
+  "fr": {
+   "says": "The top places share the pot. Collect your share within thirty days.",
+   "seal": "61ac9d1b"
+  },
+  "id": {
+   "says": "The top places share the prize. Claim your reward within thirty days.",
+   "seal": "83a90a53"
+  },
+  "ja": {
+   "says": "The top players share the prize money. Collect it within 30 days.",
+   "seal": "42f49508"
+  },
+  "ko": {
+   "says": "The top players share the prize money. Collect it within 30 days.",
+   "seal": "85a0c53c"
+  },
+  "meaning": "The top places share the prize, and a reward can be claimed for thirty days.",
+  "pt-BR": {
+   "says": "The top positions split the prize. Claim yours within thirty days.",
+   "seal": "c694897b"
+  },
+  "ru": {
+   "says": "The best places share the prize. Collect your reward within thirty days.",
+   "seal": "435461b3"
+  },
+  "tr": {
+   "says": "The first places share the prize. Collect your reward within thirty days.",
+   "seal": "1ace8f52"
+  },
+  "vi": {
+   "says": "The top places share the prize. Collect your reward within thirty days.",
+   "seal": "fe4cd477"
+  },
+  "zh-Hans": {
+   "says": "The top-ranked players share the prize money. Claim it within thirty days.",
+   "seal": "53dda1d5"
+  }
+ },
+ "pause.end_cost.campaign": {
+  "de": {
+   "says": "An ended run keeps no stars.",
+   "seal": "faa0ab7b"
+  },
+  "es": {
+   "says": "A finished run keeps no stars.",
+   "seal": "37cca01e"
+  },
+  "fr": {
+   "says": "A stopped run keeps no star.",
+   "seal": "f74a6e7b"
+  },
+  "id": {
+   "says": "A run that is ended keeps no stars.",
+   "seal": "e1cfd76b"
+  },
+  "ja": {
+   "says": "If you end midway, no stars remain.",
+   "seal": "cd665a6c"
+  },
+  "ko": {
+   "says": "A run ended midway keeps no stars.",
+   "seal": "b453ad45"
+  },
+  "meaning": "An ended Campaign run keeps no stars.",
+  "pt-BR": {
+   "says": "An ended run keeps no stars.",
+   "seal": "34f0abfa"
+  },
+  "ru": {
+   "says": "An ended run keeps no stars.",
+   "seal": "8a005b1e"
+  },
+  "tr": {
+   "says": "A run that is ended keeps no star.",
+   "seal": "de44a16b"
+  },
+  "vi": {
+   "says": "A run ended early keeps no stars.",
+   "seal": "9b41f181"
+  },
+  "zh-Hans": {
+   "says": "A run ended midway keeps no stars.",
+   "seal": "de70b1fb"
+  }
+ },
+ "pause.end_cost.daily": {
+  "de": {
+   "says": "Your score so far counts for today.",
+   "seal": "9a50b352"
+  },
+  "es": {
+   "says": "Your score so far counts for today.",
+   "seal": "9ee79cc1"
+  },
+  "fr": {
+   "says": "Your current score counts for today.",
+   "seal": "714a5c6f"
+  },
+  "id": {
+   "says": "Your score so far is counted for today.",
+   "seal": "312a97a1"
+  },
+  "ja": {
+   "says": "Your current score becomes today’s record.",
+   "seal": "cae38e49"
+  },
+  "ko": {
+   "says": "Your score so far becomes today’s record.",
+   "seal": "f3444e0a"
+  },
+  "meaning": "An ended Daily run is scored at its current score.",
+  "pt-BR": {
+   "says": "Your score so far counts for today.",
+   "seal": "01d62567"
+  },
+  "ru": {
+   "says": "Your current score is counted for today.",
+   "seal": "0b407b36"
+  },
+  "tr": {
+   "says": "Your score so far counts for today.",
+   "seal": "ee33e322"
+  },
+  "vi": {
+   "says": "Your current score is counted for today.",
+   "seal": "aff030c1"
+  },
+  "zh-Hans": {
+   "says": "Your score so far will count as today’s result.",
+   "seal": "c29abb8e"
+  }
+ },
+ "pause.end_cost.daily_none": {
+  "de": {
+   "says": "Today's run ends without a score.",
+   "seal": "21bd90e0"
+  },
+  "es": {
+   "says": "Today's run ends without a score.",
+   "seal": "82a7b5a4"
+  },
+  "fr": {
+   "says": "Today's run ends without a score.",
+   "seal": "d339763a"
+  },
+  "id": {
+   "says": "Today’s run ends without a score.",
+   "seal": "f5b01c81"
+  },
+  "ja": {
+   "says": "Today’s run ends without a score.",
+   "seal": "85b05df6"
+  },
+  "ko": {
+   "says": "Today’s run ends without a score.",
+   "seal": "8a571dc6"
+  },
+  "meaning": "A Daily run ended before any accepted action has no score.",
+  "pt-BR": {
+   "says": "Today's run ends without a score.",
+   "seal": "7844f680"
+  },
+  "ru": {
+   "says": "Today’s run will end without a score.",
+   "seal": "2e9a840c"
+  },
+  "tr": {
+   "says": "Today’s run ends without a score.",
+   "seal": "9560bbb7"
+  },
+  "vi": {
+   "says": "Today’s run ends without a score.",
+   "seal": "9c7be2f7"
+  },
+  "zh-Hans": {
+   "says": "Today’s run will end with no score.",
+   "seal": "7bf78122"
+  }
+ },
+ "result.boards_note": {
+  "de": {
+   "says": "The places are final once each board is closed, after the day ends at 07:00 UTC.",
+   "seal": "087c63c5"
+  },
+  "es": {
+   "says": "Places are final when each board is closed, after the day ends at 07:00 UTC.",
+   "seal": "e441b99c"
+  },
+  "fr": {
+   "says": "Places are final once each board is closed, after the day ends at 07:00 UTC.",
+   "seal": "2d01c1d0"
+  },
+  "id": {
+   "says": "Places become final after each board is sealed, once the day has closed at 07:00 UTC.",
+   "seal": "0b0394f8"
+  },
+  "ja": {
+   "says": "The day ends at 07:00 UTC, and places are decided once each board is final.",
+   "seal": "c2f5cfe2"
+  },
+  "ko": {
+   "says": "The day ends at 07:00 UTC, and places are set once each board is final.",
+   "seal": "19a8ea62"
+  },
+  "meaning": "Places are final only once each board is sealed, after the day closes at 07:00 UTC.",
+  "pt-BR": {
+   "says": "Positions are final when each ranking is closed, after the day closes at 07:00 UTC.",
+   "seal": "bbd4469d"
+  },
+  "ru": {
+   "says": "Places are final once the results of each board are drawn up, after the day closes at 07:00 UTC.",
+   "seal": "86fa40ac"
+  },
+  "tr": {
+   "says": "After the day closes at 07:00 UTC each board becomes final; places take their final form then.",
+   "seal": "081603cc"
+  },
+  "vi": {
+   "says": "Places are final only when each board is finalized, after the day closes at 07:00 UTC.",
+   "seal": "d213c2b6"
+  },
+  "zh-Hans": {
+   "says": "The day ends at 07:00 UTC, and places are final once each board is settled.",
+   "seal": "d3167ddc"
+  }
+ },
+ "store.locked": {
+  "de": {
+   "says": "Realms {first} to {last} open with the purchase of the whole Campaign.",
+   "seal": "1d417113"
+  },
+  "es": {
+   "says": "Realms {first} to {last} open with the purchase of the full Campaign.",
+   "seal": "632de91d"
+  },
+  "fr": {
+   "says": "Realms {first} to {last} open with the purchase of the full Campaign.",
+   "seal": "d4733142"
+  },
+  "id": {
+   "says": "Realms {#first}–{#last} open with the purchase of the full Campaign.",
+   "seal": "10613cd8"
+  },
+  "ja": {
+   "says": "Realms {first} to {last} open when you buy the whole Campaign.",
+   "seal": "bf168498"
+  },
+  "ko": {
+   "says": "Buying the whole Campaign opens realms {first} to {last}.",
+   "seal": "1520d58f"
+  },
+  "meaning": "The realms from the first purchased one to the last open with the one full-Campaign purchase.",
+  "pt-BR": {
+   "says": "Realms {first} to {last} open with the purchase of the full Campaign.",
+   "seal": "92d362ec"
+  },
+  "ru": {
+   "says": "Realms {#first}–{#last} open with the purchase of the whole Campaign.",
+   "seal": "25c9990d"
+  },
+  "tr": {
+   "says": "The realms from {#first} to {#last} open with the full-campaign purchase.",
+   "seal": "da82c107"
+  },
+  "vi": {
+   "says": "Realms {#first}–{#last} open when the whole campaign is bought.",
+   "seal": "64beeb58"
+  },
+  "zh-Hans": {
+   "says": "Realms {first} to {last} open only after buying the full Campaign.",
+   "seal": "169a6b48"
+  }
+ },
+ "store.payment_pending": {
+  "de": {
+   "says": "Payment pending. The Campaign is unlocked once the payment is complete.",
+   "seal": "a14fc339"
+  },
+  "es": {
+   "says": "Payment pending. The Campaign unlocks when the payment finishes.",
+   "seal": "2094c187"
+  },
+  "fr": {
+   "says": "Payment pending. The Campaign unlocks once the payment is complete.",
+   "seal": "3a0ad9f5"
+  },
+  "id": {
+   "says": "Payment is pending. The Campaign opens after the payment completes.",
+   "seal": "89841e28"
+  },
+  "ja": {
+   "says": "The payment is being processed. The Campaign is unlocked when it completes.",
+   "seal": "03f62943"
+  },
+  "ko": {
+   "says": "The payment is being processed. The Campaign opens when the payment completes.",
+   "seal": "551d0eb2"
+  },
+  "meaning": "The Campaign unlocks only once the pending payment completes.",
+  "pt-BR": {
+   "says": "Payment pending. The Campaign is unlocked when the payment completes.",
+   "seal": "aaedb401"
+  },
+  "ru": {
+   "says": "The payment is pending. The Campaign will open when the payment completes.",
+   "seal": "9a54c31b"
+  },
+  "tr": {
+   "says": "Payment is pending. The campaign opens when the payment completes.",
+   "seal": "4cce0c01"
+  },
+  "vi": {
+   "says": "The payment is waiting to be processed. The campaign opens after the payment completes.",
+   "seal": "9d026bbf"
+  },
+  "zh-Hans": {
+   "says": "Payment in progress. The Campaign unlocks once the payment completes.",
+   "seal": "55a82f6b"
+  }
+ }
+}

@@ -35,7 +35,7 @@ namespace ZKube.Integration.Presentation
         {
             ClearDailyObservation();
             if (identity.Owner == null) { CloseDailyView(); return; }
-            Status = "Checking Daily…"; Notice("Checking today's challenge and your saved run.");
+            Status = "Checking Daily…"; Notice(Words.ArenaDailyChecking);
             var result = await Flow.RefreshDaily(token);
             if (!Current(epoch) || !browsingDaily) return;
             dailyRead = result; pageNotice = null; AwaitLaunch(result.Value.Lobby.Launched);
@@ -76,10 +76,10 @@ namespace ZKube.Integration.Presentation
         {
             if (!confirmingDaily || !CanEnterDaily() || boardHost == null) return Task.CompletedTask;
             confirmingDaily = false;
-            return OpenRun(() => Flow.StartDailyRun(), "Entering", true);
+            return OpenRun(() => Flow.StartDailyRun(), Words.ArenaStepEntering, true);
         }
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun(), "Opening", false);
+            OpenRun(() => Flow.OpenSavedRun(), Words.ArenaStepOpening, false);
 
         // The Arena's landing page: today's Daily with its prize pool, the Kredit
         // figure and one action, which is the player's next step, or the reason
@@ -100,19 +100,19 @@ namespace ZKube.Integration.Presentation
             DailyPageView Page(PageAction action) => new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
                 ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Status = PublicStatus(lobby.Status), Arcade = arcade,
                 Actions = action == null ? Array.Empty<PageAction>() : new[] { action } };
-            var campaign = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable());
+            var campaign = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign");
             // Before the Arena launches there is no entry, device or Kredit to offer: the Campaign is the way on.
-            if (!lobby.Launched) { arcade.Headline = "Opens soon"; arcade.Pot = null; return Page(campaign); }
+            if (!lobby.Launched) { arcade.Headline = Words.ArenaHeadlineOpensSoon; arcade.Pot = null; return Page(campaign); }
             // The day's state heads the clock.
             switch (lobby.Status)
             {
-                case "frozen": case "finalized": arcade.Headline = "Entries closed"; break;
-                case "suspended": arcade.Headline = "Entries paused"; arcade.Warning = true; break;
-                case "paused": arcade.Headline = "Play paused"; arcade.Warning = true; break;
-                case "not-open": arcade.Headline = "Opens later today"; break;
+                case "frozen": case "finalized": arcade.Headline = Words.ArenaHeadlineEntriesClosed; break;
+                case "suspended": arcade.Headline = Words.ArenaHeadlineEntriesPaused; arcade.Warning = true; break;
+                case "paused": arcade.Headline = Words.ArenaHeadlinePlayPaused; arcade.Warning = true; break;
+                case "not-open": arcade.Headline = Words.ArenaHeadlineLaterToday; break;
             }
-            var refresh = PageAction("Refresh", () => _ = RefreshOverview(), CanUseDaily, icon: SkinSlots.IconRetry);
-            var boards = PageAction("See boards", () => _ = OpenRewards(lobby.DayId), () => PageAvailable() && !Busy, icon: SkinSlots.IconTrophy);
+            var refresh = PageAction(Words.ActionRefresh, () => _ = RefreshOverview(), CanUseDaily, "Refresh", SkinSlots.IconRetry);
+            var boards = PageAction(Words.ArenaSeeBoards, () => _ = OpenRewards(lobby.DayId), () => PageAvailable() && !Busy, "See boards", SkinSlots.IconTrophy);
             // The one action is the player's next step; a reason stands only where the action does not say why.
             PageAction action;
             bool device = state.Entry.Status == "needs-session" || state.Entry.Status == "missing-player";
@@ -120,36 +120,36 @@ namespace ZKube.Integration.Presentation
             {
                 // A transaction still unconfirmed: the card's action is the loader, followed without a tap.
                 if (RefusalOn("Daily") != null) Reason(arcade, RefusalOn("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
-                action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily, icon: SkinSlots.IconRetry) : Progressing();
+                action = RefusalOn("Daily") != null ? PageAction(Words.ActionTryAgain, refusalRetry, CanUseDaily, "Try again", SkinSlots.IconRetry) : Progressing();
             }
             // Readiness says whether the slot holds a run to resume; one past its recovery deadline is retired by the next entry.
             else if (state.Entry.Status == "resume")
-                action = PageAction("Resume run", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null);
+                action = PageAction(Words.DailyResume, () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null, "Resume run");
             else switch (state.Entry.Status)
             {
-                case "ready": action = PageAction("Enter · 1 Kredit", AskDailyEntry, () => CanEnterDaily() && boardHost != null); break;
-                case "needs-kredits": action = PageAction("Buy Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy, icon: SkinSlots.IconKredit); break;
-                case "needs-session": case "missing-player": action = PageAction("Set up device", () => _ = OpenSession(), CanUseDaily, icon: SkinSlots.IconDevice); break;
-                case "needs-refill": action = PageAction("Top up deposit", () => _ = OpenSession(), CanUseDaily, icon: SkinSlots.IconPlus); break;
+                case "ready": action = PageAction(Words.ArenaEntryEnter, AskDailyEntry, () => CanEnterDaily() && boardHost != null, "Enter · 1 Kredit"); break;
+                case "needs-kredits": action = PageAction(Words.ArenaKreditsBuy, () => _ = OpenKredits(), () => PageAvailable() && !Busy, "Buy Kredits", SkinSlots.IconKredit); break;
+                case "needs-session": case "missing-player": action = PageAction(Words.ArenaDeviceSetUp, () => _ = OpenSession(), CanUseDaily, "Set up device", SkinSlots.IconDevice); break;
+                case "needs-refill": action = PageAction(Words.ArenaDeviceTopUp, () => _ = OpenSession(), CanUseDaily, "Top up deposit", SkinSlots.IconPlus); break;
                 case "suspended":
-                    arcade.Headline = "Entries paused"; arcade.Warning = true; Reason(arcade, "Entries are paused.", null); action = campaign; break;
+                    arcade.Headline = Words.ArenaHeadlineEntriesPaused; arcade.Warning = true; Reason(arcade, Words.ArenaReasonEntriesPaused, null); action = campaign; break;
                 case "paused":
-                    arcade.Headline = "Play paused"; arcade.Warning = true; Reason(arcade, "Play is paused.", null); action = campaign; break;
-                case "frozen": case "closed": arcade.Headline = "Entries closed"; action = boards; break;
-                case "not-open": arcade.Headline = "Opens later today"; action = campaign; break;
-                case "changed": Reason(arcade, "Your entry information changed.", null); action = refresh; break;
-                case "run-address-occupied": Reason(arcade, "A saved run needs checking before another entry.", null); action = refresh; break;
-                default: Reason(arcade, "Daily entry is unavailable.", null); action = refresh; break;
+                    arcade.Headline = Words.ArenaHeadlinePlayPaused; arcade.Warning = true; Reason(arcade, Words.ArenaReasonPlayPaused, null); action = campaign; break;
+                case "frozen": case "closed": arcade.Headline = Words.ArenaHeadlineEntriesClosed; action = boards; break;
+                case "not-open": arcade.Headline = Words.ArenaHeadlineLaterToday; action = campaign; break;
+                case "changed": Reason(arcade, Words.ArenaReasonEntryChanged, null); action = refresh; break;
+                case "run-address-occupied": Reason(arcade, Words.ArenaReasonSavedRun, null); action = refresh; break;
+                default: Reason(arcade, Words.ArenaReasonUnavailable, null); action = refresh; break;
             }
             // A device request still finishing keeps the next step in view, waiting.
-            if (sessionActionPending) Reason(arcade, "Your device request is still finishing.", null);
+            if (sessionActionPending) Reason(arcade, Words.ArenaReasonDevicePending, null);
             // What a page would note above itself is said in the card: the page has no room for another.
             else if (NoticeFor("Daily") is string notice) { if (arcade.Reason == null) arcade.Reason = notice; else if (arcade.Detail == null) arcade.Detail = notice; }
             // The Kredit figure shows its own state; before a device exists the next step is the device, not Kredits.
             ulong kredits = lobby.Profile.Kredits;
             arcade.Kredits = NumberFit.Figure(kredits);
             arcade.KreditLevel = device || kredits > 1 ? KreditLevel.Enough : kredits == 1 ? KreditLevel.Last : KreditLevel.None;
-            arcade.OpenKredits = PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy);
+            arcade.OpenKredits = PageAction(Words.ArenaKreditsTitle, () => _ = OpenKredits(), () => PageAvailable() && !Busy, "Kredits");
             LandingBoards(arcade, lobby);
             // An entry on its way: the card's button is its loader until the board takes the screen.
             if (opening != null) action = new PageAction { Label = opening, Name = "Action progress", Progress = opening };
@@ -192,11 +192,11 @@ namespace ZKube.Integration.Presentation
             arcade.HasBoards = true;
             var waiting = Claims;
             if (waiting.Length > 0)
-                arcade.Claims = PageAction(waiting.Length + " to claim", () => _ = OpenRewards(waiting[0].Day, waiting[0].Kind), () => PageAvailable() && !Busy, "Rewards to claim");
+                arcade.Claims = PageAction(Words.ArenaRewardsToClaim(waiting.Length), () => _ = OpenRewards(waiting[0].Day, waiting[0].Kind), () => PageAvailable() && !Busy, "Rewards to claim");
             if (landingBoardsFailed)
             {
-                arcade.BoardsNotice = "Boards not loaded.";
-                arcade.BoardsRetry = PageAction("Try again", () => { ReadLanding(lobby.DayId); Present(); }, () => PageAvailable(), "Reload boards");
+                arcade.BoardsNotice = Words.ArenaBoardsNotLoaded;
+                arcade.BoardsRetry = PageAction(Words.ActionTryAgain, () => { ReadLanding(lobby.DayId); Present(); }, () => PageAvailable(), "Reload boards");
                 return;
             }
             if (landingBoards == null || landingBoards.DayId != lobby.DayId) return;
@@ -211,8 +211,7 @@ namespace ZKube.Integration.Presentation
         // What a board says of a player who has played its day and holds no row
         // on it: a result of zero qualifies for no place, and a run still in
         // flight has none yet.
-        private const string NoScore = "No score yet";
-        private static BoardRowView Unscored() => new BoardRowView { Player = "You", Note = NoScore, Yours = true };
+        private static BoardRowView Unscored() => new BoardRowView { Player = Words.ArenaYou, Note = Words.ArenaBoardsNoScore, Yours = true };
         // A board as the landing page shows it: its top rows as the chain holds
         // them now and the player's own line, with the way into the board.
         private BoardColumnView BoardColumn(PrizeBoard board, uint day, bool played)
@@ -223,7 +222,7 @@ namespace ZKube.Integration.Presentation
                 Open = PageAction("Open " + MoneyText.Board(kind, catalog) + " board", () => _ = OpenRewards(day, kind), () => PageAvailable() && !Busy) };
             var rows = BoardRows(board).ToArray();
             column.Rows = rows.Take(PageViews.LandingRowsSeeker).ToArray();
-            if (rows.Length == 0) column.Empty = "No runs yet";
+            if (rows.Length == 0) column.Empty = Words.ArenaBoardsNoRuns;
             // The player's line: their row where the board holds them; once they have played, that they have no score here; else none.
             column.Yours = rows.FirstOrDefault(row => row.Yours) ?? (played ? Unscored() : null);
             return column;
@@ -237,7 +236,7 @@ namespace ZKube.Integration.Presentation
             return board.Rows.Select(row => Row(row.Rank, row.Record.Player, row.Metric, row.PayoutLamports));
         }
         private BoardRowView Row(uint rank, string player, ulong metric, ulong? payout) => new BoardRowView { Rank = rank.ToString(CultureInfo.InvariantCulture),
-            Player = player == identity.Owner ? "You" : Short(player), Value = metric.ToString("N0", CultureInfo.InvariantCulture),
+            Player = player == identity.Owner ? Words.ArenaYou : Short(player), Value = Words.Number(metric),
             Payout = payout.HasValue ? Sol(payout.Value) : null, Yours = player == identity.Owner };
         // The page before its read: today's realm and objective come from the day alone.
         private DailyPageView Home(ArcadeView arcade, long closesAt, params PageAction[] actions)
@@ -250,16 +249,16 @@ namespace ZKube.Integration.Presentation
         private DailyPageView ConnectHome()
         {
             var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
-            var arcade = new ArcadeView { Headline = today != null && !today.Launched ? "Opens soon" : null };
-            var connect = PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect", SkinSlots.IconWallet);
+            var arcade = new ArcadeView { Headline = today != null && !today.Launched ? Words.ArenaHeadlineOpensSoon : null };
+            var connect = PageAction(Words.ArenaConnect, () => _ = Connect(), () => PageAvailable() && !Busy, "Connect", SkinSlots.IconWallet);
             string refused = RefusalOn("Connect");
             if (refused != null)
             {
                 arcade.Reason = refused; arcade.Warning = true;
-                connect = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
+                connect = PageAction(Words.ActionTryAgain, refusalRetry, () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
             }
             else if (failure != null && !Busy) { arcade.Reason = failure; arcade.Warning = true; }
-            else { arcade.Reason = "Your address. Your play."; arcade.Detail = arcade.Headline != null ? "Campaign is open now." : "Connecting is free."; }
+            else { arcade.Reason = Words.ArenaConnectReason; arcade.Detail = arcade.Headline != null ? Words.ArenaConnectCampaignOpen : Words.ArenaConnectFree; }
             var page = Home(arcade, today?.FreezesAt ?? 0, connect);
             page.NoTabs = true; return page;
         }
@@ -267,11 +266,11 @@ namespace ZKube.Integration.Presentation
         private DailyPageView WaitingHome()
         {
             if (failure != null && !Busy)
-                return Home(new ArcadeView { Headline = "Not loaded", Reason = failure, Warning = true },
-                    0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry),
-                    PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()));
+                return Home(new ArcadeView { Headline = Words.ArenaHeadlineNotLoaded, Reason = failure, Warning = true },
+                    0, PageAction(Words.ActionTryAgain, () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry),
+                    PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign"));
             if (opening != null) return Home(new ArcadeView(), 0, new PageAction { Label = opening, Name = "Action progress", Progress = opening });
-            return Home(new ArcadeView { Headline = "Checking…" }, 0);
+            return Home(new ArcadeView { Headline = Words.ArenaChecking }, 0);
         }
         private static void Reason(ArcadeView arcade, string reason, string detail)
         { if (arcade.Reason != null) return; arcade.Reason = reason; arcade.Detail = detail; }
@@ -282,16 +281,16 @@ namespace ZKube.Integration.Presentation
         {
             var lobby = dailyRead.Value.Lobby; var realm = catalog.Realm(lobby.Realm);
             Action close = () => { confirmingDaily = false; Present(); };
-            var cancel = PageAction("Not now", close, CanUseDaily, "Cancel entry");
-            return new PanelPageView { Key = "Entry", Title = "Enter today’s Daily", Subtitle = realm.realmName + " · " + Day(lobby.DayId),
+            var cancel = PageAction(Words.ActionNotNow, close, CanUseDaily, "Cancel entry");
+            return new PanelPageView { Key = "Entry", Title = Words.ArenaEntryTitle, Subtitle = realm.realmName + " · " + Day(lobby.DayId),
                 Back = cancel,
                 Blocks = new[] {
                     PanelBlock.Card("Entry card",
-                        PanelBlock.Row("Entry cost", "Entry", "1 Kredit", icon: SkinSlots.IconKredit),
-                        PanelBlock.Row("Entry balance", "Confirmed balance", NumberFit.Figure(lobby.Profile.Kredits), icon: SkinSlots.IconKredit),
-                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the next paid Daily.", SkinTokens.TextMuted)) },
+                        PanelBlock.Row("Entry cost", Words.ArenaEntryCostLabel, Words.ArenaEntryCost, icon: SkinSlots.IconKredit),
+                        PanelBlock.Row("Entry balance", Words.ArenaEntryBalance, NumberFit.Figure(lobby.Profile.Kredits), icon: SkinSlots.IconKredit),
+                        PanelBlock.Text("Entry terms", Words.ArenaEntryTerms, SkinTokens.TextMuted)) },
                 // The entry is the primary, with Not now beside it on the one row: its words alone, since an icon there would stack the two.
-                Primary = PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit", SkinSlots.IconPlay),
+                Primary = PageAction(Words.ArenaEntryConfirm, () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit", SkinSlots.IconPlay),
                 Secondary = cancel };
         }
     }

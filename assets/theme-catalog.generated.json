@@ -9,8 +9,8 @@
       "counter": "none",
       "kind": 0,
       "pictograms": [],
-      "text": "Classic",
-      "value": 0
+      "value": 0,
+      "words": 619
     },
     {
       "chip": "2+",
@@ -22,8 +22,8 @@
         "goal-burst-lines-2",
         "goal-burst-lines-2"
       ],
-      "text": "Moves clearing 2+ lines",
-      "value": 2
+      "value": 2,
+      "words": 620
     },
     {
       "chip": "3+",
@@ -35,8 +35,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Moves clearing 3+ lines",
-      "value": 3
+      "value": 3,
+      "words": 621
     },
     {
       "chip": "",
@@ -48,8 +48,8 @@
         "goal-break-any",
         "goal-break-any"
       ],
-      "text": "Clear blocks",
-      "value": 0
+      "value": 0,
+      "words": 622
     },
     {
       "chip": "",
@@ -61,8 +61,8 @@
         "goal-break-1",
         "goal-break-1"
       ],
-      "text": "Clear size-1 blocks",
-      "value": 1
+      "value": 1,
+      "words": 623
     },
     {
       "chip": "",
@@ -74,8 +74,8 @@
         "goal-break-2",
         "goal-break-2"
       ],
-      "text": "Clear size-2 blocks",
-      "value": 2
+      "value": 2,
+      "words": 624
     },
     {
       "chip": "",
@@ -87,8 +87,8 @@
         "goal-break-3",
         "goal-break-3"
       ],
-      "text": "Clear size-3 blocks",
-      "value": 3
+      "value": 3,
+      "words": 625
     },
     {
       "chip": "",
@@ -100,8 +100,8 @@
         "goal-break-4",
         "goal-break-4"
       ],
-      "text": "Clear size-4 blocks",
-      "value": 4
+      "value": 4,
+      "words": 626
     },
     {
       "chip": "",
@@ -113,8 +113,8 @@
         "goal-lines",
         "goal-lines"
       ],
-      "text": "Clear lines",
-      "value": 0
+      "value": 0,
+      "words": 627
     },
     {
       "chip": "=2",
@@ -126,8 +126,8 @@
         "goal-burst-lines-2",
         "goal-burst-lines-2"
       ],
-      "text": "Moves clearing exactly 2 lines",
-      "value": 2
+      "value": 2,
+      "words": 628
     },
     {
       "chip": "=3",
@@ -139,8 +139,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Moves clearing exactly 3 lines",
-      "value": 3
+      "value": 3,
+      "words": 629
     },
     {
       "chip": "10+",
@@ -152,8 +152,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Moves scoring at least 10 points",
-      "value": 10
+      "value": 10,
+      "words": 630
     },
     {
       "chip": "+1",
@@ -165,8 +165,8 @@
         "goal-bonus-totem",
         "goal-bonus-wave"
       ],
-      "text": "Trigger the guardian",
-      "value": 0
+      "value": 0,
+      "words": 631
     },
     {
       "chip": "",
@@ -178,8 +178,8 @@
         "goal-bonus-lines-totem",
         "goal-bonus-lines-wave"
       ],
-      "text": "Clear lines with a bonus",
-      "value": 0
+      "value": 0,
+      "words": 632
     },
     {
       "chip": "",
@@ -191,8 +191,8 @@
         "goal-bonus-breaks-totem",
         "goal-bonus-breaks-wave"
       ],
-      "text": "Clear blocks with a bonus",
-      "value": 0
+      "value": 0,
+      "words": 633
     },
     {
       "chip": "2+",
@@ -204,8 +204,8 @@
         "goal-burst-lines-2",
         "goal-burst-lines-2"
       ],
-      "text": "Clear 2+ lines in one move",
-      "value": 2
+      "value": 2,
+      "words": 634
     },
     {
       "chip": "3+",
@@ -217,8 +217,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Clear 3+ lines in one move",
-      "value": 3
+      "value": 3,
+      "words": 635
     },
     {
       "chip": "4+",
@@ -230,8 +230,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Clear 4+ lines in one move",
-      "value": 4
+      "value": 4,
+      "words": 636
     },
     {
       "chip": "=2",
@@ -243,8 +243,8 @@
         "goal-burst-lines-2",
         "goal-burst-lines-2"
       ],
-      "text": "Clear exactly 2 lines in one move",
-      "value": 2
+      "value": 2,
+      "words": 637
     },
     {
       "chip": "=3",
@@ -256,8 +256,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Clear exactly 3 lines in one move",
-      "value": 3
+      "value": 3,
+      "words": 638
     },
     {
       "chip": "=4",
@@ -269,8 +269,8 @@
         "goal-burst-lines-3",
         "goal-burst-lines-3"
       ],
-      "text": "Clear exactly 4 lines in one move",
-      "value": 4
+      "value": 4,
+      "words": 639
     },
     {
       "chip": "×3",
@@ -282,8 +282,8 @@
         "goal-streak",
         "goal-streak"
       ],
-      "text": "Clear a line on 3 moves in a row",
-      "value": 1
+      "value": 1,
+      "words": 640
     },
     {
       "chip": "×5",
@@ -295,8 +295,8 @@
         "goal-streak",
         "goal-streak"
       ],
-      "text": "Clear a line on 5 moves in a row",
-      "value": 1
+      "value": 1,
+      "words": 641
     },
     {
       "chip": "2+ ×2",
@@ -308,8 +308,8 @@
         "goal-streak",
         "goal-streak"
       ],
-      "text": "Clear 2+ lines on 2 moves in a row",
-      "value": 2
+      "value": 2,
+      "words": 642
     },
     {
       "chip": "×14",
@@ -321,8 +321,8 @@
         "goal-burst-break-any",
         "goal-burst-break-any"
       ],
-      "text": "Clear 14 blocks in one move",
-      "value": 0
+      "value": 0,
+      "words": 643
     },
     {
       "chip": "×3",
@@ -334,8 +334,8 @@
         "goal-burst-break-1",
         "goal-burst-break-1"
       ],
-      "text": "Clear 3 size-1 blocks in one move",
-      "value": 1
+      "value": 1,
+      "words": 644
     },
     {
       "chip": "×5",
@@ -347,8 +347,8 @@
         "goal-burst-break-1",
         "goal-burst-break-1"
       ],
-      "text": "Clear 5 size-1 blocks in one move",
-      "value": 1
+      "value": 1,
+      "words": 645
     },
     {
       "chip": "×6",
@@ -360,8 +360,8 @@
         "goal-burst-break-1",
         "goal-burst-break-1"
       ],
-      "text": "Clear 6 size-1 blocks in one move",
-      "value": 1
+      "value": 1,
+      "words": 646
     },
     {
       "chip": "×8",
@@ -373,8 +373,8 @@
         "goal-burst-break-1",
         "goal-burst-break-1"
       ],
-      "text": "Clear 8 size-1 blocks in one move",
-      "value": 1
+      "value": 1,
+      "words": 647
     },
     {
       "chip": "×3",
@@ -386,8 +386,8 @@
         "goal-burst-break-2",
         "goal-burst-break-2"
       ],
-      "text": "Clear 3 size-2 blocks in one move",
-      "value": 2
+      "value": 2,
+      "words": 648
     },
     {
       "chip": "×4",
@@ -399,8 +399,8 @@
         "goal-burst-break-2",
         "goal-burst-break-2"
       ],
-      "text": "Clear 4 size-2 blocks in one move",
-      "value": 2
+      "value": 2,
+      "words": 649
     },
     {
       "chip": "×6",
@@ -412,8 +412,8 @@
         "goal-burst-break-2",
         "goal-burst-break-2"
       ],
-      "text": "Clear 6 size-2 blocks in one move",
-      "value": 2
+      "value": 2,
+      "words": 650
     },
     {
       "chip": "×2",
@@ -425,8 +425,8 @@
         "goal-burst-break-3",
         "goal-burst-break-3"
       ],
-      "text": "Clear 2 size-3 blocks in one move",
-      "value": 3
+      "value": 3,
+      "words": 651
     },
     {
       "chip": "×3",
@@ -438,8 +438,8 @@
         "goal-burst-break-3",
         "goal-burst-break-3"
       ],
-      "text": "Clear 3 size-3 blocks in one move",
-      "value": 3
+      "value": 3,
+      "words": 652
     },
     {
       "chip": "×4",
@@ -451,8 +451,8 @@
         "goal-burst-break-3",
         "goal-burst-break-3"
       ],
-      "text": "Clear 4 size-3 blocks in one move",
-      "value": 3
+      "value": 3,
+      "words": 653
     },
     {
       "chip": "×3",
@@ -464,8 +464,8 @@
         "goal-burst-break-4",
         "goal-burst-break-4"
       ],
-      "text": "Clear 3 size-4 blocks in one move",
-      "value": 4
+      "value": 4,
+      "words": 654
     },
     {
       "chip": "×4",
@@ -477,8 +477,8 @@
         "goal-burst-break-4",
         "goal-burst-break-4"
       ],
-      "text": "Clear 4 size-4 blocks in one move",
-      "value": 4
+      "value": 4,
+      "words": 655
     },
     {
       "chip": "",
@@ -490,8 +490,8 @@
         "goal-all-widths",
         "goal-all-widths"
       ],
-      "text": "Clear every block size in one move",
-      "value": 0
+      "value": 0,
+      "words": 656
     },
     {
       "chip": "6+",
@@ -503,8 +503,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Score at least 6 points in one move",
-      "value": 6
+      "value": 6,
+      "words": 657
     },
     {
       "chip": "8+",
@@ -516,8 +516,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Score at least 8 points in one move",
-      "value": 8
+      "value": 8,
+      "words": 658
     },
     {
       "chip": "10+",
@@ -529,8 +529,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Score at least 10 points in one move",
-      "value": 10
+      "value": 10,
+      "words": 659
     },
     {
       "chip": "12+",
@@ -542,8 +542,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Score at least 12 points in one move",
-      "value": 12
+      "value": 12,
+      "words": 660
     },
     {
       "chip": "15+",
@@ -555,8 +555,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "text": "Score at least 15 points in one move",
-      "value": 15
+      "value": 15,
+      "words": 661
     },
     {
       "chip": "",
@@ -568,8 +568,8 @@
         "goal-burst-bonus-lines-totem",
         "goal-burst-bonus-lines-wave"
       ],
-      "text": "Clear a line with one bonus",
-      "value": 1
+      "value": 1,
+      "words": 662
     },
     {
       "chip": "2+",
@@ -581,8 +581,8 @@
         "goal-burst-bonus-lines-totem",
         "goal-burst-bonus-lines-wave"
       ],
-      "text": "Clear 2+ lines with one bonus",
-      "value": 2
+      "value": 2,
+      "words": 663
     },
     {
       "chip": "",
@@ -594,8 +594,8 @@
         "goal-perfect-clear",
         "goal-perfect-clear"
       ],
-      "text": "Empty the board",
-      "value": 0
+      "value": 0,
+      "words": 664
     },
     {
       "chip": "↑6",
@@ -607,8 +607,8 @@
         "goal-stack-high",
         "goal-stack-high"
       ],
-      "text": "Clears with the stack at least 6 rows high",
-      "value": 6
+      "value": 6,
+      "words": 665
     },
     {
       "chip": "↑7",
@@ -620,8 +620,8 @@
         "goal-stack-high",
         "goal-stack-high"
       ],
-      "text": "Clears with the stack at least 7 rows high",
-      "value": 7
+      "value": 7,
+      "words": 666
     },
     {
       "chip": "↑8",
@@ -633,8 +633,8 @@
         "goal-stack-high",
         "goal-stack-high"
       ],
-      "text": "Clears with the stack at least 8 rows high",
-      "value": 8
+      "value": 8,
+      "words": 667
     },
     {
       "chip": "↓3",
@@ -646,8 +646,8 @@
         "goal-stack-low",
         "goal-stack-low"
       ],
-      "text": "Clears leaving 3 rows or fewer",
-      "value": 3
+      "value": 3,
+      "words": 668
     },
     {
       "chip": "↓4",
@@ -659,90 +659,90 @@
         "goal-stack-low",
         "goal-stack-low"
       ],
-      "text": "Clears leaving 4 rows or fewer",
-      "value": 4
+      "value": 4,
+      "words": 669
     }
   ],
   "dailyThemes": [
     {
-      "description": "Classic",
       "kind": 0,
-      "value": 0
+      "value": 0,
+      "words": 619
     },
     {
-      "description": "Moves clearing 2+ lines",
       "kind": 1,
-      "value": 2
+      "value": 2,
+      "words": 620
     },
     {
-      "description": "Moves clearing 3+ lines",
       "kind": 1,
-      "value": 3
+      "value": 3,
+      "words": 621
     },
     {
-      "description": "Moves clearing exactly 2 lines",
       "kind": 4,
-      "value": 2
+      "value": 2,
+      "words": 628
     },
     {
-      "description": "Moves clearing exactly 3 lines",
       "kind": 4,
-      "value": 3
+      "value": 3,
+      "words": 629
     },
     {
-      "description": "Clear size-1 blocks",
       "kind": 2,
-      "value": 1
+      "value": 1,
+      "words": 623
     },
     {
-      "description": "Clear size-2 blocks",
       "kind": 2,
-      "value": 2
+      "value": 2,
+      "words": 624
     },
     {
-      "description": "Clear size-3 blocks",
       "kind": 2,
-      "value": 3
+      "value": 3,
+      "words": 625
     },
     {
-      "description": "Clear size-4 blocks",
       "kind": 2,
-      "value": 4
+      "value": 4,
+      "words": 626
     },
     {
-      "description": "Trigger the guardian",
       "kind": 6,
-      "value": 0
+      "value": 0,
+      "words": 631
     },
     {
-      "description": "Clear lines with a bonus",
       "kind": 7,
-      "value": 0
+      "value": 0,
+      "words": 632
     },
     {
-      "description": "Clear blocks with a bonus",
       "kind": 8,
-      "value": 0
+      "value": 0,
+      "words": 633
     },
     {
-      "description": "Clears with the stack at least 7 rows high",
       "kind": 17,
-      "value": 7
+      "value": 7,
+      "words": 666
     },
     {
-      "description": "Clears with the stack at least 8 rows high",
       "kind": 17,
-      "value": 8
+      "value": 8,
+      "words": 667
     },
     {
-      "description": "Clears leaving 3 rows or fewer",
       "kind": 18,
-      "value": 3
+      "value": 3,
+      "words": 668
     },
     {
-      "description": "Clears leaving 4 rows or fewer",
       "kind": 18,
-      "value": 4
+      "value": 4,
+      "words": 669
     }
   ],
   "effects": {
@@ -760,112 +760,132 @@
     {
       "bonus": 3,
       "chip": "2+",
-      "description": "Clear 2+ lines in a move",
-      "effect": "The Wave clears the row you pick. What it removes scores nothing.",
-      "name": "Wave",
       "pictogram": "goal-burst-lines-2",
-      "sentence": "Clear 2 or more lines in one move to earn a Wave.",
       "threshold": 2,
-      "trigger": 1
+      "trigger": 1,
+      "words": {
+        "description": 670,
+        "effect": 294,
+        "name": 295,
+        "sentence": 671
+      }
     },
     {
       "bonus": 1,
       "chip": "=2",
-      "description": "Clear exactly 2 lines in a move",
-      "effect": "The Hammer breaks the block you pick. What it removes scores nothing.",
-      "name": "Hammer",
       "pictogram": "goal-burst-lines-2",
-      "sentence": "Clear exactly 2 lines in one move to earn a Hammer.",
       "threshold": 2,
-      "trigger": 4
+      "trigger": 4,
+      "words": {
+        "description": 672,
+        "effect": 284,
+        "name": 285,
+        "sentence": 673
+      }
     },
     {
       "bonus": 2,
       "chip": "×10",
-      "description": "Break 10+ blocks in one move",
-      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing.",
-      "name": "Totem",
       "pictogram": "goal-burst-break-any",
-      "sentence": "Break 10 or more blocks in one move to earn a Totem.",
       "threshold": 10,
-      "trigger": 8
+      "trigger": 8,
+      "words": {
+        "description": 674,
+        "effect": 289,
+        "name": 290,
+        "sentence": 675
+      }
     },
     {
       "bonus": 1,
       "chip": "×3",
-      "description": "Clear a line 3 moves in a row",
-      "effect": "The Hammer breaks the block you pick. What it removes scores nothing.",
-      "name": "Hammer",
       "pictogram": "goal-streak",
-      "sentence": "Clear lines on 3 moves in a row to earn a Hammer.",
       "threshold": 3,
-      "trigger": 9
+      "trigger": 9,
+      "words": {
+        "description": 676,
+        "effect": 284,
+        "name": 285,
+        "sentence": 677
+      }
     },
     {
       "bonus": 3,
       "chip": "",
-      "description": "Every 7 lines cleared by moves",
-      "effect": "The Wave clears the row you pick. What it removes scores nothing.",
-      "name": "Wave",
       "pictogram": "goal-lines",
-      "sentence": "Every 7 lines cleared by moves earns a Wave.",
       "threshold": 7,
-      "trigger": 2
+      "trigger": 2,
+      "words": {
+        "description": 678,
+        "effect": 294,
+        "name": 295,
+        "sentence": 679
+      }
     },
     {
       "bonus": 2,
       "chip": "",
-      "description": "Break every size in one move",
-      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing.",
-      "name": "Totem",
       "pictogram": "goal-all-widths",
-      "sentence": "Break every block size in one move to earn a Totem.",
       "threshold": 0,
-      "trigger": 6
+      "trigger": 6,
+      "words": {
+        "description": 680,
+        "effect": 289,
+        "name": 290,
+        "sentence": 681
+      }
     },
     {
       "bonus": 1,
       "chip": "=3",
-      "description": "Clear exactly 3 lines in a move",
-      "effect": "The Hammer breaks the block you pick. What it removes scores nothing.",
-      "name": "Hammer",
       "pictogram": "goal-burst-lines-3",
-      "sentence": "Clear exactly 3 lines in one move to earn a Hammer.",
       "threshold": 3,
-      "trigger": 4
+      "trigger": 4,
+      "words": {
+        "description": 682,
+        "effect": 284,
+        "name": 285,
+        "sentence": 683
+      }
     },
     {
       "bonus": 2,
       "chip": "3+",
-      "description": "Clear 3+ lines in a move",
-      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing.",
-      "name": "Totem",
       "pictogram": "goal-burst-lines-3",
-      "sentence": "Clear 3 or more lines in one move to earn a Totem.",
       "threshold": 3,
-      "trigger": 1
+      "trigger": 1,
+      "words": {
+        "description": 684,
+        "effect": 289,
+        "name": 290,
+        "sentence": 685
+      }
     },
     {
       "bonus": 2,
       "chip": "2+",
-      "description": "Every 2 combos",
-      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing.",
-      "name": "Totem",
       "pictogram": "goal-burst-lines-2",
-      "sentence": "Every 2 combos earns a Totem.",
       "threshold": 2,
-      "trigger": 7
+      "trigger": 7,
+      "words": {
+        "description": 686,
+        "effect": 289,
+        "name": 290,
+        "sentence": 687
+      }
     },
     {
       "bonus": 1,
       "chip": "=4",
-      "description": "Clear exactly 4 lines in a move",
-      "effect": "The Hammer breaks the block you pick. What it removes scores nothing.",
-      "name": "Hammer",
       "pictogram": "goal-burst-lines-3",
-      "sentence": "Clear exactly 4 lines in one move to earn a Hammer.",
       "threshold": 4,
-      "trigger": 4
+      "trigger": 4,
+      "words": {
+        "description": 688,
+        "effect": 284,
+        "name": 285,
+        "sentence": 689
+      }
     }
   ],
   "menuMusic": "/assets/common/sounds/musics/menu.mp3",
@@ -4004,21 +4024,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "Today's tide is the same for everyone. Ride it your own way.",
-        "defeatLine": "You rode right past me. Well swum, friend.",
-        "greeting": "Welcome, little one. Watch the tide, and let it guide your hands.",
-        "incomplete": "The tide went out. It always comes back. Try again?",
-        "newBestLine": "...Your finest swim yet. I felt the whole sea move.",
-        "oneStar": "You rode the wave! The sea has more to teach you.",
-        "respectLine": "You swim like one of us now.",
-        "threeStar": "Perfect rhythm. The sea is smiling.",
-        "trialIntro": "Here comes my biggest wave. Show me the rhythm you've learned.",
-        "twoStar": "Lovely form. The current liked you."
-      },
-      "guardianName": "Mako",
       "guardianPortrait": "/assets/theme-1/boss/portrait.png",
-      "guardianTitle": "Spirit of the Tides",
       "id": "theme-1",
       "images": {
         "background": "/assets/theme-1/background.png",
@@ -4063,7 +4069,6 @@
         "level": "/assets/theme-1/sounds/musics/level.mp3"
       },
       "realmId": 1,
-      "realmName": "Tiki",
       "rgba": [
         {
           "name": "background",
@@ -4218,7 +4223,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          355,
+          353,
+          363,
+          360,
+          359,
+          364,
+          361,
+          356,
+          354,
+          358
+        ],
+        "name": 357,
+        "realm": 541,
+        "title": 362
+      }
     },
     {
       "campaignPath": [
@@ -4285,21 +4307,7 @@
         "railY": 0.78515625,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "The river runs the same for everyone today. Steady hands win.",
-        "defeatLine": "My jaws closed on nothing. You were faster!",
-        "greeting": "Welcome to the Nile. Take your time. A careful hand goes far here.",
-        "incomplete": "The current won this time. Rest, then try again.",
-        "newBestLine": "...The old river is impressed. So am I.",
-        "oneStar": "You crossed! Next time, aim a little truer.",
-        "respectLine": "The Nile makes way for you. Safe travels, friend.",
-        "threeStar": "Flawless. Even the old stones are impressed.",
-        "trialIntro": "The river is rising. Keep your footing and cross to me.",
-        "twoStar": "A fine crossing. I saw that precision."
-      },
-      "guardianName": "Sobek",
       "guardianPortrait": "/assets/theme-2/boss/portrait.png",
-      "guardianTitle": "The Nile Guardian",
       "id": "theme-2",
       "images": {
         "background": "/assets/theme-2/background.png",
@@ -4344,7 +4352,6 @@
         "level": "/assets/theme-2/sounds/musics/level.mp3"
       },
       "realmId": 2,
-      "realmName": "Egypt",
       "rgba": [
         {
           "name": "background",
@@ -4499,7 +4506,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          379,
+          377,
+          387,
+          384,
+          383,
+          388,
+          385,
+          380,
+          378,
+          382
+        ],
+        "name": 381,
+        "realm": 543,
+        "title": 386
+      }
     },
     {
       "campaignPath": [
@@ -4566,21 +4590,7 @@
         "railY": 0.8177083333333334,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "Same snow for the whole pack today. Run your best line.",
-        "defeatLine": "The storm breaks. The wolf steps aside. Lead on.",
-        "greeting": "Welcome to the north. Keep the fire in your heart and stay close.",
-        "incomplete": "The cold won this round. Warm up and run again.",
-        "newBestLine": "...A new howl on the ice. It's yours.",
-        "oneStar": "You made it through the frost. Good start.",
-        "respectLine": "The pack is proud of you. Run with us through the ice.",
-        "threeStar": "Not a flake touched you. A legend's run.",
-        "trialIntro": "The blizzard is here. Run through it with me.",
-        "twoStar": "Strong run. The ice held for you."
-      },
-      "guardianName": "Fenris",
       "guardianPortrait": "/assets/theme-3/boss/portrait.png",
-      "guardianTitle": "The Frost Wolf",
       "id": "theme-3",
       "images": {
         "background": "/assets/theme-3/background.png",
@@ -4625,7 +4635,6 @@
         "level": "/assets/theme-3/sounds/musics/level.mp3"
       },
       "realmId": 3,
-      "realmName": "Norse",
       "rgba": [
         {
           "name": "background",
@@ -4780,7 +4789,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          391,
+          389,
+          399,
+          396,
+          395,
+          400,
+          397,
+          392,
+          390,
+          394
+        ],
+        "name": 393,
+        "realm": 544,
+        "title": 398
+      }
     },
     {
       "campaignPath": [
@@ -4847,21 +4873,7 @@
         "railY": 0.7890625,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "One puzzle for every mind today. Enjoy working it out.",
-        "defeatLine": "Checkmate, and elegantly played. I bow.",
-        "greeting": "Welcome to the grove. Carve one steady strike at a time.",
-        "incomplete": "Not solved yet. Look from a new angle and retry.",
-        "newBestLine": "...Remarkable. I did not see that coming.",
-        "oneStar": "A pass! Now let's make it elegant.",
-        "respectLine": "Knowledge and action, together at last. Well done.",
-        "threeStar": "Not a single flaw. I'm delighted.",
-        "trialIntro": "You know the theory. Show me how you use it.",
-        "twoStar": "Well reasoned. Your logic holds."
-      },
-      "guardianName": "Noctua",
       "guardianPortrait": "/assets/theme-4/boss/portrait.png",
-      "guardianTitle": "The Marble Owl",
       "id": "theme-4",
       "images": {
         "background": "/assets/theme-4/background.png",
@@ -4906,7 +4918,6 @@
         "level": "/assets/theme-4/sounds/musics/level.mp3"
       },
       "realmId": 4,
-      "realmName": "Greece",
       "rgba": [
         {
           "name": "background",
@@ -5061,7 +5072,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          403,
+          401,
+          411,
+          408,
+          407,
+          412,
+          409,
+          404,
+          402,
+          406
+        ],
+        "name": 405,
+        "realm": 545,
+        "title": 410
+      }
     },
     {
       "campaignPath": [
@@ -5128,21 +5156,7 @@
         "railY": 0.8059895833333334,
         "topY": 0.08984375
       },
-      "guardianLines": {
-        "dailyGreeting": "The river flows the same for everyone today. Go steady.",
-        "defeatLine": "The storm passes, and you're still standing. Bravo.",
-        "greeting": "Welcome. Be patient like the river and you'll go far.",
-        "incomplete": "The current carried you off. Plant your feet and try again.",
-        "newBestLine": "...Your best yet. The dragon is delighted.",
-        "oneStar": "You held through the flood. Good!",
-        "respectLine": "The dragon bows to your patience. Well earned.",
-        "threeStar": "Not even my torrent could shake you. Wonderful.",
-        "trialIntro": "The dragon wakes. Stay calm and stand your ground.",
-        "twoStar": "The river bends to your patience. Well done."
-      },
-      "guardianName": "Long",
       "guardianPortrait": "/assets/theme-5/boss/portrait.png",
-      "guardianTitle": "The Jade Dragon",
       "id": "theme-5",
       "images": {
         "background": "/assets/theme-5/background.png",
@@ -5187,7 +5201,6 @@
         "level": "/assets/theme-5/sounds/musics/level.mp3"
       },
       "realmId": 5,
-      "realmName": "China",
       "rgba": [
         {
           "name": "background",
@@ -5342,7 +5355,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          415,
+          413,
+          423,
+          420,
+          419,
+          424,
+          421,
+          416,
+          414,
+          418
+        ],
+        "name": 417,
+        "realm": 546,
+        "title": 422
+      }
     },
     {
       "campaignPath": [
@@ -5409,21 +5439,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "One mosaic for every eye today. Find the pattern in your own time.",
-        "defeatLine": "The pattern was you all along. Come through.",
-        "greeting": "Welcome to my gate. Every tile has its place. Can you see it?",
-        "incomplete": "The tiles scattered. Gather them and retry.",
-        "newBestLine": "...The pattern just changed. Astonishing.",
-        "oneStar": "You found the pattern! Its beauty comes next.",
-        "respectLine": "The gate stands open. You see what others miss.",
-        "threeStar": "Every tile in its place. A lovely mosaic.",
-        "trialIntro": "My gate opens for a sharp eye. Show me the pattern.",
-        "twoStar": "The mosaic takes shape in your hands."
-      },
-      "guardianName": "Lamassu",
       "guardianPortrait": "/assets/theme-6/boss/portrait.png",
-      "guardianTitle": "The Gate Guardian",
       "id": "theme-6",
       "images": {
         "background": "/assets/theme-6/background.png",
@@ -5468,7 +5484,6 @@
         "level": "/assets/theme-6/sounds/musics/level.mp3"
       },
       "realmId": 6,
-      "realmName": "Persia",
       "rgba": [
         {
           "name": "background",
@@ -5623,7 +5638,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          427,
+          425,
+          435,
+          432,
+          431,
+          436,
+          433,
+          428,
+          426,
+          430
+        ],
+        "name": 429,
+        "realm": 547,
+        "title": 434
+      }
     },
     {
       "campaignPath": [
@@ -5690,21 +5722,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "Same trick for everyone today. Let's see who spots it first.",
-        "defeatLine": "Nine tails, all fooled. You win this round!",
-        "greeting": "Catch me if you can! I play fair... mostly.",
-        "incomplete": "Lost in my illusions? Find your way back and try again.",
-        "newBestLine": "...Wait. THAT was not an illusion?!",
-        "oneStar": "You slipped past my tricks. Just!",
-        "respectLine": "You saw through every trick. I like a sharp eye.",
-        "threeStar": "Every illusion shattered. You're sharper than my claws.",
-        "trialIntro": "Nine tails, nine illusions. Can you see through them all?",
-        "twoStar": "Not bad. You kept your wits when the foxfire flickered."
-      },
-      "guardianName": "Kitsune",
       "guardianPortrait": "/assets/theme-7/boss/portrait.png",
-      "guardianTitle": "The Spirit Fox",
       "id": "theme-7",
       "images": {
         "background": "/assets/theme-7/background.png",
@@ -5749,7 +5767,6 @@
         "level": "/assets/theme-7/sounds/musics/level.mp3"
       },
       "realmId": 7,
-      "realmName": "Japan",
       "rgba": [
         {
           "name": "background",
@@ -5904,7 +5921,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          439,
+          437,
+          447,
+          444,
+          443,
+          448,
+          445,
+          440,
+          438,
+          442
+        ],
+        "name": 441,
+        "realm": 548,
+        "title": 446
+      }
     },
     {
       "campaignPath": [
@@ -5971,21 +6005,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "One canopy for everyone today. Find your own way through.",
-        "defeatLine": "You flew past my brightest feathers. Well done!",
-        "greeting": "Welcome! Clear whole rows and let the light in.",
-        "incomplete": "The leaves hid the way this time. Try again?",
-        "newBestLine": "...Your best flight yet. I'll keep a feather for it.",
-        "oneStar": "You found the path! There's more to see.",
-        "respectLine": "You fly like one of the flock now.",
-        "threeStar": "A perfect flight. The jungle is singing.",
-        "trialIntro": "My feathers catch every light. Can you keep up with me?",
-        "twoStar": "Nicely flown. The canopy hums with you."
-      },
-      "guardianName": "K'uk'",
       "guardianPortrait": "/assets/theme-8/boss/portrait.png",
-      "guardianTitle": "The Jade Feather",
       "id": "theme-8",
       "images": {
         "background": "/assets/theme-8/background.png",
@@ -6030,7 +6050,6 @@
         "level": "/assets/theme-8/sounds/musics/level.mp3"
       },
       "realmId": 8,
-      "realmName": "Mayan",
       "rgba": [
         {
           "name": "background",
@@ -6185,7 +6204,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          451,
+          449,
+          459,
+          456,
+          455,
+          460,
+          457,
+          452,
+          450,
+          454
+        ],
+        "name": 453,
+        "realm": 549,
+        "title": 458
+      }
     },
     {
       "campaignPath": [
@@ -6252,21 +6288,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "The same savanna for everyone today. Walk it your own way.",
-        "defeatLine": "You out-walked an elephant. Bravo!",
-        "greeting": "Welcome to the plains, little one. I'll walk beside you.",
-        "incomplete": "The grass grew tall this time. Try again?",
-        "newBestLine": "...Your best yet. The whole herd will hear.",
-        "oneStar": "You made it across! The plains have more.",
-        "respectLine": "The herd makes room for you now.",
-        "threeStar": "A flawless crossing. I'll never forget it.",
-        "trialIntro": "Here comes the herd. Keep your footing and match my stride.",
-        "twoStar": "Good, steady steps. The herd noticed."
-      },
-      "guardianName": "Tembo",
       "guardianPortrait": "/assets/theme-9/boss/portrait.png",
-      "guardianTitle": "The Gentle Giant",
       "id": "theme-9",
       "images": {
         "background": "/assets/theme-9/background.png",
@@ -6311,7 +6333,6 @@
         "level": "/assets/theme-9/sounds/musics/level.mp3"
       },
       "realmId": 9,
-      "realmName": "Serengeti",
       "rgba": [
         {
           "name": "background",
@@ -6466,7 +6487,24 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          463,
+          461,
+          471,
+          468,
+          467,
+          472,
+          469,
+          464,
+          462,
+          466
+        ],
+        "name": 465,
+        "realm": 550,
+        "title": 470
+      }
     },
     {
       "campaignPath": [
@@ -6533,21 +6571,7 @@
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
-      "guardianLines": {
-        "dailyGreeting": "One mountain for everyone today. Pick your path and climb.",
-        "defeatLine": "You passed me on my own mountain. Bravo!",
-        "greeting": "Welcome to the mountains. Breathe slow and climb steady.",
-        "incomplete": "The path got steep. Catch your breath and try again.",
-        "newBestLine": "...Your best climb yet. What a view!",
-        "oneStar": "You reached the top! Next time, enjoy the view.",
-        "respectLine": "You climb like one of the herd. Welcome to the heights.",
-        "threeStar": "Not one stone slipped. A perfect climb.",
-        "trialIntro": "This is my highest peak. Show me how well you climb.",
-        "twoStar": "Sure-footed and calm. Well climbed."
-      },
-      "guardianName": "Wayra",
       "guardianPortrait": "/assets/theme-10/boss/portrait.png",
-      "guardianTitle": "The Highland Friend",
       "id": "theme-10",
       "images": {
         "background": "/assets/theme-10/background.png",
@@ -6592,7 +6616,6 @@
         "level": "/assets/theme-10/sounds/musics/level.mp3"
       },
       "realmId": 10,
-      "realmName": "Inca",
       "rgba": [
         {
           "name": "background",
@@ -6747,7 +6770,25 @@
             0.08
           ]
         }
-      ]
+      ],
+      "words": {
+        "lines": [
+          367,
+          365,
+          375,
+          372,
+          371,
+          376,
+          373,
+          368,
+          366,
+          370
+        ],
+        "name": 369,
+        "realm": 542,
+        "title": 374
+      }
     }
-  ]
+  ],
+  "wordCount": 690
 }

@@ -63,7 +63,7 @@ namespace ZKube.Presentation
         private static byte RealmBonus(byte realm) => (byte)Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight[0];
         // A tag (.tag): its words in the caption face at 11u on a pill of its
         // token's light, padded 2u by 8u. "New best!" is the gold one.
-        private ScreenKit.Side NewBest(ScreenKit kit) => Tag(kit, "New best!", new Color(1, 233 / 255f, 168 / 255f, 1), "New best");
+        private ScreenKit.Side NewBest(ScreenKit kit) => Tag(kit, Words.ResultNewBest, new Color(1, 233 / 255f, 168 / 255f, 1), "New best");
         private ScreenKit.Side Tag(ScreenKit kit, string text, string token, string name = null) => Tag(kit, text, ui.Art.Token(token), name ?? text);
         private ScreenKit.Side Tag(ScreenKit kit, string text, Color fill, string name)
         {
@@ -89,12 +89,12 @@ namespace ZKube.Presentation
             var rule = catalog.Rule(value.Realm);
             var inside = kit.Inside();
             // The moves chip, then the trigger pictogram, an arrow, the bonus icon and the rule's words.
-            var lead = new List<ScreenKit.Side> { inside.Chip("Level moves", SkinSlots.IconHourglass, 22, value.Moves.ToString(CultureInfo.InvariantCulture), "moves") };
+            var lead = new List<ScreenKit.Side> { inside.Counted("Level moves", SkinSlots.IconHourglass, 22, Words.Number(value.Moves), Words.LevelMoves(value.Moves)) };
             if (rule.pictogram != null) lead.Add(inside.Pictogram("Level rule trigger", rule.pictogram, rule.chip, 30));
             lead.Add(inside.Word("Level rule arrow", "→", 16 * k, SkinTokens.TextMuted));
             lead.Add(inside.Icon("Level rule bonus", HudLayout.BonusIcon(bonus, true), 30));
             var rows = inside.GoalRows(goals, ScreenKit.GoalMode.Target, Step(40, 34)).Append(inside.Row("Level rule", inside.Beside(10, lead.ToArray()),
-                rule.description, "Earns a " + HudLayout.BonusName(bonus), null, true));
+                rule.description, HudLayout.BonusEarns(bonus), null, true));
             var sockets = new Image[3];
             var line = LevelLine(realm.guardianLines, value.Level).Line;
             var pieces = new List<Piece> { Piece.Grow, default,
@@ -105,7 +105,7 @@ namespace ZKube.Presentation
             pieces.Add(Piece.Grow);
             // A decision page: Play, and Map beside it, which is also where the Android back key leads.
             var slots = new ScreenKit.Slots { Primary = Control(value.Play, SkinSlots.IconPlay), Secondary = Control(value.Map, SkinSlots.IconMap) };
-            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName,
+            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title(Words.LevelTitle(Number(value.Realm, value.Level)), realm.realmName + " · " + realm.guardianName,
                 room: room, sizeDp: kit.HeroTitleDp), Step(170, 118));
             Place(kit, slots, value.Map);
             // The first preview of the first level teaches its stars once.
@@ -136,14 +136,14 @@ namespace ZKube.Presentation
         {
             int stars = HudLayout.StarCount(value.StarSources);
             bool last = value.Realm == Protocol.Realms.Length && value.Level == Protocol.CampaignTargets.Length;
-            string next = last ? null : "Level " + HudLayout.LevelNumber(value.Realm, (byte)(value.Level + 1));
-            string kept = stars == 0 ? "No stars kept" : stars + (stars == 1 ? " star" : " stars") + " kept";
-            string opened = next == null ? null : stars > 0 ? next + " is open" : value.NextOpen == false ? "earn one to open " + next : null;
-            string Kept() => opened == null ? kept : kept + " · " + opened;
-            if (value.EndReason == 1) return ("Level cleared!", next == null ? "Every level is cleared" : next + " is open", null, true);
-            if (value.EndReason == 3) return ("Run ended", "An ended run keeps no stars.", SkinSlots.IconFlag, false);
-            return value.MovesLeft == 0 ? ("Out of moves", Kept(), SkinSlots.IconHourglassEmpty, stars > 0)
-                : ("Board full", Kept(), SkinSlots.IconBoardFull, stars > 0);
+            string next = last ? null : HudLayout.LevelNumber(value.Realm, (byte)(value.Level + 1));
+            // What was kept and what it opened, as one phrase each language wrote whole.
+            string Kept() => stars > 0 ? (next == null ? Words.ResultKept(stars) : Words.ResultKeptOpen(stars, next))
+                : next != null && value.NextOpen == false ? Words.ResultKeptNoneEarn(next) : Words.ResultKeptNone;
+            if (value.EndReason == 1) return (Words.ResultCleared, next == null ? Words.ResultClearedAll : Words.ResultLevelOpen(next), null, true);
+            if (value.EndReason == 3) return (Words.ResultEnded, Words.ResultEndedDetail, SkinSlots.IconFlag, false);
+            return value.MovesLeft == 0 ? (Words.ResultOutOfMoves, Kept(), SkinSlots.IconHourglassEmpty, stars > 0)
+                : (Words.ResultBoardFull, Kept(), SkinSlots.IconBoardFull, stars > 0);
         }
 
         // A Campaign result: the title from the end reason, the crown with the
@@ -237,17 +237,17 @@ namespace ZKube.Presentation
             string objective = value.ObjectiveKind == 0 ? null : catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             var goal = value.ObjectiveKind == 0 ? null : catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
             string picture = goal?.Pictogram(RealmBonus(value.Realm));
-            string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
+            string N(ulong number) => Words.Number(number);
             var inside = kit.Inside();
             var rows = new List<Piece>();
             if (value.Arcade)
             {
-                rows.Add(inside.Row("Score board", inside.Pictogram("Score board", SkinSlots.GoalScore, null, 34), "Score board", "Your best run counts",
+                rows.Add(inside.Row("Score board", inside.Pictogram("Score board", SkinSlots.GoalScore, null, 34), Words.ResultScoreBoard, Words.ResultScoreBoardDetail,
                     inside.Value("Score board value", N(value.Score)), false));
                 if (objective != null)
-                    rows.Add(inside.Row("Objective board", inside.Pictogram("Objective board", picture, goal.chip, 34), "Objective board", objective,
+                    rows.Add(inside.Row("Objective board", inside.Pictogram("Objective board", picture, goal.chip, 34), Words.ResultObjectiveBoard, objective,
                         inside.Value("Objective board value", N(value.ObjectiveTotal)), true));
-                const string boards = "Places are final when each board is sealed after the day closes at 07:00 UTC.";
+                string boards = Words.ResultBoardsNote;
                 float size = inside.SmallDp, height = inside.Block(boards, inside.Width, size, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                 rows.Add(new Piece(height, rect => inside.Text("Boards note", boards, rect, size, SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
                     TextAlignmentOptions.Left)));
@@ -257,13 +257,13 @@ namespace ZKube.Presentation
                 // The rows share one 36u icon column.
                 if (value.Tier.HasValue)
                     rows.Add(inside.Row("Multiplier", inside.Multiplier("Multiplier", 36),
-                        "Multiplier reached", null, inside.Value("Multiplier value", HudLayout.PressureValue(new RunSummary { CurrentTier = value.Tier.Value }), SkinTokens.Accent),
+                        Words.ResultMultiplier, null, inside.Value("Multiplier value", HudLayout.PressureValue(new RunSummary { CurrentTier = value.Tier.Value }), SkinTokens.Accent),
                         rows.Count > 0));
                 if (objective != null)
                     rows.Add(inside.Row("Objective", inside.Pictogram("Objective", picture, goal.chip, 36), objective, null, inside.Value("Objective value", N(value.ObjectiveTotal)),
                         rows.Count > 0));
                 if (value.Streak.HasValue)
-                    rows.Add(inside.Row("Streak", inside.Column(inside.Icon("Streak icon", SkinSlots.IconCrown, 32), 36), "Daily streak", null, inside.Value("Streak value", Days(value.Streak.Value)),
+                    rows.Add(inside.Row("Streak", inside.Column(inside.Icon("Streak icon", SkinSlots.IconCrown, 32), 36), Words.ResultStreak, null, inside.Value("Streak value", Days(value.Streak.Value)),
                         rows.Count > 0));
             }
             // The score's plate (.card3 in a row): padded 6u by 16u, the spark, the 44u score and "New best!", 8u apart.
@@ -300,14 +300,14 @@ namespace ZKube.Presentation
             PageAction share = null;
             if (value.Share != null)
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
-                    objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak), "Share");
+                    objective ?? Words.ShareScoreOnly, value.ObjectiveTotal, value.Score, value.Streak), Words.ActionShare);
             // The result hands its buttons over by role: the way on, Share, then the boards.
             var slots = new ScreenKit.Slots { Primary = Control(value.Done, SkinSlots.IconPlay), Secondary = Control(share, SkinSlots.IconShare),
                 Tertiary = Control(value.Leaderboard, SkinSlots.IconTrophy) };
-            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete",
+            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title(value.Arcade ? Words.ResultDailyRunComplete : Words.ResultDailyComplete,
                 DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp), Step(156, 112));
             Place(kit, slots);
         }
-        private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";
+        private static string UsedLine(long seconds) => Words.DailyUsedNext(DayClock(seconds));
     }
 }

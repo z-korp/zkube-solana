@@ -67,10 +67,10 @@ namespace ZKube.Presentation
                     var body = new List<Piece>();
                     if (spaced) body.Add(Piece.Grow);
                     body.Add(GoalCard(kit, state, session, padU)); body.Add(SettingsCard(kit, rows, padU));
-                    return new ScreenKit.Slots { Title = kit.Title("Paused", Subtitle(session)), Body = body,
+                    return new ScreenKit.Slots { Title = kit.Title(Words.PauseTitle, Subtitle(session)), Body = body,
                         Notices = Closes(session) is string closes ? ClosesLine(kit, closes) : (Piece?)null,
-                        Primary = new ScreenKit.Control { Name = "Dialog Resume", Label = "Resume", Click = resume, Icon = SkinSlots.IconPlay },
-                        Secondary = new ScreenKit.Control { Name = Home, Label = "Home", Click = home, Icon = SkinSlots.IconHome },
+                        Primary = new ScreenKit.Control { Name = "Dialog Resume", Label = Words.ActionResume, Click = resume, Icon = SkinSlots.IconPlay },
+                        Secondary = new ScreenKit.Control { Name = Home, Label = Words.TabHome, Click = home, Icon = SkinSlots.IconHome },
                         Destructive = new ScreenKit.Control { Name = "Dialog " + BoardController.EndRun, Label = BoardController.EndRun, Click = end, Icon = SkinSlots.IconFlag } };
                 }
                 var slots = Slots(true, ScreenKit.CardPadU);
@@ -86,7 +86,7 @@ namespace ZKube.Presentation
                 float costHeight = inside.Block(cost, inside.Width, inside.CaptionDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                 float detailHeight = inside.Block(detail, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                 // The confirm's two verbs: the safe choice first, End run beside it.
-                kit.Page(new ScreenKit.Slots { Body = new[] { Piece.Grow, kit.Title("End this run?", null),
+                kit.Page(new ScreenKit.Slots { Body = new[] { Piece.Grow, kit.Title(Words.PauseEndTitle, null),
                     kit.Card(null, new Piece(costHeight + detailHeight, rect => {
                         inside.Text("Dialog cost", cost, new Rect(rect.x, rect.yMax - costHeight, rect.width, costHeight), inside.CaptionDp, SkinTokens.Text,
                             SkinUi.Type.Caption, ScreenKit.CaptionLeading);
@@ -95,7 +95,7 @@ namespace ZKube.Presentation
                                 SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                     })),
                     Piece.Grow },
-                    Primary = new ScreenKit.Control { Name = "Dialog Keep playing", Label = "Keep playing", Click = keep, Icon = SkinSlots.IconPlay },
+                    Primary = new ScreenKit.Control { Name = "Dialog Keep playing", Label = Words.ActionKeepPlaying, Click = keep, Icon = SkinSlots.IconPlay },
                     Secondary = new ScreenKit.Control { Name = "Dialog " + BoardController.EndRun, Label = BoardController.EndRun, Click = end, Icon = SkinSlots.IconFlag } });
             });
 
@@ -103,7 +103,7 @@ namespace ZKube.Presentation
         private static string Subtitle(BoardSession session)
         {
             string realm = PageCatalog.Load().Realm(session.RealmId).realmName;
-            return session.Daily ? "Daily · " + realm : "Level " + HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session)) + " · " + realm;
+            return session.Daily ? Words.ModeDaily + " · " + realm : Words.LevelTitle(HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session))) + " · " + realm;
         }
         // A Daily run can be left and resumed until its day closes: within the
         // last hour one short line over the band says when, beside the clock.
@@ -113,7 +113,7 @@ namespace ZKube.Presentation
         {
             var facts = session.DailyFacts;
             long left = facts?.Now == null || facts.ClosesAt <= 0 ? 0 : facts.ClosesAt - facts.Now();
-            return left > 0 && left <= ClosesSoonSeconds ? "Closes in " + (left + 59) / 60 + " min" : null;
+            return left > 0 && left <= ClosesSoonSeconds ? Words.PauseClosesIn((left + 59) / 60) : null;
         }
         private static Piece ClosesLine(ScreenKit kit, string words)
         {
@@ -146,10 +146,10 @@ namespace ZKube.Presentation
                 }
                 return kit.Card(null, inside.GoalRows(goals, ScreenKit.GoalMode.Progress, iconU), padU: padU);
             }
-            string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
+            string N(ulong number) => Words.Number(number);
             var rows = new List<Piece> {
-                inside.Row("Score goal", inside.Pictogram("Score goal", SkinSlots.GoalScore, null, iconU), "Score", null, inside.Value("Score goal value", N(state.DailyScore)), false),
-                inside.Row("Multiplier", inside.Multiplier("Multiplier", iconU), "Multiplier", null, inside.Value("Multiplier value", HudLayout.PressureValue(state), SkinTokens.Accent), true) };
+                inside.Row("Score goal", inside.Pictogram("Score goal", SkinSlots.GoalScore, null, iconU), Words.GoalScore, null, inside.Value("Score goal value", N(state.DailyScore)), false),
+                inside.Row("Multiplier", inside.Multiplier("Multiplier", iconU), Words.PauseMultiplier, null, inside.Value("Multiplier value", HudLayout.PressureValue(state), SkinTokens.Accent), true) };
             if (rules.ObjectiveKind != 0)
             {
                 var goal = PageCatalog.Load().Goal(rules.ObjectiveKind, rules.ObjectiveValue);

@@ -25,11 +25,11 @@ namespace ZKube.Presentation
             ScreenKit.Slots Slots(bool tight)
             {
                 var body = new List<Piece> { WearerCard(value, kit) };
-                body.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
-                    ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
-                    ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
+                body.Add(kit.Stats((Words.ProfileCampaignStars, SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
+                    (Words.ProfileBestDaily, SkinSlots.IconCrown, Words.Number(value.BestDailyScore)),
+                    (Words.ProfileStreak, SkinSlots.IconClock, Days(value.Streak))));
                 if (value.Emblems.Length != 0) body.Add(EmblemCard(value.Emblems, kit, value.Tier == null, tight));
-                return new ScreenKit.Slots { Title = kit.Title("Profile", null), Body = body,
+                return new ScreenKit.Slots { Title = kit.Title(Words.TabProfile, null), Body = body,
                     Notices = string.IsNullOrEmpty(value.Notice) ? (Piece?)null : kit.Note(value.Notice),
                     Tertiary = Control(value.Tertiary) };
             }
@@ -87,8 +87,11 @@ namespace ZKube.Presentation
                     var picture = ui.Rect<RawImage>("Player avatar picture", SkinUi.ScreenRect(round.rectTransform), round.transform);
                     picture.texture = value.Avatar; picture.raycastTarget = false;
                 }
-                inside.Text("Name text", value.Name, new Rect(x + lead, top - nameHeight, text - lead, nameHeight), inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption,
-                    ScreenKit.CaptionLeading, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                var name = inside.Text("Name text", value.Name, new Rect(x + lead, top - nameHeight, text - lead, nameHeight), inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption,
+                    ScreenKit.CaptionLeading, TextAlignmentOptions.Left);
+                name.textWrappingMode = TextWrappingModes.NoWrap;
+                // The name is the platform's and may be in any script.
+                SkinUi.DrawNameInADeviceFont(name);
                 if (badge.HasValue) badge.Value.Draw(new Rect(x, top - nameHeight - badge.Value.Height - 2 * u, badge.Value.Width, badge.Value.Height));
                 if (ladder.HasValue) ladder.Value.Draw(new Rect(x, top - block, ladder.Value.Width, ladder.Value.Height));
                 else if (wornHeight > 0)
@@ -110,10 +113,10 @@ namespace ZKube.Presentation
             float u = kit.U, k = kit.K; var inside = kit.Inside();
             float rowGap = (tight ? TightEmblemRowGapU : EmblemRowGapU) * u;
             float cell = 56 * u, nameDp = Mathf.Max(11, 10.5f * k);
-            const string how = "Win a guardian’s final trial to earn its emblem.";
+            string how = Words.ProfileEmblemHow;
             float howHeight = inside.Block(how, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
             int across = 4; float pitch = (inside.Width - 3 * 4 * u) / across;
-            string Name(ProfileChoiceView choice) => choice.Detail == null ? choice.Name : choice.Name + " · " + choice.Detail.ToLowerInvariant();
+            string Name(ProfileChoiceView choice) => choice.Detail == null ? choice.Name : choice.Name + " · " + choice.Detail;
             var rows = Enumerable.Range(0, (emblems.Length + across - 1) / across).Select(row => emblems.Skip(row * across).Take(across)
                 .Max(choice => inside.Block(Name(choice), pitch, nameDp, SkinUi.Type.Caption, 1.15f))).ToArray();
             float grid = rows.Sum(label => cell + 2 * u + label) + (rows.Length - 1) * rowGap;
@@ -153,7 +156,7 @@ namespace ZKube.Presentation
                     }
                     if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
                 }));
-            return kit.Card("Guardian emblems", parts, "Emblem card", padU: tight ? TightEmblemPadU : ScreenKit.CardPadU);
+            return kit.Card(Words.ProfileEmblems, parts, "Emblem card", padU: tight ? TightEmblemPadU : ScreenKit.CardPadU);
         }
 
         // Settings: the title, the Sound card (a slider per channel, whose name
@@ -167,27 +170,45 @@ namespace ZKube.Presentation
             ScreenKit.Side? unmute = null;
             if (value.Muted)
             {
-                var chip = Tag(kit, "Unmute", SkinTokens.Accent, "Unmute");
+                var chip = Tag(kit, Words.SettingsUnmute, SkinTokens.Accent, "Unmute");
                 float reach = inside.Touch(44);
                 unmute = new ScreenKit.Side(chip.Width, chip.Height, rect => {
                     chip.Draw(rect);
                     // The chip takes a tap over 48 dp round its face.
                     var hit = ui.Rect<Image>("Unmute tap", new Rect(rect.center.x - Mathf.Max(rect.width, reach) / 2, rect.center.y - reach / 2, Mathf.Max(rect.width, reach), reach), shell.Page);
-                    hit.color = Color.clear; Tap(hit, new PageAction { Label = "Unmute", Name = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Role.CardAction);
+                    hit.color = Color.clear; Tap(hit, new PageAction { Label = Words.SettingsUnmute, Name = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Role.CardAction);
                 });
             }
-            var body = new List<Piece> { kit.Card("Sound", new[] { Volume(inside, "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
-                Volume(inside, "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card", end: unmute) };
-            string current = (value.LargeText ? "Larger" : "Standard") + " ›";
-            body.Add(kit.Card(null, new[] { Switch(inside, "Haptics", value.Haptics, value.ToggleHaptics, false),
-                Switch(inside, "Reduced motion", value.ReducedMotion, value.ToggleMotion, true),
-                Tapped(inside.Row("Text size", null, "Text size", null, inside.Value("Text size value", current, SkinTokens.Text), true),
+            var body = new List<Piece> { kit.Card(Words.SettingsSoundHeading, new[] { Volume(inside, "Music", Words.SettingsMusic, SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
+                Volume(inside, "Effects", Words.SettingsEffects, SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card", end: unmute) };
+            string current = (value.LargeText ? Words.SettingsTextLarger : Words.SettingsTextStandard) + " ›";
+            body.Add(kit.Card(null, new[] { Switch(inside, "Haptics", Words.SettingsHaptics, value.Haptics, value.ToggleHaptics, false),
+                Switch(inside, "Reduced motion", Words.SettingsReducedMotion, value.ReducedMotion, value.ToggleMotion, true),
+                Tapped(inside.Row("Text size", null, Words.SettingsTextSize, null, inside.Value("Text size value", current, SkinTokens.Text), true),
                     "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText, ScreenKit.Role.Setting),
-                Tapped(inside.Row("How to play row", inside.Icon("How to play icon", SkinSlots.HandPointer, 26), "How to play", null,
+                // The language, in its own name; the row opens the list of them.
+                Tapped(inside.Row("Language", null, Words.SettingsLanguage, null, inside.Value("Language value", Words.Names[Words.Language] + " ›", SkinTokens.Text), true),
+                    "Language: " + Words.Code, Languages, ScreenKit.Role.WayIn),
+                Tapped(inside.Row("How to play row", inside.Icon("How to play icon", SkinSlots.HandPointer, 26), Words.SettingsHowToPlay, null,
                     inside.Value("How to play chevron", "›", SkinTokens.Text), true),
                     "How to play", () => Teach(Lessons.HowToPlay(brand == "arena"), null), ScreenKit.Role.WayIn) }, "Switches card"));
             if (value.Identity.Length != 0) body.Add(BlockPiece("Identity settings", value.Identity, kit));
-            Place(kit, new ScreenKit.Slots { Title = kit.Title("Settings", null), Body = body, Tertiary = Control(value.Tertiary), Destructive = Control(value.Destructive) });
+            Place(kit, new ScreenKit.Slots { Title = kit.Title(Words.TabSettings, null), Body = body, Tertiary = Control(value.Tertiary), Destructive = Control(value.Destructive) });
+        }
+        // The languages, each in its own name, two to a row so twelve fit the small
+        // phone without scrolling: the composer's pair of choices, the one in use
+        // lit. Choosing one saves it and returns to Settings, drawn in it; so do the lit Settings tab
+        // and the back key, with the language as it was.
+        private void Languages()
+        {
+            Action settings = () => source.Navigate(AppPage.Settings);
+            PageAction Choice(int i) { string code = Words.Codes[i];
+                return new PageAction { Name = "Language " + code, Label = Words.Names[i], Invoke = () => { AppPreferences.SetLanguage(code); settings(); } }; }
+            var rows = Enumerable.Range(0, (Words.Codes.Length + 1) / 2).Select(row => 2 * row + 1 < Words.Codes.Length
+                ? PanelBlock.Pair(Choice(2 * row), Choice(2 * row + 1), Words.Language / 2 == row ? Words.Language % 2 : -1)
+                : PanelBlock.Button(Choice(2 * row), Words.Language == 2 * row)).ToArray();
+            RenderPanel(new PanelPageView { Key = "Languages", Tab = AppPage.Settings, Title = Words.SettingsLanguage,
+                Back = new PageAction { Invoke = settings }, Blocks = rows });
         }
         // A row that is one button: a tap anywhere on it runs invoke.
         private Piece Tapped(Piece row, string name, Action invoke, ScreenKit.Role role) => new Piece(row.Height, rect => {
@@ -198,9 +219,9 @@ namespace ZKube.Presentation
             row.Draw(rect);
         });
         // A row whose whole width switches the kit toggle at its end; the toggle shows its state.
-        private Piece Switch(ScreenKit inside, string title, bool on, Action toggle, bool ruled)
+        private Piece Switch(ScreenKit inside, string title, string label, bool on, Action toggle, bool ruled)
         {
-            var row = inside.Row(title, null, title, null, new ScreenKit.Side(52 * inside.U, 26 * inside.U, _ => { }), ruled);
+            var row = inside.Row(title, null, label, null, new ScreenKit.Side(52 * inside.U, 26 * inside.U, _ => { }), ruled);
             return new Piece(row.Height, rect => {
                 row.Draw(rect);
                 ui.Toggle(title + ": " + (on ? "on" : "off"), rect, on, _ => actions.Run(toggle), shell.Page);
@@ -209,16 +230,17 @@ namespace ZKube.Presentation
         // One sound channel on one row (.row3): its icon and name (a tap
         // switches the channel off and back to its last level), its 120u slider
         // and its level.
-        private Piece Volume(ScreenKit inside, string title, string icon, double value, Action<double> set, bool music, bool ruled)
+        private Piece Volume(ScreenKit inside, string title, string label, string icon, double value, Action<double> set, bool music, bool ruled)
         {
-            float d = ui.Density, u = inside.U, size = 26 * u, levelWidth = ui.TextWidth("100%", inside.NumeralDp, SkinUi.Type.Display);
-            float labelWidth = ui.TextWidth("Effects", inside.CaptionDp, SkinUi.Type.Caption) + 4 * u;
+            float d = ui.Density, u = inside.U, size = 26 * u, levelWidth = Mathf.Max(ui.TextWidth(Words.FormatPercent(100), inside.NumeralDp, SkinUi.Type.Display),
+                ui.TextWidth(Words.SettingsOff, inside.NumeralDp, SkinUi.Type.Display));
+            float labelWidth = Mathf.Max(ui.TextWidth(Words.SettingsMusic, inside.CaptionDp, SkinUi.Type.Caption), ui.TextWidth(Words.SettingsEffects, inside.CaptionDp, SkinUi.Type.Caption)) + 4 * u;
             return new Piece(inside.Touch(50), rect => {
                 if (ruled) inside.Rule(title + " rule", rect);
                 var hit = ui.Rect<Image>(title + " switch", new Rect(rect.x, rect.y, size + 10 * u + labelWidth, rect.height), shell.Page);
                 hit.color = Color.clear; hit.raycastTarget = true;
                 Tinted(title + " icon", icon, new Rect(rect.x, rect.center.y - size / 2, size, size), SkinTokens.Text, hit.transform);
-                inside.Text(title + " label", title, new Rect(rect.x + size + 10 * u, rect.center.y - inside.CaptionDp * ui.Scale * d * .6f, labelWidth,
+                inside.Text(title + " label", label, new Rect(rect.x + size + 10 * u, rect.center.y - inside.CaptionDp * ui.Scale * d * .6f, labelWidth,
                     inside.CaptionDp * ui.Scale * d * 1.2f), inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left,
                     hit.transform);
                 var level = inside.Text(title + " level", "", new Rect(rect.xMax - levelWidth, rect.y, levelWidth, rect.height), inside.NumeralDp, SkinTokens.Text,
@@ -230,12 +252,12 @@ namespace ZKube.Presentation
                     actions.Run(() => set(next)); value = next;
                     if (music) Music(true);
                     if (next > 0) { if (music) lastMusic = next; else lastEffects = next; }
-                    level.text = next > 0 ? Math.Round(next * 100) + "%" : "Off";
+                    level.text = next > 0 ? Words.FormatPercent((long)Math.Round(next * 100)) : Words.SettingsOff;
                     slider?.SetWithoutNotify((float)next);
                 };
                 slider = ui.Slider(title + " slider", new Rect(trackX, rect.center.y - 24 * d, rect.xMax - levelWidth - 10 * u - trackX, 48 * d), (float)value,
                     next => apply(Math.Round(next * 100) / 100d), shell.Page);
-                level.text = value > 0 ? Math.Round(value * 100) + "%" : "Off";
+                level.text = value > 0 ? Words.FormatPercent((long)Math.Round(value * 100)) : Words.SettingsOff;
                 var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; ScreenKit.As(button, ScreenKit.Role.Setting);
                 actions.Wire(button, new PageAction { Name = title + " switch", Invoke = () => apply(value > 0 ? 0 : music ? lastMusic : lastEffects) }, fade: false);
             });

@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using System.Collections.Generic;
 
@@ -14,15 +15,15 @@ namespace ZKube.Presentation
         {
             switch (notice)
             {
-                case BoardNotice.Waiting: return "Waiting for a run";
-                case BoardNotice.Queued: return "Swipe queued";
-                case BoardNotice.Totem: return "Tap a size to clear it";
-                case BoardNotice.Wave: return "Tap a row to clear it";
-                case BoardNotice.Hammer: return "Tap a block to break it";
-                case BoardNotice.Unavailable: return "That move is unavailable";
-                case BoardNotice.Recover: return "Unable to complete the action · recover the run";
-                case BoardNotice.Recovering: return "Checking your last move…";
-                case BoardNotice.Settled: return "That move did not go through";
+                case BoardNotice.Waiting: return Words.BoardNoticeWaiting;
+                case BoardNotice.Queued: return Words.BoardNoticeQueued;
+                case BoardNotice.Totem: return Words.BoardNoticeTotem;
+                case BoardNotice.Wave: return Words.BoardNoticeWave;
+                case BoardNotice.Hammer: return Words.BoardNoticeHammer;
+                case BoardNotice.Unavailable: return Words.BoardNoticeUnavailable;
+                case BoardNotice.Recover: return Words.BoardNoticeRecover;
+                case BoardNotice.Recovering: return Words.BoardNoticeRecovering;
+                case BoardNotice.Settled: return Words.BoardNoticeSettled;
                 default: throw new ArgumentOutOfRangeException(nameof(notice));
             }
         }

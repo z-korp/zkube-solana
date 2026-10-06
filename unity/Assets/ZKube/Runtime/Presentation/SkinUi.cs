@@ -28,12 +28,59 @@ namespace ZKube.Presentation
         // borderScale draws a sliced piece's ends smaller than authored.
         // The type roles: Fraunces for titles, Lilita One for the board HUD's
         // display numerals and signs, Nunito for everything else, by weight.
+        // A language whose alphabet a face lacks takes another whole face for
+        // that role, so no word is set in two faces.
         public enum Type { Title, Number, Label, Caption, Body, Display }
         public static string FontName(Type type) => type switch
         {
-            Type.Title => "Fraunces-650", Type.Display => "LilitaOne-Regular", Type.Number => "Nunito-1000", Type.Label => "Nunito-900",
+            Type.Title => Words.TitleFonts[Words.Language] ?? "Fraunces-650", Type.Display => Words.DisplayFonts[Words.Language] ?? "LilitaOne-Regular",
+            Type.Number => "Nunito-1000", Type.Label => "Nunito-900",
             Type.Caption => "Nunito-800", _ => "Nunito-700",
         };
+        // Chinese and Japanese share characters that each draws its own way, so the language in use puts its own
+        // script font first behind every text font. A font remembers which font drew a character for it; read
+        // again, it asks the new order.
+        public static void LeadWithTheLanguagesScript()
+        {
+            string own = Words.ScriptFonts[Words.Language];
+            if (own == null) return;
+            foreach (Type type in Enum.GetValues(typeof(Type)))
+            {
+                var font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + FontName(type));
+                var behind = font != null ? font.fallbackFontAssetTable : null;
+                if (behind == null) continue;
+                int at = behind.FindIndex(script => script != null && script.name == own);
+                int first = behind.FindIndex(script => script != null && Array.IndexOf(Words.ScriptFonts, script.name) >= 0);
+                if (at <= first) continue;
+                var lead = behind[at]; behind.RemoveAt(at); behind.Insert(first, lead);
+                font.ReadFontAssetDefinition();
+            }
+        }
+        // A player's name is the platform's and may be in a script no bundled font holds. Then, and only for that
+        // label, the whole name is drawn by the font of the device that draws most of it (owner, 2026-10-06), with
+        // the bundled face behind it. Every other word on a page is the catalogue's and is drawn by bundled fonts.
+        private static readonly System.Collections.Generic.Dictionary<string, TMP_FontAsset> deviceFonts = new System.Collections.Generic.Dictionary<string, TMP_FontAsset>();
+        public static void DrawNameInADeviceFont(TMP_Text label)
+        {
+            string name = label.text;
+            if (string.IsNullOrEmpty(name) || label.font.HasCharacters(name, out uint[] _, true, true)) return;
+            if (!deviceFonts.TryGetValue(name, out var device))
+            {
+                var letters = name.Where(c => !char.IsWhiteSpace(c)).Distinct().Select(c => (uint)c).ToArray();
+                string best = null; int most = 0;
+                foreach (string path in Font.GetPathsToOSFonts())
+                {
+                    if (UnityEngine.TextCore.LowLevel.FontEngine.LoadFontFace(path, 90) != UnityEngine.TextCore.LowLevel.FontEngineError.Success) continue;
+                    int drawn = letters.Count(c => UnityEngine.TextCore.LowLevel.FontEngine.TryGetGlyphIndex(c, out uint _));
+                    if (drawn > most) { most = drawn; best = path; }
+                    if (most == letters.Length) break;
+                }
+                device = best == null ? null : TMP_FontAsset.CreateFontAsset(best, 0, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 1024, 1024);
+                if (device != null) device.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset> { label.font };
+                deviceFonts[name] = device;
+            }
+            if (device != null) label.font = device;
+        }
         // Callers that only distinguish display text get numbers and plain text.
         private static Type Role(bool display) => display ? Type.Number : Type.Body;
 
@@ -313,7 +360,7 @@ namespace ZKube.Presentation
         private Color Ink(float alpha) => WithAlpha(Art.Token(TalkInk), alpha);
         // The rule's pictograms are 56u; the line is 16u at 1.35.
         public const float RuleIconU = 56, TalkLeading = 1.35f;
-        public const string TapHint = "Tap to continue";
+        public static string TapHint => Words.TalkTap;
 
         // A goal's pictogram (pictograms.rs): the picture and, when the goal has
         // one, its chip, the badge of signs and numbers on the picture's lower
@@ -542,12 +589,13 @@ namespace ZKube.Presentation
             }
             finally { UnityEngine.Object.Destroy(probe.gameObject); }
         }
-        // Labels are capitals with +9% tracking, as the type spec sets them.
+        // Labels are tracked +9%, as the type spec sets them. Their capitals are written in the catalogue: no code
+        // changes a word's case, which is wrong in Turkish and means nothing in Chinese.
         public const float LabelTracking = 9;
         private static void Letter(TMP_Text text, Type type)
         {
             if (type != Type.Label) return;
-            text.fontStyle |= FontStyles.UpperCase; text.characterSpacing = LabelTracking;
+            text.characterSpacing = LabelTracking;
         }
         // The extra spacing that makes a line advance leading em, in TMP's units.
         public static float LineSpacing(TMP_FontAsset font, float leading) =>

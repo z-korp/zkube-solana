@@ -32,7 +32,7 @@ namespace ZKube.Integration.Presentation
         {
             ClearKreditObservation();
             if (identity.Owner == null) { CloseKreditView(); return; }
-            Notice("Checking your Kredit balance…"); Status = "Checking Kredits…";
+            Notice(Words.ArenaKreditsChecking); Status = "Checking Kredits…";
             var result = await Flow.RefreshKredits(token);
             if (!Current(epoch) || !browsingKredits) return;
             kreditRead = result; economyReadbackNeeded = false; pageNotice = null; AwaitLaunch(result.Value.Launched);
@@ -78,8 +78,8 @@ namespace ZKube.Integration.Presentation
         private PanelPageView KreditPage()
         {
             var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
-            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Back = back, Tab = AppPage.Home };
-            var terms = PanelBlock.Text("Kredit terms", "Kredits can’t be withdrawn, transferred or exchanged.", SkinTokens.TextMuted, true);
+            var page = new PanelPageView { Key = "Kredits", Title = Words.ArenaKreditsTitle, Back = back, Tab = AppPage.Home };
+            var terms = PanelBlock.Text("Kredit terms", Words.ArenaKreditsTerms, SkinTokens.TextMuted, true);
             PackView[] Cards(Func<uint, PackView> card) => SessionViewPolicy.KreditPacks.Select(card).ToArray();
             PackView Plain(uint pack) => new PackView { Name = "Pack " + pack, Art = pack == 1 ? SkinSlots.Pack1 : pack == 10 ? SkinSlots.Pack10 : SkinSlots.Pack25,
                 Count = pack.ToString(CultureInfo.InvariantCulture), Price = Price(pack), Dim = true };
@@ -87,23 +87,23 @@ namespace ZKube.Integration.Presentation
             {
                 // The balance is being read, or could not be: the loader stands for the figure, and a failed read says why.
                 bool failed = failure != null && !Busy;
-                var waiting = new List<PanelBlock> { PanelBlock.Space(), PanelBlock.Balance(null, null, null, failed ? "Balance not loaded." : pageNotice ?? "Reading your balance") };
+                var waiting = new List<PanelBlock> { PanelBlock.Space(), PanelBlock.Balance(null, null, null, failed ? Words.ArenaKreditsNotLoaded : pageNotice ?? Words.ArenaKreditsReading) };
                 waiting.Add(PanelBlock.PackRow(Cards(Plain), failed ? failure : null));
-                if (failed) page.Primary = PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
+                if (failed) page.Primary = PageAction(Words.ActionTryAgain, () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
                 waiting.Add(terms);
                 page.Key = "Kredits waiting"; page.Blocks = waiting.ToArray();
                 return page;
             }
             var state = kreditRead.Value; ulong balance = state.Profile.Kredits;
-            string figure = balance.ToString(CultureInfo.InvariantCulture), entries = balance == 1 ? "1 entry" : figure + " entries";
+            string figure = balance.ToString(CultureInfo.InvariantCulture), entries = Words.ArenaKreditsEntries((long)balance);
             // The hero and the packs sit in the middle of the page, with air round them.
             var blocks = new List<PanelBlock> { PanelBlock.Space() };
             if (!state.Launched)
             {
-                blocks.Add(PanelBlock.Balance(figure, null, null, "The Arena opens soon."));
+                blocks.Add(PanelBlock.Balance(figure, null, null, Words.ArenaOpensSoon));
                 blocks.Add(PanelBlock.PackRow(Cards(Plain)));
                 // Before launch the one step is the Campaign, lit, as on the device page.
-                page.Primary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable(), icon: SkinSlots.IconPlay);
+                page.Primary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
                 blocks.Add(terms); page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -112,13 +112,13 @@ namespace ZKube.Integration.Presentation
             // Without the card it belongs to (a purchase found on arrival), the progress stands on the balance.
             bool known = SessionViewPolicy.KreditPacks.Contains(actingPack), onBalance = waits && !known && refused == null;
             bool gained = Time.unscaledTime < kreditGainUntil && balance > kreditsBefore;
-            blocks.Add(onBalance ? PanelBlock.Balance(null, null, null, "Confirming your purchase")
+            blocks.Add(onBalance ? PanelBlock.Balance(null, null, null, Words.ArenaKreditsConfirming)
                 : PanelBlock.Balance(figure, entries, Price(1), null, gained ? "+" + (balance - kreditsBefore).ToString(CultureInfo.InvariantCulture) : null,
                     gained ? kreditsBefore.ToString(CultureInfo.InvariantCulture) : null));
             var cards = Cards(pack => {
                 var card = Plain(pack); bool own = known && pack == actingPack;
                 if (refused != null && own)
-                { card.Dim = false; card.Refused = true; card.Price = "Try again"; card.Buy = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy); }
+                { card.Dim = false; card.Refused = true; card.Price = Words.ActionTryAgain; card.Buy = PageAction(Words.ActionTryAgain, refusalRetry, () => PageAvailable() && !Busy, "Try again"); }
                 else if (waits && refused == null) { if (own) { card.Dim = false; card.Buy = Progressing(); card.Price = card.Buy.Label; } }
                 else { card.Dim = false; uint selected = pack; card.Buy = PageAction(Price(pack), () => _ = PurchaseKredits(selected), CanBuyKredits, KreditPurchaseLabel(pack)); }
                 return card;
@@ -127,10 +127,10 @@ namespace ZKube.Integration.Presentation
             blocks.Add(PanelBlock.PackRow(cards, refused ?? (slow && waits ? StillChecking : null), refused == null, from));
             // The page's own buttons are the foot row's; the packs are its choices and it has no primary of its own.
             // A refusal with no card to stand on (a follow that failed) keeps its retry.
-            if (refused != null && !known) page.Primary = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
+            if (refused != null && !known) page.Primary = PageAction(Words.ActionTryAgain, refusalRetry, () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
             // The owner's wallet buys; an entry needs the device too.
             if (!waits && ownerRead != null && ownerRead.IsCurrent && ownerRead.Value.Session != null && ownerRead.Value.Session.Status == "none")
-                page.Tertiary = PageAction("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
+                page.Tertiary = PageAction(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device", SkinSlots.IconDevice);
             if (acting && (actionStep == "wallet" || actionStep == null)) page.Destructive = Disconnecting();
             blocks.Add(terms);
             page.Blocks = blocks.ToArray();

@@ -120,6 +120,42 @@ deployment or spending approval.
 
 ## Product truth and locked rules
 
+- **Languages:** every word a player reads has one owner, assets/words/<code>.json, a file a language with the
+  same keys; English is the source. A key says what the words mean, never where they stand, so moving a control
+  moves no key. The codegen refuses a language that lacks a key, uses another placeholder, breaks its own
+  typography or leaves a value in English unsaid, and emits one table a language with one accessor a key
+  (`Words`); no page, caption, guardian line or notice is written in code. Each language writes whole phrases
+  with its own plurals and order; captions and guardian rules are that language's phrases, never English parts
+  joined. Numbers and dates take the language's form. Money and rule statements are locked
+  (assets/words/locked.json): each names the meaning it keeps and, per language, what its words say and a seal of
+  both texts, so a change to either is read again. The language is a Settings row, the device's by default
+  (`EveryLanguageOfTheCatalogueIsSomeDevicesLanguage`), changed without a restart and saved with the other
+  preferences. A longer language gets a tighter phrase,
+  never a font under the floors. Three kinds of name are fixed: Daily is the mode's name in every language, a
+  realm keeps its English name where the script is Latin, and Chinese, Japanese and Korean write realms and
+  guardians in their own script. `every_key_exists_in_every_language_with_the_same_placeholders`,
+  `no_key_is_left_in_english_unless_its_language_says_so`, `names_the_owner_fixed_stay_fixed`,
+  `each_language_keeps_its_own_typography`, `each_language_counts_its_own_way`,
+  `a_locked_statement_is_read_again_whenever_either_text_changes`,
+  `no_two_kinds_share_a_caption_in_any_language`, `EveryRealmsPageFitsBothPhonesInEveryLanguage` and
+  `EveryArenaPageFitsBothPhonesInEveryLanguage` guard the words, the captions, the fit on both phones (no word
+  cut in two) and that every word on a page is the catalogue's; the font import refuses a character no shipped
+  font draws. The supersession list scans every language. Chinese, Japanese and Korean are drawn by three pinned
+  script fonts (Noto Sans SC, JP and KR, derived by unity/tools/font_sources/derive_cjk.py) that stand behind
+  every text font and hold no Latin letter. The codegen names each language's script font and the characters it
+  draws for it; the import bakes exactly those, and the language in use puts its own font first, because Chinese
+  and Japanese draw shared characters differently. `EachLanguageDrawsItsOwnScriptInItsOwnFont` and
+  `EveryCharacterALanguageShowsIsBakedInItsScriptFont` guard both. A face that lacks a language's alphabet is
+  replaced whole for that language (Noto Serif for Russian titles; Nunito 1000 for Russian, Turkish and
+  Vietnamese display text), so no word is set in two faces; `EveryCharacterOfALanguageIsInTheFontThatDrawsIt`
+  guards every language. No code changes a word's case, which is wrong in Turkish and means nothing in Chinese:
+  capitals are written in the catalogue, a failure sentence opens with its service, and the service's name
+  carries its capital. `NoCodeChangesTheCaseOfAPlayersWord` and
+  `a_failure_opens_with_its_service_and_the_service_with_its_capital` guard it. A player's name is the platform's
+  and may be in a script no bundled font holds: that one label is then drawn whole by a font of the device (owner,
+  2026-10-06), and nothing else ever is; `APlayersNameNoBundledFontDrawsIsDrawnByADeviceFont` guards the
+  exception. The Language page sets the names two to a row, the composer's pair of choices, so every language is
+  on the small phone at once; the Realms walk fails a list that scrolls.
 - **Two products, one client:** com.zkorp.zkube is zKube: Arena for the Solana dApp Store and Seeker;
   com.zkorp.zkube.store is zKube: Realms for Google Play. Unity and the Rust FFI are shared; store packages
   exclude money/chain assemblies and wallet plugins. `test_profiles_preserve_money_and_add_two_abi_store`,
@@ -895,7 +931,7 @@ shape, on the baseline and half its height clear of the figure. No page chooses.
 `test_only_the_arena_carries_the_solana_mark_and_only_as_issued` guard the format, the drawing and the files.
 
 Each guardian has ten full frames, a paws layer drawn over the rail it leans on, and a contact rail line; its
-title and ten lines are authored per realm in the catalog. Its contact also records where the blink changes its
+name, title and ten lines are written per realm in each language's words. Its contact also records where the blink changes its
 face (the eyes) and the centre of what the talk frames change below them (the mouth), and the codegen holds
 both inside the face. A speech bubble's tail has one owner, `SpeechTail`: from the bubble's nearest edge it aims
 at the mouth, stops short of it and never enters the eyes, on every page and on the board;

@@ -296,7 +296,7 @@ namespace ZKube.Presentation
             moves = Text("Moves remaining", "", movesLayout.Number, hud.MovesPt, SkinTokens.Score, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
             Lay("Moves tablet", movesLayout, movesIcon, moves);
 
-            var next = nextLabel = Text("Next row label", "NEXT ROW", hud.NextLabel, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label,
+            var next = nextLabel = Text("Next row label", Words.BoardNextRow, hud.NextLabel, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label,
                 TextAlignmentOptions.Top);
             nextShade = ui.Underpaint("Next row shade", Rect.zero, root);
             FitUnderpaint(nextShade, next, true);
@@ -540,7 +540,7 @@ namespace ZKube.Presentation
             bestCrown.color = SkinUi.WithAlpha(Color.white, crown == Crown.Beaten ? 1 : .55f);
             if (crown == Crown.Below)
             {
-                best.text = top.Value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                best.text = Words.Number(top.Value);
                 NumberFit.Apply(ui, best, best.rectTransform.rect.width, hud.ChipPt + 2);
             }
             if (!passed) return;
@@ -598,9 +598,9 @@ namespace ZKube.Presentation
         // "COMBO ×N" for a move that cleared N lines, two or more. A perfect
         // clear's reroll rises from its tablet, or the tablet says it is full.
         public const int ComboLines = 2;
-        public static string ComboText(int lines) => lines >= ComboLines ? "COMBO ×" + lines : null;
+        public static string ComboText(int lines) => lines >= ComboLines ? Words.BoardCombo(lines) : null;
         public const float ComboSeconds = 1.6f, PerfectSeconds = 1.9f, PerfectDelay = .16f, GainSeconds = .9f, GainRiseDp = 22;
-        public const string FullNote = "Full";
+        public static string FullNote => Words.BoardFull;
         public void ShowGains(uint scoreGain, ulong themeGain, int lines, bool reducedMotion, bool perfectClear = false, bool rerollGranted = false,
             int bonusEarned = 0, bool bonusFull = false)
         {
@@ -625,7 +625,7 @@ namespace ZKube.Presentation
             string combo = ComboText(lines);
             float centre = Layout.Board.center.y, apart = 30 * d * ui.Scale;
             if (perfectClear)
-                Callout("Accepted perfect clear", "PERFECT", 46, SkinTokens.Accent, centre + (combo == null ? 0 : apart), PerfectDelay, PerfectSeconds, reducedMotion);
+                Callout("Accepted perfect clear", Words.BoardPerfect, 46, SkinTokens.Accent, centre + (combo == null ? 0 : apart), PerfectDelay, PerfectSeconds, reducedMotion);
             if (combo != null)
                 Callout("Accepted combo", combo, 38, SkinTokens.Text, centre - (perfectClear ? apart : 0), 0, ComboSeconds, reducedMotion);
             if (!perfectClear) return;
@@ -653,7 +653,7 @@ namespace ZKube.Presentation
             var holder = new GameObject(name + CueHolder, typeof(RectTransform), typeof(CanvasGroup)).GetComponent<RectTransform>();
             holder.SetParent(canvas.transform, false); holder.SetSiblingIndex(modalShield.transform.GetSiblingIndex());
             var group = holder.GetComponent<CanvasGroup>(); group.blocksRaycasts = false; group.interactable = false;
-            TMP_Text Words(string label, Color color)
+            TMP_Text Lettering(string label, Color color)
             {
                 var text = ui.Label(label, value, Rect.zero, size, token, holder, SkinUi.Type.Display);
                 text.enableWordWrapping = false; text.color = color;
@@ -661,7 +661,7 @@ namespace ZKube.Presentation
                 rect.offsetMin = rect.offsetMax = Vector2.zero;
                 return text;
             }
-            var probe = Words(name + " outline", CalloutInk);
+            var probe = Lettering(name + " outline", CalloutInk);
             float scale = 1, wide = probe.GetPreferredValues(value, float.PositiveInfinity, float.PositiveInfinity).x;
             if (maxWidth > 0 && wide > maxWidth) scale = maxWidth / wide;
             probe.fontSize *= scale;
@@ -669,12 +669,12 @@ namespace ZKube.Presentation
             float stroke = Mathf.Max(1.5f * d, probe.fontSize / 12);
             for (int i = 0; i < 8; i++)
             {
-                var copy = i == 0 ? probe : Words(name + " outline", CalloutInk);
+                var copy = i == 0 ? probe : Lettering(name + " outline", CalloutInk);
                 copy.fontSize = probe.fontSize;
                 float angle = i * Mathf.PI / 4;
                 copy.rectTransform.anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * stroke;
             }
-            var fill = Words(name, art.Token(token)); fill.fontSize = probe.fontSize;
+            var fill = Lettering(name, art.Token(token)); fill.fontSize = probe.fontSize;
             var want = fill.GetPreferredValues(value, float.PositiveInfinity, float.PositiveInfinity);
             holder.pivot = new Vector2(.5f, .5f); holder.anchorMin = holder.anchorMax = Vector2.zero;
             holder.sizeDelta = new Vector2(Mathf.Ceil(want.x) + 2 * stroke + 8 * d, Mathf.Ceil(want.y) + 2 * stroke + 4 * d);
@@ -800,7 +800,7 @@ namespace ZKube.Presentation
         public void IntroduceGuardian(bool reducedMotion)
         {
             float centre = Layout.Board.center.y, apart = 26 * Layout.Density * ui.Scale;
-            Callout("Guardian name", art.GuardianName.ToUpperInvariant(), 46, SkinTokens.Accent, centre + apart, 0, IntroSeconds, reducedMotion);
+            Callout("Guardian name", art.GuardianName, 46, SkinTokens.Accent, centre + apart, 0, IntroSeconds, reducedMotion);
             Callout("Guardian title", art.GuardianTitle, 22, SkinTokens.Text, centre - apart, PerfectDelay, IntroSeconds, reducedMotion);
             Face("greeting"); guardianCheerUntil = Time.unscaledTime + IntroSeconds;
         }
@@ -1271,7 +1271,7 @@ namespace ZKube.Presentation
         }
         private void ShowScoreText(uint value)
         {
-            if (!hud.Campaign) { score.text = value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture); return; }
+            if (!hud.Campaign) { score.text = Words.Number(value); return; }
             // The plate counts toward the star: a met target reads full, with its tick.
             uint target = owner.Session.Rules.PointsRequired;
             ShowPlate(plates[0], Math.Min(value, target), target, value >= target);

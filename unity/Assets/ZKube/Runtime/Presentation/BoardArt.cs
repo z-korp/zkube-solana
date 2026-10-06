@@ -38,9 +38,20 @@ namespace ZKube.Presentation
         private readonly Dictionary<string, Color> tokens = new Dictionary<string, Color>();
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<string, Color> colors = new Dictionary<string, Color>();
-        private readonly Dictionary<SkinUi.Type, TMP_FontAsset> fonts = new Dictionary<SkinUi.Type, TMP_FontAsset>();
-        public TMP_FontAsset Font(SkinUi.Type type) => fonts.TryGetValue(type, out var font) ? font
-            : throw new InvalidOperationException("Load the realm before using its fonts");
+        // By name: a language may take another face for a role.
+        private readonly Dictionary<string, TMP_FontAsset> fonts = new Dictionary<string, TMP_FontAsset>();
+        // The language whose script font leads; a font is never handed out in another language's order.
+        private int scriptOf = -1;
+        public TMP_FontAsset Font(SkinUi.Type type)
+        {
+            if (scriptOf != global::ZKube.Core.Generated.Words.Language)
+            { scriptOf = global::ZKube.Core.Generated.Words.Language; global::ZKube.Presentation.SkinUi.LeadWithTheLanguagesScript(); }
+            string name = global::ZKube.Presentation.SkinUi.FontName(type);
+            if (fonts.TryGetValue(name, out var font)) return font;
+            font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + name);
+            if (font == null) throw new InvalidOperationException("Prepare the bundled TMP fonts before opening the board");
+            fonts.Add(name, font); return font;
+        }
         public byte RealmId { get; private set; }
         public string ThemeId { get; private set; }
         public string GuardianName { get; private set; }
@@ -150,9 +161,8 @@ namespace ZKube.Presentation
             skinUi = skinUiLoad.Request.asset as SpriteAtlas;
             if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
             foreach (global::ZKube.Presentation.SkinUi.Type type in Enum.GetValues(typeof(global::ZKube.Presentation.SkinUi.Type)))
-                if (!fonts.ContainsKey(type) && Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + global::ZKube.Presentation.SkinUi.FontName(type)) is TMP_FontAsset font)
-                    fonts.Add(type, font);
-            if (atlas == null || common == null || fonts.Count != Enum.GetValues(typeof(global::ZKube.Presentation.SkinUi.Type)).Length)
+                Font(type);
+            if (atlas == null || common == null)
                 throw new InvalidOperationException("Prepare the bundled realm atlas and TMP fonts before opening the board");
 
         }

@@ -393,7 +393,7 @@ namespace ZKube.Presentation
                 var inside = new Rect(rect.x + padHU * u, rect.y + pad, rect.width - 2 * padHU * u, rect.height - 2 * pad - ledge);
                 if (header != null)
                 {
-                    var head = Text(name + " heading", header.ToUpperInvariant(), new Rect(inside.x, inside.yMax - headerHeight + 4 * u, inside.width, headerHeight - 4 * u),
+                    var head = Text(name + " heading", header, new Rect(inside.x, inside.yMax - headerHeight + 4 * u, inside.width, headerHeight - 4 * u),
                         HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, DisplayNormal, TextAlignmentOptions.Left);
                     head.characterSpacing = 6;
                     // A tag (.tag) follows the heading 6u on.
@@ -505,20 +505,37 @@ namespace ZKube.Presentation
             });
         }
 
+        // A chip whose words are one phrase around its number ("16 moves"): the
+        // words before the number lead it and the rest follow, in whichever
+        // order the language puts them.
+        public Side Counted(string name, string icon, float iconU, string number, string phrase)
+        {
+            int at = phrase.IndexOf(number, StringComparison.Ordinal);
+            if (at < 0) return Chip(name, icon, iconU, number, phrase);
+            string lead = phrase.Substring(0, at).TrimEnd(), words = phrase.Substring(at + number.Length).TrimStart();
+            return Chip(name, icon, iconU, number, words.Length == 0 ? null : words, lead.Length == 0 ? null : lead);
+        }
         // A chip (.chip3): an optional icon, a display number and words, on the dark pill.
-        public Side Chip(string name, string icon, float iconU, string number, string words)
+        public Side Chip(string name, string icon, float iconU, string number, string words, string lead = null)
         {
             float u = U, numberDp = 16 * K, wordsDp = SubtitleDp;
             float iconSize = icon == null ? 0 : iconU * u;
+            float leadWidth = lead == null ? 0 : TextWidth(lead, wordsDp, SkinUi.Type.Caption) + 6 * u;
             float numberWidth = number == null ? 0 : TextWidth(System.Text.RegularExpressions.Regex.Replace(number, "[0-9]", "8"), numberDp, SkinUi.Type.Display);
             // Its parts are 6u apart (.chip3).
             float wordsWidth = words == null ? 0 : TextWidth(words, wordsDp, SkinUi.Type.Caption), between = number != null && words != null ? 6 * u : 0;
-            float w = 5 * u + iconSize + (icon == null ? 0 : 6 * u) + numberWidth + between + wordsWidth + 10 * u;
+            float w = 5 * u + iconSize + (icon == null ? 0 : 6 * u) + leadWidth + numberWidth + between + wordsWidth + 10 * u;
             float h = Mathf.Max(iconSize, Mathf.Max(numberDp * Ui.Scale * Ui.Density * DisplayNormal, wordsDp * Ui.Scale * Ui.Density * BodyNormal)) + 8 * u;
             return new Side(w, h, rect => {
                 Ui.Pill(name, rect, Parent, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
                 float x = rect.x + 5 * u;
                 if (icon != null) { Ui.Piece(name + " icon", icon, new Rect(x, rect.center.y - iconSize / 2, iconSize, iconSize), Parent); x += iconSize + 6 * u; }
+                if (lead != null)
+                {
+                    Ui.Label(name + " lead", lead, new Rect(x, rect.y, leadWidth, rect.height), wordsDp, SkinTokens.Text, Parent, SkinUi.Type.Caption,
+                        TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                    x += leadWidth;
+                }
                 if (number != null)
                 {
                     var n = Ui.Label(name + " number", number, new Rect(x, rect.y, numberWidth + 2, rect.height), numberDp, SkinTokens.Text, Parent, SkinUi.Type.Display,
@@ -625,7 +642,7 @@ namespace ZKube.Presentation
             var primary = catalog.Goal(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount);
             var secondary = catalog.Goal(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount);
             return new[] {
-                new GoalLine { Name = "Score goal", Pictogram = SkinSlots.GoalScore, Caption = "Score", Counter = "fill", Target = goals.Points },
+                new GoalLine { Name = "Score goal", Pictogram = SkinSlots.GoalScore, Caption = Words.GoalScore, Counter = "fill", Target = goals.Points },
                 new GoalLine { Name = "Primary goal", Pictogram = primary.Pictogram(bonus), Chip = primary.chip, Caption = primary.text, Counter = primary.counter,
                     Target = goals.PrimaryCount },
                 new GoalLine { Name = "Secondary goal", Pictogram = secondary.Pictogram(bonus), Chip = secondary.chip, Caption = secondary.text,
@@ -633,11 +650,11 @@ namespace ZKube.Presentation
             };
         }
         // A filled count reads "progress/target", the target muted.
-        public string Count(GoalLine goal) => goal.Progress.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "<color=#"
-            + ColorUtility.ToHtmlStringRGB(Ui.Art.Token(SkinTokens.TextMuted)) + ">/" + goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)
+        public string Count(GoalLine goal) => Words.Number(goal.Progress) + "<color=#"
+            + ColorUtility.ToHtmlStringRGB(Ui.Art.Token(SkinTokens.TextMuted)) + ">/" + Words.Number(goal.Target)
             + "</color>";
-        public string Plain(GoalLine goal) => goal.Progress.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "/"
-            + goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        public string Plain(GoalLine goal) => Words.Number(goal.Progress) + "/"
+            + Words.Number(goal.Target);
         // The goal rows (goalRows): target ("10" or a ring), progress (the count
         // over its bar, or a ring and a tick) or result (the count with its tick).
         public enum GoalMode { Target, Progress, Result }
@@ -647,7 +664,7 @@ namespace ZKube.Presentation
             return goals.Select((goal, i) => {
                 bool once = goal.Counter != "fill";
                 Side right;
-                if (mode == GoalMode.Target) right = once ? Icon(goal.Name + " ring", SkinSlots.CounterRing, 26) : Value(goal.Name, goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture));
+                if (mode == GoalMode.Target) right = once ? Icon(goal.Name + " ring", SkinSlots.CounterRing, 26) : Value(goal.Name, Words.Number(goal.Target));
                 else if (once) right = goal.Met ? Icon(goal.Name + " tick", SkinSlots.Tick, 28) : Icon(goal.Name + " ring", SkinSlots.CounterRing, 26);
                 else if (mode == GoalMode.Progress)
                     right = Progress(goal.Name + " value", Count(goal), Plain(goal), goal.Target == 0 ? 1 : (float)goal.Progress / goal.Target, goal.Met);

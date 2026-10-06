@@ -298,6 +298,9 @@ namespace ZKube.Editor
         }
 
         private const int FontSampling = 90, FontPadding = 14, FontAtlas = 2048;
+        // A script font draws hundreds of dense characters a language: a smaller sample, with the same share of
+        // padding so outlines and shadows keep their width, holds a language on a page or two.
+        private const int ScriptSampling = 64, ScriptPadding = 10;
 
         private static void PrepareFonts(FontEntry[] entries)
         {
@@ -307,6 +310,8 @@ namespace ZKube.Editor
             for (int code = 32; code <= 126; code++) seed.Append((char)code);
             for (int code = 160; code <= 255; code++) seed.Append((char)code);
             seed.Append("★☆✓◇×←→↑↓↻…–—‘’“”•≤≥");
+            // Every character any language's words show is baked, so no language waits on a glyph.
+            seed.Append(ZKube.Core.Generated.Words.Characters);
             var fonts = new Dictionary<string, TMP_FontAsset>();
             foreach (var entry in entries)
             {
@@ -314,9 +319,12 @@ namespace ZKube.Editor
                     throw new InvalidOperationException("Generated font GUID drift: " + entry.asset);
                 string path = Generated + "Resources/" + entry.resource + ".asset";
                 var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+                // A script font bakes only the characters its own language shows.
+                int script = Array.IndexOf(ZKube.Core.Generated.Words.ScriptFonts, entry.name);
+                int sampling = script < 0 ? FontSampling : ScriptSampling, padding = script < 0 ? FontPadding : ScriptPadding;
                 // A larger sampling size and padding keep glyph edges sharp and leave
                 // room for the outline and shadow the game text uses.
-                if (font != null && (font.atlasPadding != FontPadding || font.atlasWidth != FontAtlas || font.faceInfo.pointSize != FontSampling))
+                if (font != null && (font.atlasPadding != padding || font.atlasWidth != FontAtlas || font.faceInfo.pointSize != sampling))
                 {
                     AssetDatabase.DeleteAsset(path);
                     font = null;
@@ -324,7 +332,7 @@ namespace ZKube.Editor
                 if (font == null)
                 {
                     font = TMP_FontAsset.CreateFontAsset(AssetDatabase.LoadAssetAtPath<Font>(entry.asset),
-                        FontSampling, FontPadding, GlyphRenderMode.SDFAA, FontAtlas, FontAtlas, AtlasPopulationMode.Dynamic, true);
+                        sampling, padding, GlyphRenderMode.SDFAA, FontAtlas, FontAtlas, AtlasPopulationMode.Dynamic, true);
                     if (font == null) throw new InvalidOperationException("Failed to create TMP font: " + entry.name);
                     font.name = entry.name;
                     font = CreateWithGuid(font, path, entry.fontAssetGuid,
@@ -339,7 +347,7 @@ namespace ZKube.Editor
                 if (clearOnBuild == null) throw new InvalidOperationException("Pinned TMP clear-on-build field changed.");
                 clearOnBuild.boolValue = false;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                font.TryAddCharacters(seed.ToString(), out string _, true);
+                font.TryAddCharacters(script < 0 ? seed.ToString() : ZKube.Core.Generated.Words.ScriptCharacters(script), out string _, true);
                 ClearKerningFlags(font);
                 fonts.Add(entry.name, font);
             }
@@ -347,12 +355,17 @@ namespace ZKube.Editor
             var math = fonts["NotoSansMath-Regular"];
             symbols.fallbackFontAssetTable = new List<TMP_FontAsset>();
             math.fallbackFontAssetTable = new List<TMP_FontAsset>();
+            // The script fonts stand behind every text font in table order; the language in use moves its own first.
+            var scripts = ZKube.Core.Generated.Words.ScriptFonts.Where(name => name != null).Select(name => fonts[name]).ToList();
+            foreach (var script in scripts) script.fallbackFontAssetTable = new List<TMP_FontAsset>();
             foreach (var pair in fonts)
             {
-                if (pair.Value == symbols || pair.Value == math) continue;
-                pair.Value.fallbackFontAssetTable = new List<TMP_FontAsset> { symbols, math };
-                const string required = "zKube Campaign Arcade Score Theme Kredit 0123456789★☆✓◇×←→↑↓…–—‘’“”•≤≥";
-                if (!pair.Value.HasCharacters(required, out uint[] missing, true, true))
+                if (pair.Value == symbols || pair.Value == math || scripts.Contains(pair.Value)) continue;
+                pair.Value.fallbackFontAssetTable = new List<TMP_FontAsset> { symbols, math }.Concat(scripts).ToList();
+                // A font, with the symbol and script fonts behind it, draws every word of every language. Nothing is
+                // added here: a character two scripts share stays baked in the font of the language that shows it.
+                string required = "zKube 0123456789★☆✓◇×←→↑↓…–—‘’“”•≤≥" + ZKube.Core.Generated.Words.Characters;
+                if (!pair.Value.HasCharacters(required, out uint[] missing, true, false))
                     throw new InvalidOperationException(EntryMessage(pair.Key, missing));
             }
             foreach (var font in fonts.Values)

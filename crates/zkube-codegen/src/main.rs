@@ -6,6 +6,7 @@ mod native_client;
 mod native_fixtures;
 mod pictograms;
 mod skins;
+mod words;
 
 use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 
@@ -86,11 +87,13 @@ fn run(cli: &Cli) -> Result<String, String> {
     let mut outputs = native_client::outputs(&catalog)?;
     let art_source = fs::read_to_string(cli.root.join("assets/catalog.json"))
         .map_err(|error| error.to_string())?;
+    let mut words = words::Words::load(&cli.root)?;
     outputs.push((
         "assets/theme-catalog.generated.json",
-        art_catalog::render(&catalog, &art_source, &cli.root)?,
+        art_catalog::render(&catalog, &art_source, &cli.root, &mut words)?,
     ));
     outputs.extend([
+        ("unity/Assets/ZKube/Generated/Words.g.cs", words.csharp()),
         (
             "unity/Assets/ZKube/Generated/SkinSlots.g.cs",
             skins::csharp(),

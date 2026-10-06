@@ -66,7 +66,7 @@ namespace ZKube.Presentation.Tests
                 float deadline = Time.realtimeSinceStartup + 30;
                 while (!board.PresentationInitialized || board.View == null || !board.View.Boss)
                 { if (Time.realtimeSinceStartup > deadline) Assert.Fail(at + ": the guardian level did not load"); yield return null; }
-                Assert.AreEqual(theme.guardianName.ToUpperInvariant(), Label("Guardian name").text, at);
+                Assert.AreEqual(theme.guardianName, Label("Guardian name").text, at);
                 Assert.AreEqual(theme.guardianTitle, Label("Guardian title").text, at);
                 StringAssert.Contains("LilitaOne", Label("Guardian name").font.name);
                 Assert.AreEqual("greeting", board.View.GuardianFace, at + ": the guardian greets the player");

@@ -38,16 +38,25 @@ namespace ZKube.Presentation.Tests
         {
             var catalog = JsonUtility.FromJson<PageCatalog>(Resources.Load<TextAsset>("ZKube/Catalog").text);
             catalog.Validate();
-            foreach (var realm in catalog.themes)
+            // In every language: the lines are rows of the words table, read in the language in use.
+            try
             {
-                Assert.That(realm.guardianTitle, Is.Not.Empty, realm.guardianName);
-                Assert.AreEqual(10, realm.guardianLines.All.Length);
-                foreach (var line in realm.guardianLines.All) Assert.That(line, Is.Not.Null.And.Not.Empty, realm.guardianName);
-                Assert.AreEqual(realm.guardianLines.oneStar, realm.guardianLines.Stars(1));
-                Assert.AreEqual(realm.guardianLines.threeStar, realm.guardianLines.Stars(3));
+                foreach (string code in ZKube.Core.Generated.Words.Codes)
+                {
+                    ZKube.Core.Generated.Words.Use(code);
+                    foreach (var realm in catalog.themes)
+                    {
+                        Assert.That(realm.guardianTitle, Is.Not.Empty, code + " " + realm.guardianName);
+                        Assert.AreEqual(10, realm.guardianLines.All.Length);
+                        foreach (var line in realm.guardianLines.All) Assert.That(line, Is.Not.Null.And.Not.Empty, code + " " + realm.guardianName);
+                        Assert.AreEqual(realm.guardianLines.oneStar, realm.guardianLines.Stars(1));
+                        Assert.AreEqual(realm.guardianLines.threeStar, realm.guardianLines.Stars(3));
+                    }
+                }
             }
-            catalog.themes[0].guardianLines.incomplete = " ";
-            Assert.Throws<FormatException>(() => catalog.Validate(), "A guardian with a silent line is rejected");
+            finally { ZKube.Core.Generated.Words.Use("en"); }
+            catalog.themes[0].words.lines = new int[9];
+            Assert.Throws<FormatException>(() => catalog.Validate(), "A guardian with a line missing is rejected");
         }
         // Every Campaign goal in its realm, and every Daily objective with any
         // guardian, finds its caption, counter and imported pictogram.

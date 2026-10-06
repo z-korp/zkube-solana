@@ -68,12 +68,12 @@ namespace ZKube.Integration.Presentation
             if (identity?.Owner == null) return view;
             var session = settingsRead != null && settingsRead.IsCurrent ? settingsRead.Value.Session : null;
             view.Identity = new[] {
-                PanelBlock.Card("Device card", PanelBlock.Eyebrow("This device", SkinTokens.TextMuted),
+                PanelBlock.Card("Device card", PanelBlock.Eyebrow(Words.ArenaDeviceTitleHeading, SkinTokens.TextMuted),
                     new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short,
-                        Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }) };
+                        Token = DeviceState(session).Token, Action = PageAction(Words.ArenaDeviceManageShort, () => _ = OpenSession(true), () => PageAvailable() && !Busy, "Manage") }) };
             // The foot row: the last operation, and Disconnect last.
-            view.Tertiary = PageAction("Last operation", OpenOperation, () => PageAvailable() && !Busy); view.Tertiary.Icon = SkinSlots.IconClock;
-            view.Destructive = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()); view.Destructive.Icon = SkinSlots.IconWallet;
+            view.Tertiary = PageAction(Words.ArenaOperationTitle, OpenOperation, () => PageAvailable() && !Busy, "Last operation"); view.Tertiary.Icon = SkinSlots.IconClock;
+            view.Destructive = PageAction(Words.ArenaDisconnect, () => _ = Disconnect(), () => PageAvailable(), "Disconnect"); view.Destructive.Icon = SkinSlots.IconWallet;
             return view;
         }
         // The Campaign's result is the journey's; the Arcade's is its last kept run.
@@ -81,15 +81,15 @@ namespace ZKube.Integration.Presentation
         {
             if (campaignPage == AppPage.Result) return campaign.ResultPage(Application.productName, identity.Owner);
             var value = lastResult != null && lastResult.PlayerName == identity.Owner ? lastResult :
-                new ResultPageView { ProductName = Application.productName, Mode = "Daily", Realm = 1, PlayerName = identity.Owner ?? "" };
+                new ResultPageView { ProductName = Application.productName, Mode = Words.ModeDaily, Realm = 1, PlayerName = identity.Owner ?? "" };
             value.Share = ResultSharing.Open; value.Arcade = true;
             // The page stays while its run's result is being saved. One that is
             // not saved yet is asked for again here; the boards are the way out.
             bool unsaved = SavingResult && boardHost.Unsaved;
-            value.Done = unsaved ? PageAction("Try again", boardHost.SaveAgain, PageAvailable)
-                : PageAction("Continue", () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult);
+            value.Done = unsaved ? PageAction(Words.ActionTryAgain, boardHost.SaveAgain, PageAvailable, "Try again")
+                : PageAction(Words.ActionContinue, () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult, "Continue");
             uint day = value.Day;
-            if (value.HasResult) value.Leaderboard = PageAction("See boards", () => { boardHost?.Close(); _ = OpenRewards(day); },
+            if (value.HasResult) value.Leaderboard = PageAction(Words.ArenaSeeBoards, () => { boardHost?.Close(); _ = OpenRewards(day); },
                 () => PageAvailable() && !Busy && (!SavingResult || boardHost.Unsaved));
             return value;
         }
@@ -150,7 +150,7 @@ namespace ZKube.Integration.Presentation
                 case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : notices); break;
                 case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : notices); break;
                 case "Profile":
-                    if (profileRead == null) views.RenderPanel(Waiting("Profile", "Profile", null, AppPage.Profile, pageNotice));
+                    if (profileRead == null) views.RenderPanel(Waiting("Profile", Words.TabProfile, null, AppPage.Profile, pageNotice));
                     else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, notices);
                     else views.RenderPanel(ProfilePanel(), notices);
                     break;
@@ -161,7 +161,7 @@ namespace ZKube.Integration.Presentation
             }
         }
         // While a wallet request is open, Disconnect stays within reach, last in the foot row.
-        private PageAction Disconnecting() => PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable(), icon: SkinSlots.IconWallet);
+        private PageAction Disconnecting() => PageAction(Words.ArenaDisconnect, () => _ = Disconnect(), () => PageAvailable(), "Disconnect", SkinSlots.IconWallet);
         // A failure the page itself does not show goes on it as a notice; the
         // Connect, Device and Kredits pages show their refused action themselves.
         private string NoticeFor(string family) => family == "Connect" ? null :
@@ -175,12 +175,12 @@ namespace ZKube.Integration.Presentation
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)
             {
-                page.Blocks = new[] { PanelBlock.Title("Not loaded", centered: true), PanelBlock.Text("Page failure", failure, centered: true) };
-                page.Primary = PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
-                page.Secondary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null, icon: SkinSlots.IconPlay);
+                page.Blocks = new[] { PanelBlock.Title(Words.ArenaHeadlineNotLoaded, centered: true, name: "Not loaded"), PanelBlock.Text("Page failure", failure, centered: true) };
+                page.Primary = PageAction(Words.ActionTryAgain, () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
+                page.Secondary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null, "Play Campaign", SkinSlots.IconPlay);
             }
             else if (sessionActionPending || economyActionPending) Requesting(page);
-            else page.Blocks = new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
+            else page.Blocks = new[] { PanelBlock.Text("Page notice", message ?? Words.ArenaChecking, SkinTokens.TextMuted) };
             return page;
         }
         private void Notice(string message) { pageNotice = message; Present(); }
@@ -201,15 +201,15 @@ namespace ZKube.Integration.Presentation
             var back = PageAction(null, ReturnFromOperation, PageAvailable);
             // A page that shows: it keeps its tab bar, Settings lit, which returns there. It has a
             // button only where there is a step to take.
-            var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back, Tab = AppPage.Settings };
+            var page = new PanelPageView { Key = "Operation", Title = Words.ArenaOperationTitle, Subtitle = Words.TabArena, Back = back, Tab = AppPage.Settings };
             var receipt = LastReceipt;
             if (receipt == null)
             {
                 page.Blocks = new[] {
                     PanelBlock.Card("Operation card", PanelBlock.Icon(SkinSlots.IconKredit, SkinTokens.TextMuted),
-                        PanelBlock.Title("No operation yet", centered: true),
-                        PanelBlock.Text("Transaction receipt", receiptNotice ?? "Your latest operation will appear here after a wallet or device action.")),
-                    PanelBlock.Text("Operation note", "You can play Campaign without a device session.", centered: false) };
+                        PanelBlock.Title(Words.ArenaOperationNone, centered: true, name: "No operation yet"),
+                        PanelBlock.Text("Transaction receipt", receiptNotice ?? Words.ArenaOperationNoneDetail)),
+                    PanelBlock.Text("Operation note", Words.ArenaOperationCampaignNote, centered: false) };
                 return page;
             }
             var lines = new List<PanelBlock> {
@@ -218,19 +218,19 @@ namespace ZKube.Integration.Presentation
             // A confirmed title already names the operation.
             if (receipt.Outcome != ExecutionOutcome.ConfirmedSuccess)
                 lines.Add(PanelBlock.Text("Operation intent", MoneyReceiptText.Intent(receipt), SkinTokens.Objective, centered: true));
-            lines.Add(PanelBlock.Eyebrow("Receipt", SkinTokens.TextMuted));
+            lines.Add(PanelBlock.Eyebrow(Words.ArenaOperationReceipt, SkinTokens.TextMuted));
             if (string.IsNullOrEmpty(receipt.Signature)) lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt)));
             else
             {
                 lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt)));
-                lines.Add(PanelBlock.Button(PageAction(fullReceipt ? "Hide receipt" : "Show receipt", ToggleReceiptDetails,
+                lines.Add(PanelBlock.Button(PageAction(fullReceipt ? Words.ArenaOperationHide : Words.ArenaOperationShow, ToggleReceiptDetails,
                     () => PageAvailable() && !Busy, "Receipt details"), false));
             }
             var blocks = new List<PanelBlock> { PanelBlock.Card("Operation card", lines.ToArray()) };
             blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), centered: false));
             if (receipt.Outcome == ExecutionOutcome.Pending) Refused("Operation", page, () => PageAvailable() && !Busy);
             else if (receipt.Outcome == ExecutionOutcome.FeeShortage)
-                page.Primary = PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
+                page.Primary = PageAction(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
             page.Blocks = blocks.ToArray();
             return page;
         }

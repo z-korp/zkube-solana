@@ -11,7 +11,11 @@ import { describe, expect, it } from "vitest";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const DOCUMENTS = [join(ROOT, "AGENTS.md"), join(ROOT, "README.md")];
 const UNITY = join(ROOT, "unity/Assets/ZKube");
-const SOURCE = [UNITY, join(ROOT, "services/src"), join(ROOT, "tools/chain"),
+// What a player reads: the client's code and the words of every language. A
+// reversal's rule carries its retired phrase in each language that had one.
+const WORDS = join(ROOT, "assets/words");
+const PLAYER = [UNITY, WORDS];
+const SOURCE = [...PLAYER, join(ROOT, "services/src"), join(ROOT, "tools/chain"),
   join(ROOT, "programs/solana/src"), join(ROOT, "crates/zkube-core/src"),
   join(ROOT, "crates/zkube-core-host/src")];
 const AUTHORED = [...SOURCE, ...DOCUMENTS];
@@ -21,20 +25,20 @@ const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   { pattern: /Back to (?:map|Arena|Profile)\b|"Back"|Back,? top left|Back (?:alone )?beside the title|the Back tablet|Back as their one way back/, trees: AUTHORED,
     reversal: "The top band holds no button: a page is left by its lit tab, its foot row or the Android back key" },
-  { pattern: /expired before it was sent/i, trees: [UNITY],
+  { pattern: /expired before it was sent/i, trees: PLAYER,
     reversal: "An entry that never landed says so on its card, with what is safe and the entry back on its button" },
-  { pattern: /Refresh before|Refresh to (?:check|try)|needs? refreshing|Results changed\. Refresh/i, trees: [UNITY],
+  { pattern: /Refresh before|Refresh to (?:check|try)|needs? refreshing|Results changed\. Refresh/i, trees: PLAYER,
     reversal: "A stale or absent read restarts by itself; no line asks the player to refresh" },
-  { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling|Daily frozen|New actions are closed|Resume the saved Daily run first/i, trees: [UNITY],
+  { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling|Daily frozen|New actions are closed|Resume the saved Daily run first/i, trees: PLAYER,
     reversal: "A paid run ends on the shared result page, which says how saving its result stands" },
-  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: [UNITY],
+  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: PLAYER,
     reversal: "The client follows a sent transaction to its outcome on its own button; nobody is asked to check or refresh and only Last operation shows a receipt" },
   { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily|Your last run today|Your best run on each board counts|Back to rewards|Buy a pack to enter today/,
-    trees: [UNITY, join(ROOT, "README.md")],
+    trees: [...PLAYER, join(ROOT, "README.md")],
     reversal: "The paid game has one name on screen, Arena, and one home page: the Daily with one action over today's boards" },
   { pattern: /fee allowance|allowance low|refill allowance|allowance refill|fee refill|device allowance|needs a fee/i, trees: AUTHORED,
     reversal: "What the wallet puts on a device is a deposit that returns, never a fee" },
-  { pattern: /Saved Campaign run ·|Rules of your saved run|Campaign information is being checked|Refresh to view Campaign progress|Campaign trial data is unavailable/i, trees: [UNITY],
+  { pattern: /Saved Campaign run ·|Rules of your saved run|Campaign information is being checked|Refresh to view Campaign progress|Campaign trial data is unavailable/i, trees: PLAYER,
     reversal: "The Arena Campaign is the Realms Campaign" },
   { pattern: /Daily is being prepared|two Daily preparations|seed\/unpause\/activation|After the window and archival|root-gated closure|skipping a suspended one|activates or calls|whether or not it was activated|funds the following paid Daily|next prepared Daily's opening|lets anyone prepare|first day after (?:it|a suspension)|preparable Daily/i, trees: AUTHORED,
     reversal: "Players' own transactions prepare and finalize each Daily; the keeper is a backstop" },
@@ -44,7 +48,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Consuming a run keeps each board sorted; finalization seals both with their Daily" },
   { pattern: /\bTribal\b/i, trees: AUTHORED,
     reversal: "Realm 9 is Serengeti" },
-  { pattern: /board changed|swipe again/i, trees: [UNITY],
+  { pattern: /board changed|swipe again/i, trees: PLAYER,
     reversal: "A stale queued swipe is dropped without a notice" },
   { pattern: /Edit name|Save name|Name preview|Names can use up to|name starts as Player|editable in Profile|Your name appears on this device/i, trees: AUTHORED,
     reversal: "The platform player account replaces the editable name" },

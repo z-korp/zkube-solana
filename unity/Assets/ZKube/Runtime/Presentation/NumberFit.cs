@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using TMPro;
@@ -43,20 +44,18 @@ namespace ZKube.Presentation
         // to seven digits, its short-scale abbreviation beyond, so no sentence
         // carries a figure longer than "9,999,999".
         public static string Figure(ulong value) =>
-            value < 10_000_000 ? value.ToString("N0", CultureInfo.InvariantCulture) : Compact(value);
+            value < 10_000_000 ? Words.Number(value) : Compact(value);
 
         // Every figure of four digits or more (with its thousands separators and
         // any fraction) becomes its short-scale abbreviation.
-        public static string Abbreviate(string value) =>
-            Regex.Replace(value, @"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{4,}(?:\.\d+)?", match =>
-                Compact(decimal.Parse(match.Value.Replace(",", ""), CultureInfo.InvariantCulture)));
-        private static readonly string[] suffixes = { "K", "M", "B", "T", "Qa", "Qi" };
-        public static string Compact(decimal value)
+        // The figure is read as the language in use writes it: its thousands
+        // separator and its decimal mark.
+        public static string Abbreviate(string value)
         {
-            if (value < 1000) return value.ToString("0.#", CultureInfo.InvariantCulture);
-            int step = -1;
-            while (value >= 1000 && step < suffixes.Length - 1) { value /= 1000; step++; }
-            return (decimal.Truncate(value * 10) / 10).ToString("0.0", CultureInfo.InvariantCulture) + suffixes[step];
+            string group = Regex.Escape(Words.FormatThousands), mark = Regex.Escape(Words.FormatDecimal);
+            return Regex.Replace(value, @"\d{1,3}(?:" + group + @"\d{3})+(?:" + mark + @"\d+)?|\d{4,}(?:" + mark + @"\d+)?", match =>
+                Compact(decimal.Parse(match.Value.Replace(Words.FormatThousands, "").Replace(Words.FormatDecimal, "."), CultureInfo.InvariantCulture)));
         }
+        public static string Compact(decimal value) => Words.Compact(value);
     }
 }

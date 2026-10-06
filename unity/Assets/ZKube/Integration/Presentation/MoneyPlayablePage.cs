@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using ZKube.Core;
 using ZKube.Integration.Client;
@@ -112,7 +113,7 @@ namespace ZKube.Integration.Presentation
             if (!result.Value.CanBind)
             {
                 await RefreshVisiblePage(epoch, token);
-                if (Current(epoch)) Inform("Your run is not ready to open. Check its saved state before continuing.");
+                if (Current(epoch)) Inform(Words.ArenaRunNotReady);
                 return;
             }
             boardHost.Open(result.Value, injectedScale, (uint?)profile?["best_daily_score"], Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)),

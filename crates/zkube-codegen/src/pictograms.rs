@@ -255,7 +255,9 @@ mod tests {
     fn every_catalog_goal_kind_has_a_pictogram_a_counter_and_a_caption() {
         let source = include_str!("../../../fixtures/campaign-catalog.json");
         let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        let entries = crate::captions::render(&catalog).unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut words = crate::words::Words::load(&root).unwrap();
+        let entries = crate::captions::render(&catalog, &mut words).unwrap();
         let slots = slots();
         // The client's rule: the exact count, else the count-free entry, then
         // the realm's bonus picks the picture.
@@ -268,9 +270,10 @@ mod tests {
             let entry = find(required).or_else(|| find(0)).unwrap();
             let kind = ConstraintKind::from_tag(tag).unwrap();
             let at = format!("{kind:?} {value} {required}");
+            let row = usize::try_from(entry["words"].as_u64().unwrap()).unwrap();
             assert_eq!(
-                entry["text"],
-                crate::captions::caption(kind, value, required),
+                words.texts(row),
+                words.each(|language| crate::captions::caption(language, kind, value, required)),
                 "{at}"
             );
             assert_eq!(entry["chip"], chip(kind, value, required), "{at}");

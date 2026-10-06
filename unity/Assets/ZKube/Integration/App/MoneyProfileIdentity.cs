@@ -10,10 +10,11 @@ namespace ZKube.Integration.App
     public sealed class ProfileTierDefinition
     {
         public byte Id { get; }
-        public string Name { get; }
+        // A tier's name, in the language in use.
+        public string Name => Id switch { 0 => Words.ArenaTier0, 1 => Words.ArenaTier1, 2 => Words.ArenaTier2, 3 => Words.ArenaTier3, _ => Words.ArenaTier4 };
         public string Color { get; }
-        public ProfileTierDefinition(byte id, string name, string color)
-        { Id = id; Name = name; Color = color; }
+        public ProfileTierDefinition(byte id, string color)
+        { Id = id; Color = color; }
     }
     public sealed class ProfileEmblemChoice
     {

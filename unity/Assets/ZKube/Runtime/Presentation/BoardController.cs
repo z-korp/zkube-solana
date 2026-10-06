@@ -296,7 +296,10 @@ namespace ZKube.Presentation
             View.Choose(guardianSelected);
         }
         // The reroll asks first, on a small sheet over its tablet: the question, its cost, two verbs.
-        public const string RerollTitle = "New next row?", RerollDetail = "Uses 1 reroll.", RerollConfirm = "Reroll", RerollKeep = "Keep";
+        public static string RerollTitle => Words.BoardRerollTitle;
+        public static string RerollDetail => Words.BoardRerollDetail;
+        public static string RerollConfirm => Words.BoardRerollConfirm;
+        public static string RerollKeep => Words.BoardRerollKeep;
         private bool askingReroll;
         public bool AskingReroll => askingReroll;
         public void Reroll()
@@ -402,7 +405,7 @@ namespace ZKube.Presentation
             if (busy || !recoveryRequired || recoveryUnavailable || !(Session?.Actions is IBoardRecoveryProvider provider)) return;
             busy = true; paused = false; guardianSelected = false; queued = null; queuedGrid = null;
             CancelDrag(); failure = null;
-            View.OpenModal("Recovering run", BoardNotices.Text(BoardNotice.Recovering));
+            View.OpenModal(Words.BoardRecovering, BoardNotices.Text(BoardNotice.Recovering));
             View.Status(BoardNotices.Text(BoardNotice.Recovering));
             try
             {
@@ -526,13 +529,13 @@ namespace ZKube.Presentation
         {
             music.Pause();
             if (busy)
-                View.OpenModal("Recovering run", BoardNotices.Text(BoardNotice.Recovering));
+                View.OpenModal(Words.BoardRecovering, BoardNotices.Text(BoardNotice.Recovering));
             else if (recoveryUnavailable || !(Session.Actions is IBoardRecoveryProvider))
-                View.OpenModal("Return to your runs", "This board cannot continue here. Return to your runs to recover the current state.",
-                    ("Back to my runs", () => Host?.Exit?.Invoke()));
+                View.OpenModal(Words.BoardReturnTitle, Words.BoardReturnDetail,
+                    (Words.BoardReturnAction, () => Host?.Exit?.Invoke()));
             else
-                View.OpenModal("Recover run", "The action may have been accepted. Check the run before playing again.",
-                    ("Recover run", Recover), ("Back to my runs", () => Host?.Exit?.Invoke()));
+                View.OpenModal(Words.BoardRecover, Words.BoardRecoverDetail,
+                    (Words.BoardRecover, Recover), (Words.BoardReturnAction, () => Host?.Exit?.Invoke()));
         }
         private void ShowTerminalIfNeeded(bool playFeedback = true)
         {
@@ -559,12 +562,12 @@ namespace ZKube.Presentation
         }
         // The pause's settings: the sound, haptics and reduced motion switches, and the text size.
         public PauseDialog.Row[] PauseRows() => new[] {
-            new PauseDialog.Row { Name = Muted ? "Sound: off" : "Sound: on", Label = "Sound", Icon = SkinSlots.IconSound, On = !Muted,
+            new PauseDialog.Row { Name = Muted ? "Sound: off" : "Sound: on", Label = Words.SettingsSound, Icon = SkinSlots.IconSound, On = !Muted,
                 Invoke = () => { SetMuted(!Muted); Pause(); } },
-            new PauseDialog.Row { Name = Haptics ? "Haptics: on" : "Haptics: off", Label = "Haptics", On = Haptics, Invoke = () => { SetHaptics(!Haptics); Pause(); } },
-            new PauseDialog.Row { Name = ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", Label = "Reduced motion", On = ReducedMotion,
+            new PauseDialog.Row { Name = Haptics ? "Haptics: on" : "Haptics: off", Label = Words.SettingsHaptics, On = Haptics, Invoke = () => { SetHaptics(!Haptics); Pause(); } },
+            new PauseDialog.Row { Name = ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", Label = Words.SettingsReducedMotion, On = ReducedMotion,
                 Invoke = () => { SetReducedMotion(!ReducedMotion); Pause(); } },
-            new PauseDialog.Row { Name = TextScale > 1 ? "Text size: larger" : "Text size: standard", Label = "Text size", Value = TextScale > 1 ? "Larger" : "Standard",
+            new PauseDialog.Row { Name = TextScale > 1 ? "Text size: larger" : "Text size: standard", Label = Words.SettingsTextSize, Value = TextScale > 1 ? Words.SettingsTextLarger : Words.SettingsTextStandard,
                 Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
         };
         private PauseDialog pauseDialog;
@@ -579,16 +582,16 @@ namespace ZKube.Presentation
             leaving = false; pauseDialog?.Close(); pauseDialog = null; View.CloseModal();
             leave();
         }
-        public const string EndRun = "End run";
+        public static string EndRun => Words.ActionEndRun;
         // What ending costs, from the core's end rule: an ended Campaign run
         // keeps no stars; an ended Daily is scored at its last accepted state,
         // and one without an accepted action ends unscored (the Arcade expires
         // the entry; Realms records nothing gained).
         public static string EndRunCost(BoardSession session, RunSummary state) =>
-            !session.Daily ? "An ended run keeps no stars." :
-            state.ActionCounter > 0 ? "Your score so far counts for today." : "Today’s run ends with no score.";
+            !session.Daily ? Words.PauseEndCostCampaign :
+            state.ActionCounter > 0 ? Words.PauseEndCostDaily : Words.PauseEndCostDailyNone;
         // What stays: an ended Campaign run keeps its accepted actions.
-        public static string EndRunDetail(BoardSession session) => session.Daily ? null : "Your accepted actions stay part of this run.";
+        public static string EndRunDetail(BoardSession session) => session.Daily ? null : Words.PauseEndDetail;
         public void Resume()
         {
             if (!HostInputEnabled) return;

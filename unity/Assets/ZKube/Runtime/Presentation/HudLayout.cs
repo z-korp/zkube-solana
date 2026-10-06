@@ -121,7 +121,7 @@ namespace ZKube.Presentation
         public static string MovesSlot(uint left) => left <= 3 ? SkinSlots.MovesEmber : left <= 5 ? SkinSlots.MovesWarm : SkinSlots.MovesCalm;
         // Daily pressure, as what it does for the player: the points multiplier.
         public static string PressureValue(RunSummary state) =>
-            "×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            "×" + Words.Decimal(Protocol.PressureMultiplierPercent(state.CurrentTier) / 100m, "0.##");
         // How far the pressure score has run toward the next multiplier.
         // A countdown to 07:00 UTC, in seconds: never below zero and at most a
         // second under a day, so no day clock reads 24 hours.
@@ -134,7 +134,10 @@ namespace ZKube.Presentation
             return (minutes / 60).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + (minutes % 60).ToString("00", System.Globalization.CultureInfo.InvariantCulture);
         }
         // The bonus a realm's guardian grants, as a word.
-        public static string BonusName(byte bonus) => bonus == 1 ? "Hammer" : bonus == 3 ? "Wave" : "Totem";
+        public static string BonusName(byte bonus) => bonus == 1 ? Words.Bonus1Name : bonus == 3 ? Words.Bonus3Name : Words.Bonus2Name;
+        // "Earns a Hammer", beside a level's rule; "Earn a Hammer", over the guardian's rule page.
+        public static string BonusEarns(byte bonus) => bonus == 1 ? Words.Bonus1Earns : bonus == 3 ? Words.Bonus3Earns : Words.Bonus2Earns;
+        public static string BonusEarn(byte bonus) => bonus == 1 ? Words.Bonus1Earn : bonus == 3 ? Words.Bonus3Earn : Words.Bonus2Earn;
         public static string BonusIcon(byte bonus, bool charged) => bonus == 1
             ? charged ? SkinSlots.IconHammer : SkinSlots.IconHammerEmpty
             : bonus == 3 ? charged ? SkinSlots.IconWave : SkinSlots.IconWaveEmpty
@@ -170,7 +173,7 @@ namespace ZKube.Presentation
             float row = plain.RowScale, captionWidth = 76 * row;
             float earn = Mathf.Max(50 * row, 12 * row + H(rule?.description ?? "", captionWidth * d, EarnCaptionPt(compact), SkinUi.Type.Caption));
             // NEXT ROW sits in the gap between the frame and the tray, which grows with larger text.
-            float labelPt = compact ? 10 : 11, label = H("NEXT ROW", plain.Frame.width, labelPt, SkinUi.Type.Label);
+            float labelPt = compact ? 10 : 11, label = H(Words.BoardNextRow, plain.Frame.width, labelPt, SkinUi.Type.Label);
 
             // The board comes first: its cells take the width, and the header gets
             // the height they leave. The plates scale between HeaderFloorK of their
@@ -230,7 +233,7 @@ namespace ZKube.Presentation
             // The Daily's score plate is sized to its content: the pictogram, the
             // gap and the widest score (the best, or a score one digit past it).
             ulong bestScore = session?.DailyFacts?.Best ?? 0;
-            string widestScore = Math.Max(bestScore * 10 + 9, 9999).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+            string widestScore = Words.Number((ulong)Math.Max(bestScore * 10 + 9, 9999));
             float scoreInset = (score - ScoreIconDp * k) / 2;
             float scoreWidth = Mathf.Max(188 * k, 2 * scoreInset + ScoreIconDp * k + PlateLayout.GapDp * k + W(widestScore, result.ScorePt, SkinUi.Type.Display) + 2);
             float crownHalf = result.Campaign ? 1.5f * star + .28f * star + .18f * star : scoreWidth / 2;
@@ -277,7 +280,7 @@ namespace ZKube.Presentation
                 result.Crown = new Rect(cx - crownHalf * d, Y(crownTop + crownHeight), 2 * crownHalf * d, score * d);
                 // The badge holds the day's top (CrownBadge), unknown until its read lands: room for six
                 // digits, and the player's own best past them; a larger top abbreviates (NumberFit).
-                string widest = Math.Max(bestScore * 10 + 9, 999999).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                string widest = Words.Number((ulong)Math.Max(bestScore * 10 + 9, 999999));
                 float badge = Mathf.Max(BestDp * k, H("0", 100 * d, result.ChipPt + 2, SkinUi.Type.Display));
                 float width = badge - 4 + W(widest, result.ChipPt + 2, SkinUi.Type.Display) + 12;
                 var value = PlateLayout.Row(result.Crown, k * d, ScoreIconDp).Value;

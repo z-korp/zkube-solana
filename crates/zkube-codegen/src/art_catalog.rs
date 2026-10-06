@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use super::CampaignCatalog;
+use super::{CampaignCatalog, words::Words};
 
 fn channels(hex: &str) -> [u32; 3] {
     [1, 3, 5].map(|offset| {
@@ -38,44 +38,30 @@ pub const GUARDIAN_FRAMES: [&str; 10] = [
 /// What each guardian says, by moment: its first map greeting, the Daily,
 /// the guardian level's preview, respect once passed,
 /// a win by stars kept, an ended run, its defeat and an Arcade personal best.
+/// Each is the last part of its key in the words (`guardian.<realm>.<line>`).
 pub const GUARDIAN_LINES: [&str; 10] = [
     "greeting",
-    "dailyGreeting",
-    "trialIntro",
-    "respectLine",
-    "oneStar",
-    "twoStar",
-    "threeStar",
+    "daily_greeting",
+    "trial_intro",
+    "respect",
+    "one_star",
+    "two_star",
+    "three_star",
     "incomplete",
-    "defeatLine",
-    "newBestLine",
+    "defeat",
+    "new_best",
 ];
 
-/// A realm's guardian title and lines, each present and spoken.
-fn guardian_lines(source: &Value) -> Result<(Value, Value), String> {
-    let realm = &source["realmId"];
-    let text = |value: &Value, what: &str| {
-        value
-            .as_str()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| json!(line))
-            .ok_or_else(|| format!("realm {realm} guardian needs a {what}"))
-    };
-    let title = text(&source["guardianTitle"], "title")?;
-    let lines = source["guardianLines"]
-        .as_object()
-        .ok_or_else(|| format!("realm {realm} guardian needs its lines"))?;
-    let names: std::collections::BTreeSet<&str> = lines.keys().map(String::as_str).collect();
-    if names != GUARDIAN_LINES.into_iter().collect() {
-        return Err(format!(
-            "realm {realm} guardian must say exactly the lines {GUARDIAN_LINES:?}"
-        ));
-    }
-    let mut spoken = serde_json::Map::new();
-    for name in GUARDIAN_LINES {
-        spoken.insert(name.into(), text(&lines[name], name)?);
-    }
-    Ok((title, Value::Object(spoken)))
+/// Where a realm's words are in the table: its name, its guardian's name and
+/// title, and the guardian's lines in `GUARDIAN_LINES` order.
+fn realm_words(words: &Words, realm: u64) -> Value {
+    json!({
+        "realm": words.row(&format!("realm.{realm}.name")),
+        "name": words.row(&format!("guardian.{realm}.name")),
+        "title": words.row(&format!("guardian.{realm}.title")),
+        "lines": GUARDIAN_LINES.iter().map(|line|
+            words.row(&format!("guardian.{realm}.{line}"))).collect::<Vec<_>>(),
+    })
 }
 
 #[derive(serde::Deserialize)]
@@ -184,7 +170,7 @@ fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
         "mouth": [fraction(mouth_x), fraction(mouth_y)]}))
 }
 
-fn theme(source: &Value, root: &Path) -> Result<Value, String> {
+fn theme(source: &Value, root: &Path, words: &Words) -> Result<Value, String> {
     let realm = source["realmId"].as_u64().expect("realm id");
     let id = format!("theme-{realm}");
     let color = |key: &str| source[key].as_str().expect("authored color");
@@ -234,10 +220,9 @@ fn theme(source: &Value, root: &Path) -> Result<Value, String> {
         })
         .collect();
     let guardian = guardian_contact(root, &id)?;
-    let (title, lines) = guardian_lines(source)?;
     Ok(json!({
-        "id": id, "realmId": realm, "realmName": source["realmName"],
-        "guardianName": source["guardianName"], "guardianTitle": title, "guardianLines": lines,
+        "id": id, "realmId": realm,
+        "words": realm_words(words, realm),
         "guardianPortrait": format!("/assets/{id}/boss/portrait.png"), "guardian": guardian,
         "campaignPath": source["campaignPath"], "rgba": swatches, "images": images, "music": music,
         "map": {
@@ -249,66 +234,52 @@ fn theme(source: &Value, root: &Path) -> Result<Value, String> {
     }))
 }
 
-fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
-    let name = format!(
-        "{:?}",
-        zkube_core::Bonus::from_tag(u8::try_from(bonus).unwrap()).unwrap()
-    );
-    let (description, condition) = match trigger {
-        1 => (
-            format!("Clear {threshold}+ lines in a move"),
-            format!("Clear {threshold} or more lines in one move to earn"),
-        ),
-        2 => (
-            format!("Every {threshold} lines cleared by moves"),
-            format!("Every {threshold} lines cleared by moves earns"),
-        ),
-        4 => (
-            format!("Clear exactly {threshold} lines in a move"),
-            format!("Clear exactly {threshold} lines in one move to earn"),
-        ),
-        6 => (
-            "Break every size in one move".into(),
-            "Break every block size in one move to earn".into(),
-        ),
-        7 => (
-            format!("Every {threshold} combos"),
-            format!("Every {threshold} combos earns"),
-        ),
-        8 => (
-            format!("Break {threshold}+ blocks in one move"),
-            format!("Break {threshold} or more blocks in one move to earn"),
-        ),
-        9 => (
-            format!("Clear a line {threshold} moves in a row"),
-            format!("Clear lines on {threshold} moves in a row to earn"),
-        ),
+// A guardian's rule in every language: the bonus's name and effect from the
+// words, and the trigger as the short rule beside the bonus and the sentence
+// the guardian says. Each is a whole phrase the language wrote for that
+// trigger (`rule.*`), with the bonus as that language names one.
+fn guardian([bonus, trigger, threshold, _]: [u16; 4], words: &mut Words) -> Value {
+    let key = match trigger {
+        1 => "rule.lines_at_least",
+        2 => "rule.every_lines",
+        4 => "rule.lines_exactly",
+        6 => "rule.all_sizes",
+        7 => "rule.every_combos",
+        8 => "rule.blocks_at_least",
+        9 => "rule.streak",
         _ => unreachable!("validated guardian"),
     };
-    // What the bonus does, in the words shown beside its rule. A bonus removes
-    // blocks without scoring; only the lines the drop completes score.
-    let effect = match name.as_str() {
-        "Hammer" => "The Hammer breaks the block you pick.",
-        "Totem" => "The Totem removes every block the size of the one you pick.",
-        "Wave" => "The Wave clears the row you pick.",
-        _ => unreachable!("validated bonus"),
-    };
+    let n = u64::from(threshold);
+    let description = words.each(|language| language.fill(key, n, &[]));
+    let sentence = words.each(|language| {
+        let earned = language.plain(&format!("bonus.{bonus}.a"));
+        language.fill(&format!("{key}.sentence"), n, &[("bonus", earned)])
+    });
+    let rows = json!({
+        "name": words.row(&format!("bonus.{bonus}.name")),
+        "effect": words.row(&format!("bonus.{bonus}.effect")),
+        "description": words.add(description),
+        "sentence": words.add(sentence),
+    });
     // The Earn panel draws the trigger as a goal pictogram with its chip.
     let bonus_kind = zkube_core::Bonus::from_tag(u8::try_from(bonus).unwrap()).unwrap();
     let goal = super::pictograms::trigger_goal(u8::try_from(trigger).unwrap(), threshold)
         .expect("validated guardian");
     let pictogram = super::pictograms::pictogram(goal.kind, goal.value, bonus_kind);
     let chip = super::pictograms::chip(goal.kind, goal.value, goal.required_count);
-    json!({"bonus": bonus, "trigger": trigger, "threshold": threshold, "name": name,
-        "pictogram": pictogram, "chip": chip,
-        "description": description, "sentence": format!("{condition} a {name}."),
-        "effect": format!("{effect} What it removes scores nothing.")})
+    json!({"bonus": bonus, "trigger": trigger, "threshold": threshold,
+        "pictogram": pictogram, "chip": chip, "words": rows})
 }
 
-// A Daily objective's words come from the one caption owner.
-fn objective(theme: &zkube_core::DailyTheme) -> Value {
-    json!({"kind": theme.kind.tag(), "value": theme.value,
-        "description": super::captions::caption(theme.kind, theme.value, 0)})
+// A Daily objective's words are its constraint's caption without a count.
+fn objective(theme: &zkube_core::DailyTheme, captions: &[Value]) -> Value {
+    let caption = captions
+        .iter()
+        .find(|entry| {
+            entry["kind"] == theme.kind.tag() && entry["value"] == theme.value && entry["count"] == 0
+        })
+        .expect("every Daily objective has its caption");
+    json!({"kind": theme.kind.tag(), "value": theme.value, "words": caption["words"]})
 }
 
 /// Every sound the board plays: its cue, as presentation code names it, and
@@ -328,7 +299,12 @@ pub const SOUND_CUES: [(&str, &str); 9] = [
     ("Heartbeat", "heartbeat"),
 ];
 
-pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {
+pub fn render(
+    catalog: &CampaignCatalog,
+    source: &str,
+    root: &Path,
+    words: &mut Words,
+) -> Result<String, String> {
     let authored: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     let realms = authored["realms"]
         .as_array()
@@ -346,13 +322,21 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
                 )
             })
             .collect();
+    let captions = super::captions::render(catalog, words)?;
+    let rules = catalog
+        .maps
+        .iter()
+        .map(|map| guardian(map.rules, words))
+        .collect::<Vec<_>>();
     let output = json!({
         "schema": 1,
-        "themes": realms.iter().map(|realm| theme(realm, root)).collect::<Result<Vec<_>, _>>()?,
-        "constraintCaptions": super::captions::render(catalog)?,
-        "guardianRules": catalog.maps.iter().map(|map| guardian(map.rules)).collect::<Vec<_>>(),
+        "themes": realms.iter().map(|realm| theme(realm, root, words)).collect::<Result<Vec<_>, _>>()?,
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
-            objective(theme)).collect::<Vec<_>>(),
+            objective(theme, &captions)).collect::<Vec<_>>(),
+        "constraintCaptions": captions,
+        "guardianRules": rules,
+        // How many rows the words table had when these rows were numbered.
+        "wordCount": words.count(),
         "effects": effects,
         // The wordmark's mark alone, for small headers.
         "commonImages": {
@@ -373,34 +357,13 @@ mod tests {
 
     #[test]
     fn every_guardian_says_every_line_and_none_is_empty() {
-        let authored: Value =
-            serde_json::from_str(include_str!("../../../assets/catalog.json")).unwrap();
-        for realm in authored["realms"].as_array().unwrap() {
-            let (title, lines) = guardian_lines(realm).unwrap();
-            assert!(!title.as_str().unwrap().is_empty());
-            assert_eq!(lines.as_object().unwrap().len(), GUARDIAN_LINES.len());
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let words = Words::load(&root).unwrap();
+        // A row exists only for a key every language wrote, and no value is empty.
+        for realm in 1..=10 {
+            let rows = realm_words(&words, realm);
+            assert_eq!(rows["lines"].as_array().unwrap().len(), GUARDIAN_LINES.len());
         }
-        let mut realm = authored["realms"][0].clone();
-        realm["guardianLines"]["oneStar"] = json!("  ");
-        assert!(guardian_lines(&realm).unwrap_err().contains("oneStar"));
-        realm["guardianLines"]
-            .as_object_mut()
-            .unwrap()
-            .remove("oneStar");
-        assert!(
-            guardian_lines(&realm)
-                .unwrap_err()
-                .contains("exactly the lines")
-        );
-        realm["guardianLines"]["oneStar"] = json!("Back.");
-        realm["guardianLines"]["taunt"] = json!("Extra.");
-        assert!(
-            guardian_lines(&realm)
-                .unwrap_err()
-                .contains("exactly the lines")
-        );
-        realm["guardianTitle"] = json!("");
-        assert!(guardian_lines(&realm).unwrap_err().contains("title"));
     }
 
     #[test]
@@ -421,7 +384,7 @@ mod tests {
                         && entry["count"] == 0
                 })
                 .unwrap();
-            assert_eq!(theme["description"], caption["text"], "{theme}");
+            assert_eq!(theme["words"], caption["words"], "{theme}");
         }
     }
 

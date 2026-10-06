@@ -187,6 +187,9 @@ namespace ZKube.Tests.Presentation
                 // guardian is the hero, grown into the free room under a smaller title, so only their
                 // actions and tabs keep the wireframe's places.
                 else if (page == "preview" || page.StartsWith("res") || page == "dres") Match(page, pieces, shell.ScreenArea, 1.1f, "primaries", "quiet", "tabs");
+                // The owner (2026-10-06) over the wireframe: Settings carries the language, a row the wireframe
+                // does not draw, so its second card is a row taller and what follows it stands lower.
+                else if (page == "settings") Match(page, pieces, shell.ScreenArea, 1.1f, "titles", "tabs");
                 else Match(page, pieces, shell.ScreenArea, 1.1f);
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,

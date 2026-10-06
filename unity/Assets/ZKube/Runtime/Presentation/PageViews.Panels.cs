@@ -243,10 +243,10 @@ namespace ZKube.Presentation
             float width = ui.TextWidth(action.Label, primary ? 18 * kit.K : kit.QuietDp, primary ? SkinUi.Type.Display : SkinUi.Type.Caption) + 32 * kit.U;
             return new ScreenKit.Side(width, buttons.Height, buttons.Draw);
         }
-        // A card's header line (.hd): the display face's muted capitals, and its tag beside it.
+        // A card's header line (.hd): the display face, muted, in the capitals the catalogue writes, and its tag beside it.
         private void Header(ScreenKit kit, string name, string text, ScreenKit.Side? tag, Rect rect)
         {
-            var label = kit.Text(name, text.ToUpperInvariant(), rect, kit.HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, ScreenKit.DisplayNormal,
+            var label = kit.Text(name, text, rect, kit.HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, ScreenKit.DisplayNormal,
                 TextAlignmentOptions.Left);
             label.characterSpacing = 6;
             if (!tag.HasValue) return;

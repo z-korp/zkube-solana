@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using System;
 using System.Collections;
 using TMPro;
@@ -16,7 +17,7 @@ namespace ZKube.Presentation
     {
         public const float TerminalHoldSeconds = 1.2f;
         // Over the board it is a banner; on a page it is one of the page's notices, at the bottom.
-        public const string UnsavedWarning = "Progress is not saved. Keep the app open; closing it may lose this result.";
+        public static string UnsavedWarning => Words.RunUnsaved;
         public BoardController Board { get; private set; }
         // The guardian teaching on this board.
         public BoardCoach Coach { get; private set; }

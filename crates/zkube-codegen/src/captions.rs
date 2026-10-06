@@ -9,114 +9,104 @@ use std::collections::BTreeSet;
 use serde_json::{Value, json};
 use zkube_core::{Constraint, ConstraintKind};
 
-use super::{CampaignCatalog, pictograms};
+use super::{
+    CampaignCatalog, pictograms,
+    words::{Language, Words},
+};
 
-fn count(n: u8, one: &str, many: &str) -> String {
-    format!("{n} {}", if n == 1 { one } else { many })
-}
-fn lines_or_more(n: u8) -> String {
-    if n == 1 {
-        "a line".into()
-    } else {
-        format!("{n}+ lines")
-    }
-}
-fn size(value: u8) -> String {
-    if value == 0 {
-        String::new()
-    } else {
-        format!("size-{value} ")
-    }
-}
-
-/// The caption for one constraint. `required` is the authored count; it only
-/// changes the words for the two one-move goals that keep an in-move count.
-/// A Daily objective, which has no count, passes zero.
+/// The caption for one constraint, in one language's own words. `required` is
+/// the authored count; it only changes the words for the two one-move goals
+/// that keep an in-move count. A Daily objective, which has no count, passes
+/// zero. Each form is a whole phrase the language wrote (`caption.*` in its
+/// words), chosen by what the goal counts, never built from parts.
 #[must_use]
-pub fn caption(kind: ConstraintKind, value: u8, required: u8) -> String {
+pub fn caption(words: &Language, kind: ConstraintKind, value: u8, required: u8) -> String {
+    let n = u64::from(value);
+    let sized = |key: &str| {
+        if value == 0 {
+            words.fill(key, 0, &[("count", required.to_string())])
+        } else {
+            words.fill(
+                &format!("{key}.sized"),
+                0,
+                &[("size", value.to_string()), ("count", required.to_string())],
+            )
+        }
+    };
     match kind {
-        ConstraintKind::None => "Classic".into(),
+        ConstraintKind::None => words.plain("caption.classic"),
         // Counted over the run; the count is shown beside the caption.
-        ConstraintKind::ClearLines => "Clear lines".into(),
-        ConstraintKind::BreakBlocks => format!("Clear {}blocks", size(value)),
-        ConstraintKind::CombosOfAtLeast => format!("Moves clearing {}", lines_or_more(value)),
-        ConstraintKind::CombosOfExactly => {
-            format!("Moves clearing exactly {}", count(value, "line", "lines"))
-        }
-        ConstraintKind::BigMoves => {
-            format!("Moves scoring at least {}", count(value, "point", "points"))
-        }
-        ConstraintKind::TriggerFired => "Trigger the guardian".into(),
-        ConstraintKind::BonusLines => "Clear lines with a bonus".into(),
-        ConstraintKind::BonusBreaks => "Clear blocks with a bonus".into(),
-        ConstraintKind::ClutchClears => format!(
-            "Clears with the stack at least {} high",
-            count(value, "row", "rows")
-        ),
-        ConstraintKind::CleanClears => {
-            format!("Clears leaving {} or fewer", count(value, "row", "rows"))
-        }
+        ConstraintKind::ClearLines => words.plain("caption.clear_lines"),
+        ConstraintKind::BreakBlocks => sized("caption.break_blocks"),
+        ConstraintKind::CombosOfAtLeast => words.fill("caption.combos_at_least", n, &[]),
+        ConstraintKind::CombosOfExactly => words.fill("caption.combos_exactly", n, &[]),
+        ConstraintKind::BigMoves => words.fill("caption.big_moves", n, &[]),
+        ConstraintKind::TriggerFired => words.plain("caption.trigger_fired"),
+        ConstraintKind::BonusLines => words.plain("caption.bonus_lines"),
+        ConstraintKind::BonusBreaks => words.plain("caption.bonus_breaks"),
+        ConstraintKind::ClutchClears => words.fill("caption.clutch_clears", n, &[]),
+        ConstraintKind::CleanClears => words.fill("caption.clean_clears", n, &[]),
         // One achievement, earned by a single move or bonus.
-        ConstraintKind::ComboOfAtLeast => format!("Clear {} in one move", lines_or_more(value)),
-        ConstraintKind::ComboOfExactly => format!(
-            "Clear exactly {} in one move",
-            count(value, "line", "lines")
-        ),
+        ConstraintKind::ComboOfAtLeast => words.fill("caption.combo_at_least", n, &[]),
+        ConstraintKind::ComboOfExactly => words.fill("caption.combo_exactly", n, &[]),
         ConstraintKind::Streak => {
-            let lines = lines_or_more(value);
             if required <= 1 {
-                format!("Clear {lines} on any single move")
+                words.fill("caption.streak_once", n, &[])
             } else {
-                format!("Clear {lines} on {required} moves in a row")
+                words.fill("caption.streak", n, &[("moves", required.to_string())])
             }
         }
         ConstraintKind::BreakInMove => {
             if required <= 1 {
-                format!("Clear a {}block in one move", size(value))
+                sized("caption.break_one_in_move")
             } else {
-                format!("Clear {required} {}blocks in one move", size(value))
+                sized("caption.break_in_move")
             }
         }
-        ConstraintKind::AllWidthsInMove => "Clear every block size in one move".into(),
-        ConstraintKind::BigMove => format!(
-            "Score at least {} in one move",
-            count(value, "point", "points")
-        ),
-        ConstraintKind::BonusLinesInMove => {
-            format!("Clear {} with one bonus", lines_or_more(value))
-        }
-        ConstraintKind::PerfectClear => "Empty the board".into(),
+        ConstraintKind::AllWidthsInMove => words.plain("caption.all_widths"),
+        ConstraintKind::BigMove => words.fill("caption.big_move", n, &[]),
+        ConstraintKind::BonusLinesInMove => words.fill("caption.bonus_lines_in_move", n, &[]),
+        ConstraintKind::PerfectClear => words.plain("caption.perfect_clear"),
     }
 }
 
 // What a goal shows that can depend on its count: the caption and the chip.
-fn counted_face(kind: ConstraintKind, value: u8, required: u8) -> (String, String) {
+fn counted_face(
+    words: &Language,
+    kind: ConstraintKind,
+    value: u8,
+    required: u8,
+) -> (String, String) {
     (
-        caption(kind, value, required),
+        caption(words, kind, value, required),
         pictograms::chip(kind, value, required),
     )
 }
 
 /// Whether a kind's words and chip at this value stay the same at every count
-/// it allows.
-fn count_free(kind: ConstraintKind, value: u8) -> bool {
-    let face = counted_face(kind, value, 0);
-    (1..=u8::MAX).all(|required| {
-        let constraint = Constraint {
-            kind,
-            value,
-            required_count: required,
-        };
-        !constraint.has_valid_shape() || counted_face(kind, value, required) == face
+/// it allows, in every language.
+fn count_free(words: &Words, kind: ConstraintKind, value: u8) -> bool {
+    words.languages.iter().all(|language| {
+        let face = counted_face(language, kind, value, 0);
+        (1..=u8::MAX).all(|required| {
+            let constraint = Constraint {
+                kind,
+                value,
+                required_count: required,
+            };
+            !constraint.has_valid_shape()
+                || counted_face(language, kind, value, required) == face
+        })
     })
 }
 
 /// Every goal the product can show: each Campaign goal and Daily objective,
-/// with its caption, chip, counter and one pictogram per bonus in tag order.
+/// with the row of its caption in the words table, its chip, counter and one
+/// pictogram per bonus in tag order.
 /// A face that does not change with the count is stored once at count zero,
 /// which stands for any count; the rest is stored at each authored count. A
 /// client looks up the exact count first, then count zero.
-pub fn render(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
+pub fn render(catalog: &CampaignCatalog, words: &mut Words) -> Result<Vec<Value>, String> {
     let mut used = BTreeSet::new();
     for map in &catalog.maps {
         for (_, primary, secondary) in &map.levels {
@@ -131,19 +121,25 @@ pub fn render(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
     for (tag, value, required) in used {
         let kind = ConstraintKind::from_tag(tag)
             .ok_or_else(|| format!("Unknown constraint kind {tag}"))?;
-        let stored = if count_free(kind, value) { 0 } else { required };
+        let stored = if count_free(words, kind, value) {
+            0
+        } else {
+            required
+        };
         entries.insert((tag, value, stored));
     }
     Ok(entries
         .into_iter()
         .map(|(tag, value, required)| {
             let kind = ConstraintKind::from_tag(tag).expect("validated above");
-            let (text, chip) = counted_face(kind, value, required);
+            let chip = pictograms::chip(kind, value, required);
+            let text = words.each(|language| caption(language, kind, value, required));
+            let row = words.add(text);
             let pictograms: Vec<String> = pictograms::BONUSES
                 .iter()
                 .filter_map(|bonus| pictograms::pictogram(kind, value, *bonus))
                 .collect();
-            json!({"kind": tag, "value": value, "count": required, "text": text, "chip": chip,
+            json!({"kind": tag, "value": value, "count": required, "words": row, "chip": chip,
                 "counter": pictograms::counter(kind), "pictograms": pictograms})
         })
         .collect())
@@ -153,6 +149,10 @@ pub fn render(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    fn committed() -> Words {
+        Words::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap()
+    }
 
     // Every kind at the lowest, second and highest value and count its rules
     // allow, plus the Daily form without a count.
@@ -208,9 +208,11 @@ mod tests {
                 !(n == 1 && plural || n != 1 && singular)
             })
         };
+        let words = committed();
+        let english = &words.languages[0];
         for kind in kinds() {
             for (value, required) in samples(kind) {
-                let text = caption(kind, value, required);
+                let text = caption(english, kind, value, required);
                 let at = format!("{kind:?} value {value} count {required}: {text:?}");
                 assert!(
                     !text.contains('{') && !text.contains('}'),
@@ -237,19 +239,26 @@ mod tests {
     }
 
     #[test]
-    fn no_two_kinds_share_a_caption() {
-        let mut owner: BTreeMap<String, ConstraintKind> = BTreeMap::new();
-        for kind in kinds() {
-            for (value, required) in samples(kind) {
-                let text = caption(kind, value, required);
-                if let Some(other) = owner.insert(text.clone(), kind) {
-                    assert_eq!(other, kind, "{text:?} names both {other:?} and {kind:?}");
+    fn no_two_kinds_share_a_caption_in_any_language() {
+        let words = committed();
+        for language in &words.languages {
+            let mut owner: BTreeMap<String, ConstraintKind> = BTreeMap::new();
+            for kind in kinds() {
+                for (value, required) in samples(kind) {
+                    let text = caption(language, kind, value, required);
+                    if let Some(other) = owner.insert(text.clone(), kind) {
+                        assert_eq!(
+                            other, kind,
+                            "{}: {text:?} names both {other:?} and {kind:?}",
+                            language.code
+                        );
+                    }
                 }
             }
+            assert_ne!(
+                caption(language, ConstraintKind::CombosOfAtLeast, 3, 5),
+                caption(language, ConstraintKind::ComboOfAtLeast, 3, 1)
+            );
         }
-        assert_ne!(
-            caption(ConstraintKind::CombosOfAtLeast, 3, 5),
-            caption(ConstraintKind::ComboOfAtLeast, 3, 1)
-        );
     }
 }

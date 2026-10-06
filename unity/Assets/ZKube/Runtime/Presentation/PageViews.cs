@@ -57,7 +57,7 @@ namespace ZKube.Presentation
             homeTab = homeTabName; brand = brandName ?? throw new ArgumentNullException(nameof(brandName));
             textScale = BoardController.SupportedTextScale(scale);
             density = displayDensity ?? BoardController.ReadDisplayDensity;
-            if (actions == null) actions = new PageActions(source.Report);
+            if (actions == null) { actions = new PageActions(source.Report); Words.Changed += Reworded; }
             if (catalog == null) catalog = PageCatalog.Load();
             if (MenuMusic == null)
             {
@@ -171,6 +171,7 @@ namespace ZKube.Presentation
             float y = safe.yMax - 40 * d;
             foreach (var (text, size) in new[] { (title, 26f), (message, 17f) })
             {
+                if (string.IsNullOrEmpty(text)) continue;
                 var label = new GameObject(text, typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
                 label.transform.SetParent(shell.Page, false); label.font = font; label.text = text; label.fontSize = size * d * textScale;
                 label.alignment = TextAlignmentOptions.Center; label.color = Color.white; label.raycastTarget = false;
@@ -257,6 +258,9 @@ namespace ZKube.Presentation
         }
         // The room of the title of a page under another: the room its wireframe gives it, clear on both sides.
         private float TitleRoom(ScreenKit kit) => shell.SafeArea.width - 2 * (12 * kit.U + kit.Touch(40) + 8 * ui.Density);
+        // A tab's word: the Home tab is the product's own (Home, or the Arena).
+        private string TabWord(AppPage page) => page == AppPage.Home ? (brand == "arena" ? Words.TabArena : Words.TabHome) :
+            page == AppPage.Campaign ? Words.TabCampaign : page == AppPage.Profile ? Words.TabProfile : Words.TabSettings;
         // The kit tab bar; each tab is bound to its page action so it dims while
         // navigation is unavailable. The lit tab is the way back (owner,
         // 2026-10-06): on a page under a tab's main page it returns there, as the
@@ -265,7 +269,7 @@ namespace ZKube.Presentation
         {
             var icons = new[] { SkinSlots.IconHome, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings };
             bool under = shownPanel != null; var returning = back;
-            var bound = tabs.Select((target, i) => new PageAction { Label = target == AppPage.Home ? homeTab : target.ToString(),
+            var bound = tabs.Select((target, i) => new PageAction { Label = TabWord(target),
                 Name = target == AppPage.Home ? homeTab : target.ToString(),
                 CanInvoke = () => i == selected && under && returning != null ? returning.Available : source.CanNavigate(target),
                 Invoke = () => { if (i != selected) source.Navigate(target); else if (under) GoBack(); } }).ToArray();
@@ -298,14 +302,14 @@ namespace ZKube.Presentation
                 var trial = summary.Trials.Length == 0 ? null : summary.Trials[Focus(summary.Trials, 0)];
                 string level = trial == null ? null : Number(summary.Realm, trial.Level);
                 var play = trial != null && trial.Available
-                    ? new PageAction { Label = (trial.Playing ? "Resume level " : "Play level ") + level, CanInvoke = trial.CanOpen, Invoke = trial.Open }
+                    ? new PageAction { Label = trial.Playing ? Words.LevelResume(level) : Words.LevelPlay(level), CanInvoke = trial.CanOpen, Invoke = trial.Open }
                     : summary.Map;
                 var campaign = catalog.Realm(summary.Realm);
                 var inside = kit.Inside();
                 string stars = summary.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">/" + summary.Levels * 3 + "</color>";
                 var count = inside.Beside(10, inside.Icon("Campaign stars icon", SkinSlots.StarLit, 24), inside.Value("Campaign stars", stars));
-                pieces.Add(kit.Card("Campaign", new[] {
-                    PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length, null, count),
+                pieces.Add(kit.Card(Words.HomeCampaign, new[] {
+                    PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, Words.RealmOf(summary.Realm, Protocol.Realms.Length), null, count),
                     Buttons(inside, ScreenKit.Role.CardAction, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
             }
             Place(kit, new ScreenKit.Slots { Body = pieces });
@@ -331,7 +335,7 @@ namespace ZKube.Presentation
             string caption = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             ScreenKit.Side? objective = null;
             var under = new List<ScreenKit.Side>();
-            if (used) under.Add(inside.Word("Daily used", "Today’s attempt is used", inside.CaptionDp, SkinTokens.Text));
+            if (used) under.Add(inside.Word("Daily used", Words.DailyUsed, inside.CaptionDp, SkinTokens.Text));
             if (!used && value.ObjectiveKind != 0)
             {
                 var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
@@ -352,7 +356,7 @@ namespace ZKube.Presentation
                     (16 * inside.K * ui.Scale * ui.Density);
                 string shown = used ? NextDaily(clock.Value) : Tabular(DayClock(clock.Value)), widest = System.Text.RegularExpressions.Regex.Replace(
                     used ? shown : DayClock(clock.Value), "[0-9]", "8");
-                var chip = used ? inside.Chip("Next Daily", SkinSlots.IconClock, 18, null, widest) : inside.Chip("Daily countdown", SkinSlots.IconClock, 18, widest, "left");
+                var chip = used ? inside.Chip("Next Daily", SkinSlots.IconClock, 18, null, widest) : inside.Counted("Daily countdown", SkinSlots.IconClock, 18, widest, Words.DailyTimeLeft(widest));
                 under.Add(new ScreenKit.Side(chip.Width, chip.Height, rect => {
                     chip.Draw(rect);
                     var text = shell.Page.GetComponentsInChildren<TMP_Text>().Last(label => label.name == (used ? "Next Daily words" : "Daily countdown number"));
@@ -368,7 +372,7 @@ namespace ZKube.Presentation
             if (under.Count != 0) { line = inside.Beside(8, under.ToArray()); if (line.Value.Width > room) line = inside.Over(4, under.ToArray()); }
             if (objective.HasValue) line = line.HasValue ? inside.Over(4, objective.Value, line.Value) : objective;
             var portrait = PortraitRow(inside, "Daily", face / inside.U, image => Portrait(value.Realm, image), title, caption, line, null);
-            return kit.Card("Today’s Daily", new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
+            return kit.Card(Words.DailyToday, new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
         }
         // The product's painted lockup in its 200u box, in the colours of the
         // page's realm: on Home, the day's Daily realm.
@@ -429,7 +433,7 @@ namespace ZKube.Presentation
             action.Invoke = () => Share(value, text, action, epoch);
             return action;
         }
-        private static string Days(ulong days) => NumberFit.Figure(days) + (days == 1 ? " day" : " days");
+        private static string Days(ulong days) => Words.Days((long)days);
 
         private async void Share(ResultPageView value, string text, PageAction action, long expectedEpoch)
         {
@@ -437,7 +441,7 @@ namespace ZKube.Presentation
             try
             {
                 bool copied = await value.Share(text, token);
-                if (copied && !token.IsCancellationRequested && expectedEpoch == epoch) action.Label = "Copied";
+                if (copied && !token.IsCancellationRequested && expectedEpoch == epoch) action.Label = Words.ActionCopied;
             }
             catch (OperationCanceledException) { }
             catch (Exception error) { if (!token.IsCancellationRequested && expectedEpoch == epoch) source.Report(error); }
@@ -487,7 +491,7 @@ namespace ZKube.Presentation
         }
         public bool LeadsBack => back != null;
 
-        private static string NextDaily(long seconds) => "Next Daily in " + DayClock(seconds);
+        private static string NextDaily(long seconds) => Words.DailyNextIn(DayClock(seconds));
         // A clock whose digits each take the widest digit's width (clockEm, in ems).
         private float clockEm;
         private string Tabular(string clock) => System.Text.RegularExpressions.Regex.Replace(clock, "[0-9]+",
@@ -500,9 +504,7 @@ namespace ZKube.Presentation
             seconds = Math.Max(0, seconds);
             return string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", seconds / 3600, seconds / 60 % 60, seconds % 60);
         }
-        private static string Sentence(string value) => string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1);
-        private static string DayLabel(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400)
-            .UtcDateTime.ToString("d MMM", CultureInfo.InvariantCulture);
+        private static string DayLabel(uint day) => Words.Date(DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime);
         private static RectTransform Holder(string name, Rect rect, Transform parent)
         {
             var holder = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -518,6 +520,8 @@ namespace ZKube.Presentation
             // The portraits stay with the page that shows them; the shell releases them.
             portraits = null;
         }
-        private void OnDestroy() { Retire(); ui?.Dispose(); sharing.Cancel(); sharing.Dispose(); }
+        // Another language: the page on screen is drawn again in it.
+        private void Reworded() { if (this != null && shell.Artwork != null && Showing) Redraw(); }
+        private void OnDestroy() { Words.Changed -= Reworded; Retire(); ui?.Dispose(); sharing.Cancel(); sharing.Dispose(); }
     }
 }

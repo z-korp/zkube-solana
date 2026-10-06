@@ -36,7 +36,9 @@ namespace ZKube.Integration.Presentation
         public BoardController Board => board;
         public bool OperationPending => observing || settling;
         // The ended run's result: being saved, saved, or not saved yet.
-        public const string SavingNotice = "Saving your result…", SavedNotice = "Result saved.", UnsavedNotice = "Your result is not saved yet.";
+        public static string SavingNotice => Words.ArenaResultSaving;
+        public static string SavedNotice => Words.ArenaResultSaved;
+        public static string UnsavedNotice => Words.ArenaResultUnsaved;
         public bool Saved => settled;
         public bool Unsaved => HasRun && ended != null && settlementAttempted && !settling && !settled;
         public string SaveNotice => settled ? SavedNotice : Unsaved ? UnsavedNotice : SavingNotice;
@@ -144,7 +146,7 @@ namespace ZKube.Integration.Presentation
             if (!Current(epoch) || !Playing) yield break;
             var session = board.Session;
             var result = new ResultPageView { HasResult = true, ProductName = Application.productName,
-                Mode = "Daily", Realm = session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
+                Mode = Words.ModeDaily, Realm = session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
                 ObjectiveKind = session.Rules.ObjectiveKind, ObjectiveValue = session.Rules.ObjectiveValue,
                 Score = ended.DailyScore, ObjectiveTotal = ended.ObjectiveTotal, Streak = streak, Notice = SaveNotice };
             result.DailyOutcome(best.HasValue && ended.DailyScore > best.Value);
@@ -186,14 +188,14 @@ namespace ZKube.Integration.Presentation
                 if (state.Token == null)
                 {
                     if (state.Phase == "consumed" && Terminal()) { settled = true; SaveChanged?.Invoke(); }
-                    else board.RequireRecovery("This run is no longer playable here. Return to your runs to check its state.");
+                    else board.RequireRecovery(Words.ArenaRunNotPlayable);
                     return;
                 }
                 board.Observe(run.Binding.Accept(state));
                 if (!CurrentForeground(epoch, visit)) return;
                 if (board.State.Phase == (byte)CorePhase.AwaitingVrf)
                 {
-                    board.RequireRecovery("The next row is pending. Recover this run to continue.");
+                    board.RequireRecovery(Words.ArenaRunRowPending);
                     return;
                 }
                 board.SetHostInputEnabled(!Frozen() && !Terminal());
@@ -202,7 +204,7 @@ namespace ZKube.Integration.Presentation
             catch (Exception error)
             {
                 ZKube.Integration.Transport.ClientLog.Failure("run check", error);
-                if (CurrentForeground(epoch, visit)) board.RequireRecovery("The current run could not be checked. Recover before playing again.");
+                if (CurrentForeground(epoch, visit)) board.RequireRecovery(Words.ArenaRunUnchecked);
             }
             finally { if (Current(epoch)) observing = false; }
         }

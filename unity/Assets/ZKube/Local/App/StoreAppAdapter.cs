@@ -99,7 +99,8 @@ namespace ZKube.Local.App
             // exception-driven per-frame load loop.
             dirty = false;
             RetirePage();
-            views.Unavailable("This page could not be opened.", error.Message, Action("Try again", () => { shell.ReleaseArtwork(); Refresh(); }));
+            Debug.LogException(error);
+            views.Unavailable(Words.PageUnavailable, null, Action(Words.ActionTryAgain, () => { shell.ReleaseArtwork(); Refresh(); }));
         }
         private void Draw()
         {
@@ -114,10 +115,10 @@ namespace ZKube.Local.App
             if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Settings) yield break;
             // The Campaign page states an unreachable store in place of its purchase.
             yield return Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
-            if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
+            if (Flow.Billing.LastFulfillmentError != null) yield return Words.StoreConfirmation;
         }
         // The profile's name without a platform account: a fixed label, not a name to edit.
-        public const string SignedOutName = "Player";
+        public static string SignedOutName => Words.ProfilePlayer;
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
         // A store button. The store answers one request at a time: the one in flight shows on its
@@ -126,7 +127,7 @@ namespace ZKube.Local.App
         {
             var action = Action(label, () => _ = Flow.RefreshBilling(purchase), !Flow.Billing.Busy);
             action.Icon = purchase ? SkinSlots.IconKey : SkinSlots.IconRetry;
-            if (Flow.Billing.Busy && Flow.Billing.Purchasing == purchase) action.Progress = purchase ? "Purchasing" : "Checking";
+            if (Flow.Billing.Busy && Flow.Billing.Purchasing == purchase) action.Progress = purchase ? Words.StorePurchasing : Words.StoreChecking;
             return action;
         }
         // The shared map, with the store's purchase where the purchase closes the realm.
@@ -135,11 +136,11 @@ namespace ZKube.Local.App
             var view = Flow.Campaign.CampaignView();
             if (Flow.Runs.CampaignLock(view.Realm) != "purchase") return view;
             bool offline = Flow.StoreUnavailable;
-            view.Locked = "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase.";
-            view.StoreProblem = offline ? "Store purchase unavailable" : null;
-            view.Purchase = offline ? Store("Try again") :
-                Store("Unlock" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice), purchase: true);
-            view.Restore = offline ? null : Store("Restore purchases");
+            view.Locked = Words.StoreLocked(StoreCampaignPolicy.FirstPurchasedRealm, Protocol.Realms.Length);
+            view.StoreProblem = offline ? Words.StoreProblem : null;
+            view.Purchase = offline ? Store(Words.ActionTryAgain) :
+                Store(Flow.Product.Read.CampaignPrice == null ? Words.StoreUnlock : Words.StoreUnlockPrice(Flow.Product.Read.CampaignPrice), purchase: true);
+            view.Restore = offline ? null : Store(Words.StoreRestore);
             return view;
         }
         public CampaignSummaryView CampaignSummary() => Flow.Campaign.CampaignSummary();
@@ -164,8 +165,8 @@ namespace ZKube.Local.App
         // still opening shows on the button, and one that failed leaves its reason on the page.
         private PageAction Leaderboard()
         {
-            var action = Action("Leaderboard", () => _ = Flow.ShowLeaderboard());
-            action.Progress = Flow.LeaderboardOpening ? "Opening" : null;
+            var action = Action(Words.Leaderboard, () => _ = Flow.ShowLeaderboard());
+            action.Progress = Flow.LeaderboardOpening ? Words.LeaderboardOpening : null;
             return action;
         }
         public ProfilePageView ProfilePage()
@@ -174,18 +175,18 @@ namespace ZKube.Local.App
             var worn = ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id != 0 && emblem.Id == state.WornEmblem);
             // The platform account names the player; signed out the panel says Player. Nothing is editable.
             return new ProfilePageView { Name = Flow.Account?.Name ?? SignedOutName, Avatar = Flow.Account?.Avatar, Realm = WornRealm, Emblem = worn?.Id ?? 0,
-                Worn = worn == null ? null : "Wearing " + worn.Name + (worn.Realm != 0 ? "’s emblem" : ""),
+                Worn = worn == null ? null : worn.Realm != 0 ? Words.ProfileWearingGuardian(worn.Name) : Words.ProfileWearing(worn.Name),
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
                 Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => {
                     byte id = emblem.Id;
                     return new ProfileChoiceView { Id = id, Realm = emblem.Realm, Name = emblem.Name,
-                        Detail = state.WornEmblem == id ? "Worn" : null, Available = Flow.EmblemUnlocked(id), Select = () => Flow.Wear(id) };
+                        Detail = state.WornEmblem == id ? Words.ProfileWorn : null, Available = Flow.EmblemUnlocked(id), Select = () => Flow.Wear(id) };
                 }).ToArray() };
         }
         public SettingsPageView SettingsPage()
         {
             var view = AppPreferences.Read(Refresh, board);
-            view.Tertiary = Store("Restore purchases");
+            view.Tertiary = Store(Words.StoreRestore);
             return view;
         }
         public ResultPageView ResultPage()
@@ -193,7 +194,7 @@ namespace ZKube.Local.App
             if (Flow.Campaign.Last != null) return Flow.Campaign.ResultPage(Application.productName, Flow.Account?.Name);
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
-            var result = new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Account?.Name,
+            var result = new ResultPageView { ProductName = Application.productName, Mode = Words.ModeDaily, PlayerName = Flow.Account?.Name,
                 HasResult = attempt != null, Realm = pair?.Realm ?? 1, Day = attempt?.DayId ?? 0,
                 ObjectiveKind = pair?.Kind ?? 0, ObjectiveValue = pair?.Value ?? 0,
                 Score = attempt?.DailyScore ?? 0,
@@ -201,9 +202,9 @@ namespace ZKube.Local.App
                 Streak = Flow.Product.Read.Streak,
                 Tier = attempt != null && attempt.Finished ? attempt.Tier : (byte?)null,
                 NextOpensAt = attempt != null && attempt.DayId == Flow.Today.DayId ? Flow.Today.FreezesAt : 0, Now = Flow.Runs.Now,
-                Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
+                Notice = attempt != null && !attempt.Finished ? Words.DailyAttemptClosed : null,
                 Share = ResultSharing.Open, Leaderboard = Flow.HasLeaderboard ? Leaderboard() : null,
-                Done = Action("Continue", () => Flow.Show(StorePage.Home)) };
+                Done = Action(Words.ActionContinue, () => Flow.Show(StorePage.Home)) };
             // The saved best already holds this run's score.
             result.DailyOutcome(attempt != null && attempt.DailyScore >= Flow.Product.Read.BestDailyScore);
             return result;

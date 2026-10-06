@@ -51,7 +51,7 @@ namespace ZKube.Integration.Presentation
         {
             ClearRewardObservation();
             if (identity.Owner == null) { CloseRewardView(); return; }
-            Notice("Checking results and rewards…"); Status = "Checking results…";
+            Notice(Words.ArenaRewardsChecking); Status = "Checking results…";
             var read = await Flow.RefreshRewards(rewardDay, token);
             if (!Current(epoch) || !browsingRewards) return;
             rewardRead = read; economyReadbackNeeded = false; pageNotice = null;
@@ -97,7 +97,7 @@ namespace ZKube.Integration.Presentation
         // to be sealed by any player's transaction; a sealed day shows its paying rows with their payouts from the chain
         // and, under a divider, the places the board no longer holds, from the
         // public read model, which is never an authority.
-        private static string BoardDay(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime.ToString("ddd d MMM", CultureInfo.InvariantCulture);
+        private static string BoardDay(uint day) => Words.DateWithWeekday(DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime);
         // The arrows stop only at the stepper's real limits, the launch day and today; a read in progress does not hold them.
         private PageAction StepDay(string name, int step) => PageAction(name, () => _ = OpenRewards((uint)(rewardDay + step), boardKind), PageAvailable);
         private StepperView Stepper(string state, string token, string mark = null) => new StepperView { Label = BoardDay(rewardDay), State = state, StateToken = token,
@@ -109,7 +109,7 @@ namespace ZKube.Integration.Presentation
         }
         // The two boards as a pair; a Classic day has the one.
         private PanelBlock BoardPair() => NativeEngine.Daily(rewardDay).Kind == 0 ? null :
-            PanelBlock.Pair(PageAction("Score", () => ShowBoard("score"), PageAvailable, "Score board"),
+            PanelBlock.Pair(PageAction(Words.ArenaBoardScore, () => ShowBoard("score"), PageAvailable, "Score board"),
                 PageAction(MoneyText.Board("theme", catalog), () => ShowBoard("theme"), PageAvailable, "Objective board"), boardKind == "score" ? 0 : 1);
 
         private PanelPageView RewardPage()
@@ -118,7 +118,7 @@ namespace ZKube.Integration.Presentation
             var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
             // The page hands its controls over by role: one action at most in the foot
             // row, and the day stepper, the lowest row, in every state.
-            var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home };
+            var page = new PanelPageView { Key = "Boards", Title = Words.ArenaBoardsTitle, Back = back, Tab = AppPage.Home };
             PageAction Act(string label, Action invoke, Func<bool> available, string icon, string name = null)
             { var action = PageAction(label, invoke, available, name); action.Icon = icon; return action; }
             var blocks = new List<PanelBlock>();
@@ -129,8 +129,8 @@ namespace ZKube.Integration.Presentation
                 // failed: the rows' card says which, and the stepper works at its foot.
                 if (BoardPair() is PanelBlock tabs) blocks.Add(tabs);
                 bool failed = failure != null && !Busy;
-                blocks.Add(PanelBlock.List("Board rows", new BoardRowView[0], empty: failed ? "Boards not loaded." : "Checking…"));
-                if (failed) page.Primary = Act("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, SkinSlots.IconRetry);
+                blocks.Add(PanelBlock.List("Board rows", new BoardRowView[0], empty: failed ? Words.ArenaBoardsNotLoaded : Words.ArenaChecking));
+                if (failed) page.Primary = Act(Words.ActionTryAgain, () => _ = RefreshOverview(), () => PageAvailable() && !Busy, SkinSlots.IconRetry, "Try again");
                 else if (sessionActionPending || economyActionPending) Requesting(page);
                 page.Stepper = Stepper(null, null);
                 page.Blocks = blocks.ToArray();
@@ -141,11 +141,11 @@ namespace ZKube.Integration.Presentation
             // A board whose account is absent or could not be verified is not called sealed.
             bool unread = !missing && board.Account == null;
             // The stepper is the page's lowest row (owner, 2026-10-05): under the rows and the one button.
-            page.Stepper = missing ? Stepper("No Daily this day", SkinTokens.TextMuted)
-                : unread ? Stepper("Board not available", SkinTokens.TextMuted)
-                : live ? Stepper("Live", SkinTokens.Positive, SkinSlots.IconLive)
-                : pending ? Stepper("Results pending", SkinTokens.Accent)
-                : Stepper(board.ClaimStatus == "claimable" && board.ExpiresAt.HasValue ? "Sealed · claim by " + ClaimBy(board.ExpiresAt.Value) : "Sealed", SkinTokens.Accent);
+            page.Stepper = missing ? Stepper(Words.ArenaBoardsNoDaily, SkinTokens.TextMuted)
+                : unread ? Stepper(Words.ArenaBoardsUnavailable, SkinTokens.TextMuted)
+                : live ? Stepper(Words.ArenaBoardsLive, SkinTokens.Positive, SkinSlots.IconLive)
+                : pending ? Stepper(Words.ArenaBoardsPending, SkinTokens.Accent)
+                : Stepper(board.ClaimStatus == "claimable" && board.ExpiresAt.HasValue ? Words.ArenaBoardsSealedClaimBy(ClaimBy(board.ExpiresAt.Value)) : Words.ArenaBoardsSealed, SkinTokens.Accent);
             if (BoardPair() is PanelBlock pair) blocks.Add(pair);
             string paid = ConfirmedRewardText(state);
             if (paid != null) blocks.Add(PanelBlock.Text("Reward received", paid, SkinTokens.Positive));
@@ -153,12 +153,12 @@ namespace ZKube.Integration.Presentation
             if (yours != null) blocks.Add(PanelBlock.Card("Your row card", yours));
             // The rows: the chain's own, then the read model's places under the divider.
             var rows = BoardRows(board).Concat(board.Unpaid.Select(row => new BoardRowView { Rank = row.Rank.ToString(CultureInfo.InvariantCulture),
-                Player = row.Player == identity.Owner ? "You" : Short(row.Player), Value = row.Metric.ToString("N0", CultureInfo.InvariantCulture),
+                Player = row.Player == identity.Owner ? Words.ArenaYou : Short(row.Player), Value = Words.Number(row.Metric),
                 Yours = row.Player == identity.Owner, Unofficial = true })).ToArray();
-            PageAction more = rows.Length > boardRows ? PageAction("More places", MoreRows, () => PageAvailable() && !Busy) :
-                board.PlacesBeyond > 0 ? PageAction("More places", () => _ = MorePlaces(board), () => PageAvailable() && !Busy) : null;
-            var list = PanelBlock.List("Board rows", rows.Take(boardRows).ToArray(), "Below the paid places · unofficial", more,
-                missing ? "Nobody entered this day." : unread ? "This board could not be read." : live ? "No runs yet" : "No qualifying runs");
+            PageAction more = rows.Length > boardRows ? PageAction(Words.ArenaBoardsMore, MoreRows, () => PageAvailable() && !Busy, "More places") :
+                board.PlacesBeyond > 0 ? PageAction(Words.ArenaBoardsMore, () => _ = MorePlaces(board), () => PageAvailable() && !Busy, "More places") : null;
+            var list = PanelBlock.List("Board rows", rows.Take(boardRows).ToArray(), Words.ArenaBoardsBelowUnofficial, more,
+                missing ? Words.ArenaBoardsNobody : unread ? Words.ArenaBoardsUnread : live ? Words.ArenaBoardsNoRuns : Words.ArenaBoardsNoQualifying);
             list.Primary = boardRowsFrom;
             blocks.Add(list);
             // One button at most, in the foot row, on the stepper.
@@ -168,22 +168,22 @@ namespace ZKube.Integration.Presentation
             else if (pending || board.ClaimStatus == "claimable")
             {
                 // Sealing a day and claiming a reward are this device's own transactions.
-                if (!state.Session.Current) page.Primary = Act("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconDevice);
-                else if (state.Session.Funding != "ready") page.Primary = Act("Top up deposit", () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconPlus);
-                else if (pending) page.Primary = Act("Seal results", () => _ = SealResults(), CanSealResults, SkinSlots.IconLock);
-                else page.Primary = Act("Claim " + Sol(board.Yours.PayoutLamports), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind), SkinSlots.IconTrophy,
+                if (!state.Session.Current) page.Primary = Act(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconDevice, "Set up device");
+                else if (state.Session.Funding != "ready") page.Primary = Act(Words.ArenaDeviceTopUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconPlus, "Top up deposit");
+                else if (pending) page.Primary = Act(Words.ArenaBoardsSeal, () => _ = SealResults(), CanSealResults, SkinSlots.IconLock, "Seal results");
+                else page.Primary = Act(Words.ArenaRewardsClaim(Sol(board.Yours.PayoutLamports)), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind), SkinSlots.IconTrophy,
                     "Collect " + MoneyText.Board(board.Kind, catalog));
             }
             else if (NextReward(board).HasValue)
             {
                 var next = NextReward(board).Value;
-                page.Primary = Act(next.Day == rewardDay ? "Next reward · " + MoneyText.Board(next.Kind, catalog) : "Next reward · " + BoardDay(next.Day),
+                page.Primary = Act(Words.ArenaRewardsNext(next.Day == rewardDay ? MoneyText.Board(next.Kind, catalog) : BoardDay(next.Day)),
                     () => { if (next.Day == rewardDay) ShowBoard(next.Kind); else _ = OpenRewards(next.Day, next.Kind); }, () => PageAvailable() && !Busy, SkinSlots.IconTrophy, "Next reward");
             }
             page.Blocks = blocks.ToArray();
             return page;
         }
-        private static string ClaimBy(long seconds) => DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM", CultureInfo.InvariantCulture);
+        private static string ClaimBy(long seconds) => Words.Date(DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime);
         // The player's card over the rows says what the rows do not, so a player
         // is never shown twice with the same figures. A row in the list is lit
         // in place. On a live board the card stands only for a row below the top
@@ -194,23 +194,23 @@ namespace ZKube.Integration.Presentation
         private PanelBlock YourRow(PrizeBoard board, bool played)
         {
             var (icon, chip) = BoardIcon(board.Kind);
-            string Place(uint rank) => "#" + rank.ToString("N0", CultureInfo.InvariantCulture);
-            string Figure(uint rank, ulong metric) => Place(rank) + " · " + metric.ToString("N0", CultureInfo.InvariantCulture);
+            string Place(uint rank) => "#" + Words.Number(rank);
+            string Figure(uint rank, ulong metric) => Place(rank) + " · " + Words.Number(metric);
             if (board.Live)
             {
                 var row = board.Account.Rows.FirstOrDefault(value => value.Player == identity.Owner);
-                if (row == null) return played ? PanelBlock.Row("Your row", "You", null, detail: NoScore, icon: icon, chip: chip) : null;
-                return row.Position < PageViews.LandingRowsSeeker ? null : PanelBlock.Row("Your row", "You", Figure(row.Position + 1, board.Metric(row)), icon: icon, chip: chip);
+                if (row == null) return played ? PanelBlock.Row("Your row", Words.ArenaYou, null, detail: Words.ArenaBoardsNoScore, icon: icon, chip: chip) : null;
+                return row.Position < PageViews.LandingRowsSeeker ? null : PanelBlock.Row("Your row", Words.ArenaYou, Figure(row.Position + 1, board.Metric(row)), icon: icon, chip: chip);
             }
             if (board.Yours != null)
             {
                 string payout = Sol(board.Yours.PayoutLamports);
-                string detail = board.ClaimStatus == "claimed" ? payout + " claimed" : board.ClaimStatus == "expired" ? "Claim window closed" :
-                    board.ExpiresAt.HasValue ? payout + " · claim by " + ClaimBy(board.ExpiresAt.Value) : payout;
-                return PanelBlock.Row("Your row", "You", Place(board.Yours.Rank), detail: detail, icon: icon, chip: chip);
+                string detail = board.ClaimStatus == "claimed" ? Words.ArenaRewardsClaimed(payout) : board.ClaimStatus == "expired" ? Words.ArenaRewardsWindowClosed :
+                    board.ExpiresAt.HasValue ? Words.ArenaRewardsClaimBy(payout, ClaimBy(board.ExpiresAt.Value)) : payout;
+                return PanelBlock.Row("Your row", Words.ArenaYou, Place(board.Yours.Rank), detail: detail, icon: icon, chip: chip);
             }
             return board.Standing == null ? null :
-                PanelBlock.Row("Your row", "You", Figure(board.Standing.Rank, board.Standing.Metric), detail: "Below the paid places", icon: icon, chip: chip);
+                PanelBlock.Row("Your row", Words.ArenaYou, Figure(board.Standing.Rank, board.Standing.Metric), detail: Words.ArenaBoardsBelow, icon: icon, chip: chip);
         }
         private void MoreRows()
         {
@@ -272,7 +272,7 @@ namespace ZKube.Integration.Presentation
                 state.Profile.LadderPoints - payment.PreviousPoints < payment.Points) return null;
             // The confirmed claim instruction awards this native-computed amount.
             // The total above is always the subsequently validated profile value.
-            return MoneyText.Board(payment.Kind, catalog) + " reward received · " + Sol(payment.Amount) + "\n+" + NumberFit.Figure(payment.Points) + " ladder points";
+            return Words.ArenaRewardsReceived(MoneyText.Board(payment.Kind, catalog), Sol(payment.Amount), NumberFit.Figure(payment.Points));
         }
         public Task CollectReward(string kind)
         {

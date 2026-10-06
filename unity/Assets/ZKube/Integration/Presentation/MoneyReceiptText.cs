@@ -1,3 +1,4 @@
+using ZKube.Core.Generated;
 using ZKube.Integration.Execution;
 using ZKube.Integration.Transport;
 
@@ -10,101 +11,115 @@ namespace ZKube.Integration.Presentation
         public static string Describe(ExecutionResult result, bool fullSignature = false)
         {
             string text = result.Outcome switch {
-                ExecutionOutcome.Pending => "Transaction sent. Waiting for Solana to confirm it.",
-                ExecutionOutcome.ConfirmedFailure => "Transaction failed.",
-                ExecutionOutcome.ConfirmedSuccess => "Transaction confirmed.",
-                ExecutionOutcome.ExpiredReconciled => "Transaction expired. Nothing changed.",
-                ExecutionOutcome.FeeShortage => "There is not enough SOL for this transaction.",
-                ExecutionOutcome.CompletedLocally => "No transaction was needed.",
+                ExecutionOutcome.Pending => Words.ArenaReceiptPending,
+                ExecutionOutcome.ConfirmedFailure => Words.ArenaReceiptFailed,
+                ExecutionOutcome.ConfirmedSuccess => Words.ArenaReceiptConfirmed,
+                ExecutionOutcome.ExpiredReconciled => Words.ArenaReceiptExpired,
+                ExecutionOutcome.FeeShortage => Words.ArenaReceiptFee,
+                ExecutionOutcome.CompletedLocally => Words.ArenaReceiptLocal,
                 // A request that was not sent says why, by the one owner of those words.
                 _ => Refusal(result)
             };
             if (string.IsNullOrEmpty(result.Signature)) return text;
             string reference = fullSignature || result.Signature.Length <= 18 ? result.Signature :
                 result.Signature.Substring(0, 6) + "…" + result.Signature.Substring(result.Signature.Length - 6);
-            return text + "\nReceipt: " + reference;
+            return Words.ArenaReceiptReference(text, reference);
         }
 
         // Why an action did not go through, in one short line; null when it did,
         // or when its transaction is still to be checked.
         public static string Refusal(ExecutionResult result) => result.Outcome switch {
             ExecutionOutcome.ConfirmedSuccess or ExecutionOutcome.CompletedLocally or ExecutionOutcome.Pending => null,
-            ExecutionOutcome.ConfirmedFailure => "The transaction failed. Nothing changed.",
+            ExecutionOutcome.ConfirmedFailure => Words.ArenaRefusalFailed,
             // Sent, and it never reached a block before its blockhash ran out: nothing was spent.
-            ExecutionOutcome.ExpiredReconciled => result.Intent == "start-daily" ? "It never landed. Your Kredit is safe. Try again." :
-                "It never landed. Nothing changed. Try again.",
+            ExecutionOutcome.ExpiredReconciled => result.Intent == "start-daily" ? Words.ArenaRefusalExpiredEntry : Words.ArenaRefusalExpired,
             ExecutionOutcome.FeeShortage => result.Code == "device-deposit-low" ?
-                "This device’s deposit is too low." : "Your wallet needs more SOL.",
+                Words.ArenaRefusalDepositLow : Words.ArenaRefusalWalletSol,
             _ => result.WalletChange != null ? Refusal(result.Code) + " (" + result.WalletChange + ")" : result.Failure != null ? Refusal(result.Failure) : result.Code == "simulation-rejected" ? Simulation(result.ChainError) : Refusal(result.Code)
         };
         // A request an error stopped, by what was asked and how it failed. Only a
         // request that never reached anything is the network's.
         public static string Refusal(RequestFailure failure)
         {
-            string service = failure.Service ?? "the service", Service = char.ToUpperInvariant(service[0]) + service.Substring(1);
+            // The service as the language names it; the transports' own names are what the log keeps.
+            string service = failure.Service switch {
+                "Solana" => Words.ArenaServiceSolana, "the game server" => Words.ArenaServiceServer, "the leaderboard" => Words.ArenaServiceLeaderboard,
+                "the name service" => Words.ArenaServiceNames, _ => Words.ArenaServiceUnknown };
+            // Every sentence opens with the service, whose name the catalogue writes with its capital.
             return failure.Kind switch {
-                FailureKind.Timeout => Service + " took too long to answer.",
-                FailureKind.NoNetwork => "The network could not be reached.",
-                FailureKind.Insecure => "A secure connection to " + service + " could not be made.",
-                FailureKind.Busy => Service + " is busy. Try again in a moment.",
-                FailureKind.Refused => Service + " refused this device’s request.",
-                FailureKind.ServerError => Service + " is having trouble. Try again.",
-                FailureKind.HttpError => Service + " answered with an error.",
-                FailureKind.RpcError => Service + " could not handle this request.",
-                FailureKind.UnreadableReply => Service + " answered in a way this app could not read.",
-                _ => "This request could not be prepared on this device."
+                FailureKind.Timeout => Words.ArenaFailureTimeout(service),
+                FailureKind.NoNetwork => Words.ArenaFailureNoNetwork,
+                FailureKind.Insecure => Words.ArenaFailureInsecure(service),
+                FailureKind.Busy => Words.ArenaFailureBusy(service),
+                FailureKind.Refused => Words.ArenaFailureRefused(service),
+                FailureKind.ServerError => Words.ArenaFailureServer(service),
+                FailureKind.HttpError => Words.ArenaFailureHttp(service),
+                FailureKind.RpcError => Words.ArenaFailureRpc(service),
+                FailureKind.UnreadableReply => Words.ArenaFailureUnreadable(service),
+                _ => Words.ArenaFailureDevice
             };
         }
         // What Solana said when it tried the transaction before the wallet was asked.
-        private static string Simulation(string chainError) => chainError == null ? "Solana refused this request." :
-            chainError.Contains("AccountNotFound") ? "Your wallet has no SOL on this network." :
-            chainError.Contains("InsufficientFunds") ? "Your wallet needs more SOL." :
-            chainError.Contains("BlockhashNotFound") ? "The request went stale. Try again." :
-            "Solana refused this request. Check your wallet’s SOL.";
+        private static string Simulation(string chainError) => chainError == null ? Words.ArenaSimulationRefused :
+            chainError.Contains("AccountNotFound") ? Words.ArenaSimulationNoSol :
+            chainError.Contains("InsufficientFunds") ? Words.ArenaRefusalWalletSol :
+            chainError.Contains("BlockhashNotFound") ? Words.ArenaSimulationStale :
+            Words.ArenaSimulationCheckSol;
         // The same line for a request the wallet, the network or this app refused, by its code.
         public static string Refusal(string code) => code switch {
-            "wallet-rejected" or "wallet-interrupted" or "activity-recreated" => "Not approved in your wallet.",
-            "cancelled" => "The request was cancelled.",
-            "wallet-unavailable" or "activity-unavailable" => "No wallet app was found.",
-            "sign-only-unavailable" or "unsupported-transaction-version" => "This wallet cannot sign this request.",
-            "wrong-chain" => "Your wallet is on another network.",
-            "wallet-changed-message" => "Your wallet changed this request, so it was not sent.",
-            "account-changed" or "authorization-required" => "The wallet account changed. Connect again.",
-            "wallet-busy" or "execution-busy" => "Another request is still open.",
-            "pending-transaction-exists" or "pending-transaction-changed" => "An earlier transaction is still being confirmed.",
-            "simulation-rejected" => "Solana refused this request.",
-            "preparation-failed" => "This request could not be prepared on this device.",
-            _ => "The request was not sent."
+            "wallet-rejected" or "wallet-interrupted" or "activity-recreated" => Words.ArenaRefusalNotApproved,
+            "cancelled" => Words.ArenaRefusalCancelled,
+            "wallet-unavailable" or "activity-unavailable" => Words.ArenaRefusalNoWallet,
+            "sign-only-unavailable" or "unsupported-transaction-version" => Words.ArenaRefusalCannotSign,
+            "wrong-chain" => Words.ArenaRefusalWrongChain,
+            "wallet-changed-message" => Words.ArenaRefusalChanged,
+            "account-changed" or "authorization-required" => Words.ArenaRefusalAccountChanged,
+            "wallet-busy" or "execution-busy" => Words.ArenaRefusalBusy,
+            "pending-transaction-exists" or "pending-transaction-changed" => Words.ArenaRefusalEarlier,
+            "simulation-rejected" => Words.ArenaSimulationRefused,
+            "preparation-failed" => Words.ArenaFailureDevice,
+            _ => Words.ArenaRefusalNotSent
         };
 
         public static string Title(ExecutionResult result) => result.Outcome switch {
-            ExecutionOutcome.Pending => "Transaction pending",
-            ExecutionOutcome.ConfirmedFailure => "Transaction failed",
-            ExecutionOutcome.ConfirmedSuccess => Intent(result) + " confirmed",
-            ExecutionOutcome.ExpiredReconciled => "Transaction expired",
-            ExecutionOutcome.FeeShortage => "Not enough SOL",
-            ExecutionOutcome.CompletedLocally => "Nothing to send",
-            _ => "Request not sent"
+            ExecutionOutcome.Pending => Words.ArenaTitlePending,
+            ExecutionOutcome.ConfirmedFailure => Words.ArenaTitleFailed,
+            ExecutionOutcome.ConfirmedSuccess => Confirmed(result),
+            ExecutionOutcome.ExpiredReconciled => Words.ArenaTitleExpired,
+            ExecutionOutcome.FeeShortage => Words.ArenaTitleFee,
+            ExecutionOutcome.CompletedLocally => Words.ArenaTitleLocal,
+            _ => Words.ArenaTitleNotSent
         };
 
         public static string Intent(ExecutionResult result) => result.Intent switch {
-            "purchase-kredits" => "Purchase",
-            "session-renew" or "session-ensure" => "Device setup",
-            "session-refill" => "Deposit top-up",
-            "session-revoke" => "Device disabling",
-            "claim-daily" => "Reward claim",
-            "set-featured-identity" => "New look",
-            _ => "Operation"
+            "purchase-kredits" => Words.ArenaIntentPurchase,
+            "session-renew" or "session-ensure" => Words.ArenaIntentDeviceSetup,
+            "session-refill" => Words.ArenaIntentTopUp,
+            "session-revoke" => Words.ArenaIntentDisable,
+            "claim-daily" => Words.ArenaIntentClaim,
+            "set-featured-identity" => Words.ArenaIntentLook,
+            _ => Words.ArenaIntentOperation
+        };
+
+        // A confirmed operation's title, as one phrase: the operation and that it is confirmed.
+        private static string Confirmed(ExecutionResult result) => result.Intent switch {
+            "purchase-kredits" => Words.ArenaIntentPurchaseConfirmed,
+            "session-renew" or "session-ensure" => Words.ArenaIntentDeviceSetupConfirmed,
+            "session-refill" => Words.ArenaIntentTopUpConfirmed,
+            "session-revoke" => Words.ArenaIntentDisableConfirmed,
+            "claim-daily" => Words.ArenaIntentClaimConfirmed,
+            "set-featured-identity" => Words.ArenaIntentLookConfirmed,
+            _ => Words.ArenaIntentOperationConfirmed
         };
 
         public static string Next(ExecutionResult result) => result.Outcome switch {
-            ExecutionOutcome.Pending => "The outcome is not confirmed yet. It is followed until it is.",
-            ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Nothing changed.",
-            ExecutionOutcome.ConfirmedSuccess => "The operation is confirmed.",
-            ExecutionOutcome.ExpiredReconciled => "It never landed. Nothing changed.",
-            ExecutionOutcome.FeeShortage => "Top up this device’s deposit or fund your wallet before retrying.",
-            ExecutionOutcome.CompletedLocally => "Nothing needed to be sent.",
-            _ => "Nothing was sent."
+            ExecutionOutcome.Pending => Words.ArenaNextPending,
+            ExecutionOutcome.ConfirmedFailure => Words.ArenaNextFailed,
+            ExecutionOutcome.ConfirmedSuccess => Words.ArenaNextConfirmed,
+            ExecutionOutcome.ExpiredReconciled => Words.ArenaNextExpired,
+            ExecutionOutcome.FeeShortage => Words.ArenaNextFee,
+            ExecutionOutcome.CompletedLocally => Words.ArenaNextLocal,
+            _ => Words.ArenaNextNotSent
         };
     }
 }

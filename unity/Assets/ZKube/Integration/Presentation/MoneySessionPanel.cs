@@ -32,13 +32,13 @@ namespace ZKube.Integration.Presentation
         {
             ClearSessionObservation();
             if (identity.Owner == null) { CloseSessionView(); return; }
-            Notice("Checking this device…"); Status = "Checking device session…";
+            Notice(Words.ArenaDeviceChecking); Status = "Checking device session…";
             var result = await Flow.RefreshSession(token);
             if (!Current(epoch) || !browsingSession) return;
             sessionRead = result; sessionReadbackNeeded = false; pageNotice = null; AwaitLaunch(result.Value.Launched); Present();
             var state = result.Value;
             if (state.PreviousOperation != null) ShowReceipt(state.PreviousOperation, state.Owner);
-            Status = state.RecoveredOperation ? "Checked the existing transaction. No new device setup was requested." : "Device session updated";
+            Status = state.RecoveredOperation ? Words.ArenaDeviceRecovered : "Device session updated";
             // A followed transaction that failed keeps its reason on the page.
             if (state.RecoveredOperation && info == null) Inform(Status);
         }
@@ -63,41 +63,38 @@ namespace ZKube.Integration.Presentation
         // Settings. A device whose last confirmed operation disabled it says so.
         private (string Title, string Short, string Token, string Guide) DeviceState(SessionAssessment session)
         {
-            if (session == null) return ("This device", "Checking…", SkinTokens.TextMuted, null);
+            if (session == null) return (Words.ArenaDeviceTitle, Words.ArenaChecking, SkinTokens.TextMuted, null);
             if (session.Status == "none")
                 return LastReceipt?.Intent == "session-revoke" && LastReceipt.Outcome == ExecutionOutcome.ConfirmedSuccess ?
-                    ("Device disabled", "Disabled", SkinTokens.Text,
-                        "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
-                    ("Set up this device", "Not set up", SkinTokens.Text,
-                        "About " + MoneyText.SolInWords(DeviceFunding.RunCostShownLamports) + " per run. The rest returns when you disable this device.");
+                    (Words.ArenaDeviceDisabled, Words.ArenaDeviceDisabledShort, SkinTokens.Text, Words.ArenaDeviceDisabledGuide) :
+                    (Words.ArenaDeviceSetup, Words.ArenaDeviceSetupShort, SkinTokens.Text,
+                        Words.ArenaDeviceSetupGuide(MoneyText.SolInWords(DeviceFunding.RunCostShownLamports)));
             if (!session.Current)
-                return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
-                    "The authorization has ended. Your wallet replaces it with a new one for this device." :
-                    "Renew before playing. Your wallet replaces the current authorization with a new one for this device.");
+                return (Words.ArenaDeviceRenew, Words.ArenaDeviceRenewShort, SkinTokens.Text, session.TokenMayClose ?
+                    Words.ArenaDeviceRenewGuideEnded : Words.ArenaDeviceRenewGuide);
             if (session.Funding != "ready")
-                return ("Deposit low", "Deposit low", SkinTokens.Text,
-                    "Top up the deposit to continue. Your wallet brings it back to " + MoneyText.SolInWords(DeviceFunding.DepositLamports) + ".");
-            return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
-                SkinTokens.Positive, "This device enters Dailies with your Kredits.");
+                return (Words.ArenaDeviceLow, Words.ArenaDeviceLow, SkinTokens.Text, Words.ArenaDeviceLowGuide(MoneyText.SolInWords(DeviceFunding.DepositLamports)));
+            return (session.Status == "expiring" ? Words.ArenaDeviceExpiring : Words.ArenaDeviceActive, session.Status == "expiring" ? Words.ArenaDeviceExpiringShort : Words.ArenaDeviceActive,
+                SkinTokens.Positive, Words.ArenaDeviceActiveGuide);
         }
 
         private PanelPageView DevicePage()
         {
             var back = sessionFromSettings ? PageAction(null, () => OpenSharedPage(AppPage.Settings), PageAvailable) :
                 PageAction(null, () => _ = OpenDaily(), PageAvailable);
-            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "Device session", sessionFromSettings ? AppPage.Settings : AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
+            if (sessionRead == null) { var waiting = Waiting("Device", Words.ArenaDeviceTitle, Words.ArenaDeviceSubtitle, sessionFromSettings ? AppPage.Settings : AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
-            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
+            var page = new PanelPageView { Key = "Device", Title = Words.ArenaDeviceTitle, Subtitle = Words.ArenaDeviceSubtitle, Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
             if (!state.Launched && session.ValidUntil <= 0) { OpensSoon(page); return page; }
             // A device to set up shows what the wallet puts on it; a device in use, how it stands.
-            bool fresh = session.Status == "none" && look.Title == "Set up this device";
+            bool fresh = session.Status == "none" && look.Title == Words.ArenaDeviceSetup;
             var rows = new List<PanelBlock>();
-            if (!fresh) rows.Add(PanelBlock.Row("Device state", "Status", look.Title, tagToken: look.Token));
-            rows.Add(PanelBlock.Row("Device owner", "Owner", Short(state.Owner)));
+            if (!fresh) rows.Add(PanelBlock.Row("Device state", Words.ArenaDeviceRowStatus, look.Title, tagToken: look.Token));
+            rows.Add(PanelBlock.Row("Device owner", Words.ArenaDeviceRowOwner, Short(state.Owner)));
             // A device in use shows the deposit it has left; one to set up, the deposit it asks for.
-            rows.Add(PanelBlock.Row("Deposit", "Deposit", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.DepositLamports) : "—"));
-            if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", "Authorization ends", Utc(session.ValidUntil)));
+            rows.Add(PanelBlock.Row("Deposit", Words.ArenaDeviceRowDeposit, session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.DepositLamports) : "—"));
+            if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", Words.ArenaDeviceRowExpiry, Utc(session.ValidUntil)));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", rows.ToArray()) };
             // The page follows a pending transaction by itself, round after round.
             if (sessionActionPending) Requesting(page);
@@ -109,12 +106,13 @@ namespace ZKube.Integration.Presentation
                 {
                     blocks.Add(PanelBlock.Text("Device guide", look.Guide, SkinTokens.TextMuted));
                     if (!session.Current)
-                        page.Primary = PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(), DeviceChangeable, icon: SkinSlots.IconDevice);
+                        page.Primary = PageAction(session.Status == "none" ? Words.ArenaDeviceEnable : Words.ArenaDeviceRenewAction, () => _ = EnsureDeviceSession(), DeviceChangeable,
+                            session.Status == "none" ? "Enable device" : "Renew device", SkinSlots.IconDevice);
                     else if (session.Funding != "ready")
-                        page.Primary = PageAction("Top up deposit", () => _ = RefillDeviceSession(), DeviceChangeable, icon: SkinSlots.IconPlus);
+                        page.Primary = PageAction(Words.ArenaDeviceTopUp, () => _ = RefillDeviceSession(), DeviceChangeable, "Top up deposit", SkinSlots.IconPlus);
                 }
                 if (session.ValidUntil > 0)
-                    page.Destructive = PageAction("Disable device", () => { revokeConfirming = true; Present(); }, DeviceChangeable, "Disable this device", SkinSlots.IconDevice);
+                    page.Destructive = PageAction(Words.ArenaDeviceDisableAction, () => { revokeConfirming = true; Present(); }, DeviceChangeable, "Disable this device", SkinSlots.IconDevice);
             }
             page.Blocks = blocks.ToArray();
             return page;
@@ -125,13 +123,13 @@ namespace ZKube.Integration.Presentation
         private PanelPageView RevokePage()
         {
             // The confirm's two verbs: the safe choice first, the disable beside it.
-            var keep = PageAction("Keep enabled", () => { revokeConfirming = false; Present(); }, () => PageAvailable(), icon: SkinSlots.Tick);
-            return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "Arena", Back = keep, Blocks = new[] {
-                PanelBlock.Card("Revoke card", PanelBlock.Title("Revoke device access?", centered: true),
-                    PanelBlock.Text("Revoke effect", "This device will stop signing game actions and spending your prepaid Kredits."),
-                    PanelBlock.Text("Revoke return", "The deposit left returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.")) },
+            var keep = PageAction(Words.ArenaDeviceKeep, () => { revokeConfirming = false; Present(); }, () => PageAvailable(), "Keep enabled", SkinSlots.Tick);
+            return new PanelPageView { Key = "Revoke", Title = Words.ArenaDeviceDisable, Subtitle = Words.TabArena, Back = keep, Blocks = new[] {
+                PanelBlock.Card("Revoke card", PanelBlock.Title(Words.ArenaDeviceRevokeTitle, centered: true, name: "Revoke device access?"),
+                    PanelBlock.Text("Revoke effect", Words.ArenaDeviceRevokeEffect),
+                    PanelBlock.Text("Revoke return", Words.ArenaDeviceRevokeReturn)) },
                 Primary = keep,
-                Destructive = PageAction("Disable in wallet", () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable, icon: SkinSlots.IconWallet) };
+                Destructive = PageAction(Words.ArenaDeviceRevokeConfirm, () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable, "Disable in wallet", SkinSlots.IconWallet) };
         }
 
         public Task EnsureDeviceSession() => ChangeDeviceSession(true, false);
@@ -153,7 +151,7 @@ namespace ZKube.Integration.Presentation
                 recovered = ensured.Action == "recover"; return ensured.Operation;
             }, async (epoch, token) => {
                 await RefreshSessionPage(epoch, token);
-                if (Current(epoch) && recovered) Inform("Checked the existing transaction. No new device setup was requested.");
+                if (Current(epoch) && recovered) Inform(Words.ArenaDeviceRecovered);
             }, () => _ = ChangeDeviceSession(ensure, disable));
         }
     }

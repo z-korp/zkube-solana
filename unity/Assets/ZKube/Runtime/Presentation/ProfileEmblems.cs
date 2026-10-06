@@ -15,14 +15,15 @@ namespace ZKube.Presentation
         public byte Realm { get; }
         private readonly string name;
         // A guardian's emblem carries its guardian's name, from the catalog that names it.
-        public string Name => Kind == ProfileEmblemKind.Guardian ? PageCatalog.Load().Realm(Realm).guardianName : name;
+        public string Name => Kind == ProfileEmblemKind.Guardian ? PageCatalog.Load().Realm(Realm).guardianName : name ??
+            (Kind == ProfileEmblemKind.Automatic ? Words.EmblemAutomatic : Kind == ProfileEmblemKind.Realm ? Words.EmblemRealm : Words.EmblemWorld);
         public ProfileEmblemDefinition(byte id, ProfileEmblemKind kind, byte realm, string name = null)
         { Id = id; Kind = kind; Realm = realm; this.name = name; }
     }
     public static class ProfileEmblems
     {
         public static readonly IReadOnlyList<ProfileEmblemDefinition> All = System.Array.AsReadOnly(new[] {
-            new ProfileEmblemDefinition(0, ProfileEmblemKind.Automatic, 0, "Automatic"),
+            new ProfileEmblemDefinition(0, ProfileEmblemKind.Automatic, 0),
             new ProfileEmblemDefinition(1, ProfileEmblemKind.Guardian, 1),
             new ProfileEmblemDefinition(2, ProfileEmblemKind.Guardian, 2),
             new ProfileEmblemDefinition(3, ProfileEmblemKind.Guardian, 3),
@@ -33,8 +34,8 @@ namespace ZKube.Presentation
             new ProfileEmblemDefinition(8, ProfileEmblemKind.Guardian, 8),
             new ProfileEmblemDefinition(9, ProfileEmblemKind.Guardian, 9),
             new ProfileEmblemDefinition(10, ProfileEmblemKind.Guardian, 10),
-            new ProfileEmblemDefinition(11, ProfileEmblemKind.Realm, 0, "Realm Conqueror"),
-            new ProfileEmblemDefinition(12, ProfileEmblemKind.World, 0, "World Perfect")
+            new ProfileEmblemDefinition(11, ProfileEmblemKind.Realm, 0),
+            new ProfileEmblemDefinition(12, ProfileEmblemKind.World, 0)
         });
         public static byte Last => All.Max(emblem => emblem.Id);
         // The kit slot an achievement emblem's painting is in; guardians wear their portrait.

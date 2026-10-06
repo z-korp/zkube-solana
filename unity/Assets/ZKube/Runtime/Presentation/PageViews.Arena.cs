@@ -112,7 +112,7 @@ namespace ZKube.Presentation
         {
             var inside = kit.Inside(); float u = inside.U;
             ScreenKit.Side? badge = arcade.Claims == null ? (ScreenKit.Side?)null : ClaimsBadge(inside, arcade.Claims);
-            var parts = new List<Piece> { CardHeader(inside, "Boards", "Today’s boards", badge) };
+            var parts = new List<Piece> { CardHeader(inside, "Boards", Words.ArenaBoardsToday, badge) };
             if (arcade.BoardsNotice != null)
             {
                 parts.Add(CardLine("Boards notice", arcade.BoardsNotice, SkinTokens.TextMuted, inside));
@@ -126,7 +126,7 @@ namespace ZKube.Presentation
         {
             float height = Mathf.Max(inside.HeaderDp * ui.Scale * ui.Density * ScreenKit.DisplayNormal, end?.Height ?? 0);
             return new Piece(height, rect => {
-                var head = inside.Text(name + " heading", text.ToUpperInvariant(), rect, inside.HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, ScreenKit.DisplayNormal,
+                var head = inside.Text(name + " heading", text, rect, inside.HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, ScreenKit.DisplayNormal,
                     TextAlignmentOptions.Left);
                 head.characterSpacing = 6;
                 if (end.HasValue) end.Value.Draw(new Rect(rect.xMax - end.Value.Width, rect.center.y - end.Value.Height / 2, end.Value.Width, end.Value.Height));

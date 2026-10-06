@@ -131,9 +131,9 @@ namespace ZKube.Local
             var here = Pages.Realm(Realm); var before = Realm > 1 ? Pages.Realm((byte)(Realm - 1)) : null;
             return new CampaignPageView {
                 Realm = Realm, Stars = Stars(Realm),
-                Previous = Action("Previous", () => SelectRealm((byte)(Realm - 1)), Realm > 1),
-                Next = Action("Next", () => SelectRealm((byte)(Realm + 1)), Realm < Protocol.Realms.Length),
-                Locked = Runs.CampaignLock(Realm) == "stars" ? "Clear " + before.guardianName + "’s final trial in " + before.realmName + " to open " + here.realmName + "." : null,
+                Previous = Action(Words.CampaignPrevious, () => SelectRealm((byte)(Realm - 1)), Realm > 1),
+                Next = Action(Words.CampaignNext, () => SelectRealm((byte)(Realm + 1)), Realm < Protocol.Realms.Length),
+                Locked = Runs.CampaignLock(Realm) == "stars" ? Words.CampaignLocked(before.guardianName, before.realmName, here.realmName) : null,
                 Trials = Trials(Realm)
             };
         }
@@ -153,7 +153,7 @@ namespace ZKube.Local
             byte realm = FurthestRealm;
             var trials = Trials(realm);
             return new CampaignSummaryView { Realm = realm, Stars = trials.Sum(trial => (int)trial.Stars), Levels = trials.Length, Trials = trials,
-                Map = Action("Explore map", () => SelectRealm(realm)) };
+                Map = Action(Words.CampaignExplore, () => SelectRealm(realm)) };
         }
         public LevelPageView LevelPage()
         {
@@ -163,21 +163,21 @@ namespace ZKube.Local
                 Goals = new CampaignGoals { Points = Protocol.CampaignTargets[Level - 1],
                     PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1], PrimaryCount = level.Primary[2],
                     SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] },
-                Play = Action(Runs.Active("campaign") == null ? "Play" : "Resume run", Play),
-                Map = Action("Map", Map) };
+                Play = Action(Runs.Active("campaign") == null ? Words.ActionPlay : Words.DailyResume, Play),
+                Map = Action(Words.ActionMap, Map) };
         }
         // The finished run's result: a kept star continues on the map, none leaves
         // for it; Retry plays the level again. Campaign results have no Share.
         public ResultPageView ResultPage(string productName, string playerName)
         {
             var outcome = Last ?? throw new InvalidOperationException("There is no Campaign result");
-            return new ResultPageView { ProductName = productName, Mode = "Campaign", PlayerName = playerName,
+            return new ResultPageView { ProductName = productName, Mode = Words.ModeCampaign, PlayerName = playerName,
                 HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
                 StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
                 PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
                 NewBest = outcome.Stars > outcome.PreviousStars, NextOpen = outcome.PreviousStars > 0,
-                Done = Action(outcome.Stars > 0 ? "Continue" : "Map", Map),
-                Retry = Action("Retry", Retry) };
+                Done = Action(outcome.Stars > 0 ? Words.ActionContinue : Words.ActionMap, Map),
+                Retry = Action(Words.ActionRetry, Retry) };
         }
     }
 }

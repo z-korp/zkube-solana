@@ -51,7 +51,7 @@ namespace ZKube.Local.App
         public LocalDaily Today => Runs.Today();
         public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("daily") : null;
         public bool AttemptedToday => Product.Read.DailyAttempt?.DayId == Today.DayId;
-        public string DailyAction => TodayRun != null ? "Resume run" : AttemptedToday ? "View result" : "Play today";
+        public string DailyAction => TodayRun != null ? Words.DailyResume : AttemptedToday ? Words.DailyViewResult : Words.DailyPlay;
         private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(Product.Read.Stars);
         // The Campaign tab opens the journey's map.
         public void Show(StorePage page)
@@ -77,7 +77,7 @@ namespace ZKube.Local.App
         public bool HasLeaderboard => Account != null && accounts.HasDailyLeaderboard;
         // A tap that is still opening it; the button shows that, and a second tap waits.
         public bool LeaderboardOpening { get; private set; }
-        public const string LeaderboardUnavailable = "The leaderboard did not open. Tap Leaderboard to try again.";
+        public static string LeaderboardUnavailable => Words.LeaderboardUnavailable;
         // The tap's outcome is the platform's screen or one reason on the page that asked.
         public async Task ShowLeaderboard()
         {
@@ -144,17 +144,20 @@ namespace ZKube.Local.App
                 var answer = await asked;
                 if (!Current(request)) return;
                 StoreUnavailable = false;
-                BillingNotice = answer.Status == CampaignBillingStatus.PaymentPending ? "Payment is pending. Campaign unlocks after payment completes."
-                    : answer.Status == CampaignBillingStatus.ConfirmationPending ? "Campaign unlocked. Store confirmation is pending; restore purchases to check again."
-                    : answer.Owned ? "Full Campaign unlocked" : null;
+                BillingNotice = answer.Status == CampaignBillingStatus.PaymentPending ? Words.StorePaymentPending
+                    : answer.Status == CampaignBillingStatus.ConfirmationPending ? Words.StoreConfirmationPending
+                    : answer.Owned ? Words.StoreUnlocked : null;
             }
-            catch (OperationCanceledException) { if (Current(request)) BillingNotice = "Purchase cancelled"; }
+            catch (OperationCanceledException) { if (Current(request)) BillingNotice = Words.StoreCancelled; }
             // A store failure is a billing notice: it shows where purchase and
             // restore are, never on the Home the app opens on.
-            catch (Exception error) { if (Current(request)) { BillingNotice = error.Message; StoreUnavailable = true; } }
+            // The player reads one plain line; what the store said goes to the log.
+            catch (Exception error) { if (Current(request)) { UnityEngine.Debug.LogWarning("Store: " + error.Message); BillingNotice = Words.StoreUnavailable; StoreUnavailable = true; } }
             finally { if (Current(request)) Changed?.Invoke(); }
         }
-        public void Report(Exception error) { if (!disposed) { Error = error.Message; Changed?.Invoke(); } }
+        // A failure nobody planned for: the player reads one plain line, the log keeps what was thrown.
+        public void Report(Exception error)
+        { if (!disposed) { UnityEngine.Debug.LogWarning("Page action: " + error); Error = Words.ErrorUnexpected; Changed?.Invoke(); } }
         private void Open(LocalRunUpdate update)
         { var provider = new LocalBoardActionProvider(Runs, update); providers[update.View.RunId] = provider; Open(provider); }
         private void Open(LocalRunView view, Exception unsaved = null)

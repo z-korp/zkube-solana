@@ -2,11 +2,14 @@ using System;
 using System.Linq;
 using System.Globalization;
 using UnityEngine;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
     // Authored presentation data is emitted by Rust codegen from the asset catalog.
     // No path coordinates, guardian lines or palette values are mirrored here.
+    // It carries no words: each text is a row of the words table, read in the
+    // language in use every time it is asked for.
     [Serializable] public sealed class PageCatalog
     {
         public RealmPage[] themes;
@@ -16,6 +19,8 @@ namespace ZKube.Presentation
         public SkinEntry[] skins;
         // The music under the pages, staged by build.py from the catalog's menu-music slot.
         public string menuMusicResource;
+        // How many rows the words table had when the catalog's rows were numbered.
+        public int wordCount;
         private static PageCatalog cached;
         [Serializable] public sealed class SkinEntry { public string id, name; public Swatch[] tokens; public UiSlot[] ui; public SkinRealm[] realms; }
         [Serializable] public sealed class UiSlot { public string slot, image; public int[] border; }
@@ -30,7 +35,9 @@ namespace ZKube.Presentation
         [Serializable] public sealed class ConstraintCaption
         {
             public byte kind, value, count;
-            public string text, chip, counter;
+            public int words;
+            public string text => Words.At(words);
+            public string chip, counter;
             public string[] pictograms;
             // The picture for a realm whose guardian grants this bonus.
             public string Pictogram(byte bonus) => pictograms[bonus - 1];
@@ -39,15 +46,21 @@ namespace ZKube.Presentation
         {
             public byte bonus, trigger;
             public ushort threshold;
-            public string name, description, sentence, effect;
+            public RuleWords words;
+            public string name => Words.At(words.name);
+            public string description => Words.At(words.description);
+            public string sentence => Words.At(words.sentence);
+            public string effect => Words.At(words.effect);
             // The Earn panel draws the trigger as this goal pictogram and chip.
             public string pictogram, chip;
         }
+        [Serializable] public sealed class RuleWords { public int name, description, sentence, effect; }
+        [Serializable] public sealed class RealmWords { public int realm, name, title; public int[] lines; }
         [Serializable] public sealed class AudioEntry { public string context, resource; }
         [Serializable] public sealed class Swatch { public string name; public float[] value; }
         public PortraitEntry[] portraits;
         [Serializable] public sealed class PortraitEntry { public byte realmId; public string atlas, sprite, source, sha256; }
-        [Serializable] public sealed class DailyTheme { public byte kind, value; public string description; }
+        [Serializable] public sealed class DailyTheme { public byte kind, value; public int words; public string description => Words.At(words); }
         [Serializable] public sealed class Point { public float x, y; }
         [Serializable] public sealed class PathStyle
         {
@@ -58,19 +71,34 @@ namespace ZKube.Presentation
         [Serializable] public sealed class RealmPage
         {
             public byte realmId;
-            public string id, realmName, guardianName, guardianTitle;
-            public GuardianLines guardianLines;
+            public string id;
+            public RealmWords words;
+            public string realmName => Words.At(words.realm);
+            public string guardianName => Words.At(words.name);
+            public string guardianTitle => Words.At(words.title);
+            public GuardianLines guardianLines => new GuardianLines(words.lines);
             public Swatch[] rgba;
             public AudioEntry[] audio;
             public Point[] campaignPath;
             public PathStyle map;
             public GuardianContact guardian;
         }
-        // What the guardian says, by moment (codegen checks each is present and spoken).
-        [Serializable] public sealed class GuardianLines
+        // What the guardian says, by moment, in the codegen's line order (it
+        // checks each is written in every language).
+        public readonly struct GuardianLines
         {
-            public string greeting, dailyGreeting, trialIntro, respectLine, oneStar, twoStar, threeStar,
-                incomplete, defeatLine, newBestLine;
+            private readonly int[] rows;
+            public GuardianLines(int[] rows) { this.rows = rows; }
+            public string greeting => Words.At(rows[0]);
+            public string dailyGreeting => Words.At(rows[1]);
+            public string trialIntro => Words.At(rows[2]);
+            public string respectLine => Words.At(rows[3]);
+            public string oneStar => Words.At(rows[4]);
+            public string twoStar => Words.At(rows[5]);
+            public string threeStar => Words.At(rows[6]);
+            public string incomplete => Words.At(rows[7]);
+            public string defeatLine => Words.At(rows[8]);
+            public string newBestLine => Words.At(rows[9]);
             public string[] All => new[] { greeting, dailyGreeting, trialIntro, respectLine, oneStar, twoStar, threeStar,
                 incomplete, defeatLine, newBestLine };
             // A win by the stars it kept.
@@ -107,13 +135,13 @@ namespace ZKube.Presentation
         }
         public void Validate()
         {
+            // The rows were numbered against one table; another table reads other words.
+            if (wordCount != Words.Count) throw new FormatException("Regenerate the catalog with its words");
             if (themes == null || themes.Length != 10 || themes.Select(value => value.realmId).Distinct().Count() != 10)
                 throw new FormatException("Regenerate the ten-realm page catalog");
             foreach (var realm in themes)
             {
-                if (realm.realmId < 1 || realm.realmId > 10 || string.IsNullOrEmpty(realm.realmName) || string.IsNullOrEmpty(realm.guardianName) ||
-                    string.IsNullOrEmpty(realm.guardianTitle) || realm.guardianLines == null ||
-                    realm.guardianLines.All.Any(string.IsNullOrWhiteSpace) || realm.campaignPath == null || realm.campaignPath.Length != 10 || realm.map == null)
+                if (realm.realmId < 1 || realm.realmId > 10 || realm.words?.lines?.Length != 10 || realm.campaignPath == null || realm.campaignPath.Length != 10 || realm.map == null)
                     throw new FormatException("Imported realm page is incomplete");
                 foreach (var point in realm.campaignPath)
                     if (point == null || !Finite(point.x) || !Finite(point.y) || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)
@@ -129,9 +157,9 @@ namespace ZKube.Presentation
             }
             if (dailyThemes == null || dailyThemes.Length != ZKube.Core.Generated.Protocol.DailyThemes.Length) throw new FormatException("Imported Daily labels are incomplete");
             foreach (var pair in ZKube.Core.Generated.Protocol.DailyThemes)
-                if (dailyThemes.Count(theme => theme.kind == pair[0] && theme.value == pair[1] && !string.IsNullOrEmpty(theme.description)) != 1)
+                if (dailyThemes.Count(theme => theme.kind == pair[0] && theme.value == pair[1]) != 1)
                     throw new FormatException("Imported Daily label disagrees with the published objective set");
-            if (constraintCaptions == null || constraintCaptions.Any(value => string.IsNullOrEmpty(value.text)) ||
+            if (constraintCaptions == null ||
                 constraintCaptions.Select(value => (value.kind, value.value, value.count)).Distinct().Count() != constraintCaptions.Length ||
                 dailyThemes.Any(value => !constraintCaptions.Any(name => name.kind == value.kind && name.value == value.value && name.count == 0)))
                 throw new FormatException("Generated constraint names are incomplete");
@@ -139,7 +167,7 @@ namespace ZKube.Presentation
             if (constraintCaptions.Any(goal => goal.chip == null || goal.pictograms?.Length != (goal.kind == 0 ? 0 : 3) ||
                     !new[] { "fill", "ring", "bar", "none" }.Contains(goal.counter)))
                 throw new FormatException("Regenerate the catalog with its goal pictograms");
-            if (guardianRules == null || guardianRules.Any(rule => string.IsNullOrEmpty(rule.name) || string.IsNullOrEmpty(rule.effect)))
+            if (guardianRules == null || guardianRules.Any(rule => rule.words == null))
                 throw new FormatException("Generated guardian descriptions are missing");
             foreach (var realm in themes) Rule(realm.realmId);
             if (skins == null || skins.Length == 0) throw new FormatException("Regenerate the catalog with its skin list");

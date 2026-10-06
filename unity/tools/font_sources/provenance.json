@@ -87,18 +87,73 @@
         "OFL.txt"
       ],
       "note": "Unmodified upstream Version 1.002 (name table), the display face of the approved Lumen HUD for its numerals and chips. Taken from the art direction's font set, which names this upstream directory without a revision; the hashes below pin the bytes. Its OFL reserves the name Lilita, so the font ships unmodified."
+    },
+    {
+      "family": "Noto Sans CJK",
+      "repository": "https://github.com/notofonts/noto-cjk",
+      "release": "Sans2.004",
+      "directory": "Sans",
+      "files": [
+        "OFL.txt"
+      ],
+      "derived": [
+        {
+          "file": "NotoSansSC-700.ttf",
+          "from": "Sans/Variable/OTC/NotoSansCJK-VF.otf.ttc (Noto Sans CJK SC)",
+          "fromSha256": "d3d8256cdec8dbcb3552284bc6b20c734dd60c2ee9df83b5758e34807c4bac32",
+          "command": "fonttools 4.59.0: build/art/.venv/bin/python unity/tools/font_sources/derive_cjk.py",
+          "note": "Static TrueType subsets at weight 700 of the variable collection, one a language because Chinese and Japanese draw shared characters differently: GB 2312 level 1, JIS X 0208 level 1 with the kana, the KS X 1001 Hangul, each with the full-width punctuation and the characters its words in assets/words use beyond that set, and no Latin letter, digit or space. derive_cjk.py is the recipe and rewrites these hashes; run it again when the import names a character no font draws. The collection is the one Fedora ships as google-noto-sans-cjk-vf-fonts 2.004. Its OFL reserves the name Source, which these files do not use."
+        },
+        {
+          "file": "NotoSansJP-700.ttf",
+          "from": "Sans/Variable/OTC/NotoSansCJK-VF.otf.ttc (Noto Sans CJK JP)",
+          "fromSha256": "d3d8256cdec8dbcb3552284bc6b20c734dd60c2ee9df83b5758e34807c4bac32",
+          "command": "fonttools 4.59.0: build/art/.venv/bin/python unity/tools/font_sources/derive_cjk.py"
+        },
+        {
+          "file": "NotoSansKR-700.ttf",
+          "from": "Sans/Variable/OTC/NotoSansCJK-VF.otf.ttc (Noto Sans CJK KR)",
+          "fromSha256": "d3d8256cdec8dbcb3552284bc6b20c734dd60c2ee9df83b5758e34807c4bac32",
+          "command": "fonttools 4.59.0: build/art/.venv/bin/python unity/tools/font_sources/derive_cjk.py"
+        }
+      ]
+    },
+    {
+      "family": "Noto Serif",
+      "repository": "https://github.com/notofonts/latin-greek-cyrillic",
+      "release": "NotoSerif Version 2.015",
+      "directory": "fonts/NotoSerif",
+      "files": [
+        "OFL.txt"
+      ],
+      "derived": [
+        {
+          "file": "NotoSerif-700.ttf",
+          "from": "NotoSerif-Bold.ttf",
+          "fromSha256": "96656aa5cec8f1d6fd0e804c1fad397e1a1cfa082e6642124e0bda68cd8363ce",
+          "command": "fonttools 4.59.0: pyftsubset NotoSerif-Bold.ttf --unicodes=U+0020-007E,U+00A0-017F,U+0400-045F,U+2010-2027,U+2030,U+2039,U+203A,U+20AC,U+2116 --layout-features=kern,mark,mkmk,ccmp,locl --no-hinting --name-IDs=0,1,2,3,4,5,6,13,14 --no-recalc-timestamp --output-file=NotoSerif-700.ttf; then python3 -c '<names>' NotoSerif-700.ttf 'Noto Serif' 700",
+          "names": "import sys; from fontTools.ttLib import TTFont; f, family, style = sys.argv[1:]; t = TTFont(f, recalcTimestamp=False); n = t[\"name\"]; [n.removeNames(nameID=i) for i in (1, 2, 3, 4, 6, 16, 17, 25)]; [n.setName(v, i, 3, 1, 0x409) for i, v in ((1, family + \" \" + style), (2, \"Regular\"), (3, family.replace(\" \", \"\") + \"-\" + style), (4, family + \" \" + style), (6, family.replace(\" \", \"\") + \"-\" + style), (16, family), (17, style))]; t.save(f)",
+          "note": "The title face of Russian, whose alphabet Fraunces does not hold: the static Bold cut to Latin and Cyrillic, drawing whole titles so no word mixes two faces. The source is the file Fedora ships as google-noto-serif-fonts 20251201. That package carries no licence file; OFL.txt is the Noto project's SIL Open Font License text under this family's copyright line, as the font's own name table states both. Its OFL has no Reserved Font Name."
+        }
+      ]
     }
   ],
-  "fallback": "Each text font -> Noto Sans Symbols 2 -> Noto Sans Math; use existing sprite icons for decorated pictograms. Math supplies the required less-than-or-equal and greater-than-or-equal symbols. Runtime fallback coverage is checked by the Editor preparation method before acceptance.",
+  "fallback": "Each text font -> Noto Sans Symbols 2 -> Noto Sans Math -> the script fonts (Noto Sans SC, JP, KR), the language in use first; use existing sprite icons for decorated pictograms. A language whose alphabet a face lacks takes another whole face for that role (Noto Serif for Russian titles; Nunito 1000 for Russian, Turkish and Vietnamese display text), never one letter from a fallback. Math supplies the required less-than-or-equal and greater-than-or-equal symbols. Runtime fallback coverage is checked by the Editor preparation method before acceptance.",
   "sha256": {
     "Fraunces/Fraunces-650.ttf": "2265e0de08e6c0f258c82f3fa67f53cd9435211879fad6343dc9777538d7dab1",
     "Fraunces/OFL.txt": "bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b",
     "LilitaOne/LilitaOne-Regular.ttf": "f5b641c45c69d772ee4eda687bc9fda411d5cad6b0b45371491da4580cbc8d59",
     "LilitaOne/OFL.txt": "255d5debbb80eb2ea762644311f266a279e8778f00156655a516e2b7781a63e1",
+    "NotoSansCJK/NotoSansJP-700.ttf": "1f7febb9298e32aa29122f7e4c416cbbbc243929ac184749c77eb177a7a066f3",
+    "NotoSansCJK/NotoSansKR-700.ttf": "0b2cc7da159e1c3d39a7f5434b040bc5d9fbfa1f33ec88232616ec4729690b26",
+    "NotoSansCJK/NotoSansSC-700.ttf": "de0465d534f20b18564f2b2b7a55dd4c49fac9bd9d15e12da5b10639fef16133",
+    "NotoSansCJK/OFL.txt": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
     "NotoSansMath/NotoSansMath-Regular.ttf": "3f495fe933c06786e4d5f6d86b8ee70b6753a68ee3b9d87528726de0f6e2c47d",
     "NotoSansMath/OFL.txt": "403a95275b469061b7d4371c328e0ada3bc7d63328abe2e88aad5cd243b2fe21",
     "NotoSansSymbols2/NotoSansSymbols2-Regular.ttf": "7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21",
     "NotoSansSymbols2/OFL.txt": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0",
+    "NotoSerif/NotoSerif-700.ttf": "2ba500c8c3bded2f1878c6bd6027d07c21c8db0eaa78e82ac4cd4915ec21963b",
+    "NotoSerif/OFL.txt": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a",
     "Nunito/Nunito-1000.ttf": "ac46841a8e586a1f4392343c05a08938de2e12e6fe569e7e182480de7737f1e4",
     "Nunito/Nunito-700.ttf": "2f101eec908e89cec786451ae115cead13ef5132bdf75b9bb0b2d16ad6361b1e",
     "Nunito/Nunito-800.ttf": "2fb366411e83bede7c31043303c71ce576ee05a20ba42c2283257c57034e6cc2",
