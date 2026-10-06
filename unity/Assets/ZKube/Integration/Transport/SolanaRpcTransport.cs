@@ -56,7 +56,7 @@ namespace ZKube.Integration.Transport
             return second;
         }
         // The failures that say nothing about the transaction: the endpoint did not take the request.
-        private static bool NotTaken(Exception error)
+        public static bool NotTaken(Exception error)
         {
             if (error is OperationCanceledException && !(error is TimeoutException)) return false;
             var kind = RequestFailure.Of(error).Kind;
@@ -215,10 +215,29 @@ namespace ZKube.Integration.Transport
             var config = new JObject { ["encoding"] = "base64", ["maxRetries"] = policy == RpcSubmissionPolicy.ErSession ? 0 : 5,
                 ["preflightCommitment"] = policy == RpcSubmissionPolicy.ErSession ? "processed" : "confirmed" };
             if (policy == RpcSubmissionPolicy.ErSession) config["skipPreflight"] = true;
+            return await Submit(endpoint.Address, endpoint.IsBase, transaction, expectedSignature, config, cancellation).ConfigureAwait(false);
+        }
+
+        // The same signed bytes again, to the endpoint their journal names: for a
+        // transaction this session sent, that the cluster has no record of, while
+        // its blockhash is valid. The cluster holds a signature once, so sending
+        // it again can only land the one transaction the player approved. It was
+        // simulated before it was signed, so it is forwarded as it is.
+        public async Task<string> Resend(string endpoint, bool isBase, byte[] transaction, CancellationToken cancellation = default)
+        {
+            transaction = transaction == null ? throw new ArgumentNullException(nameof(transaction)) : (byte[])transaction.Clone();
+            string expectedSignature = TransactionSignatures.ValidateFullySigned(transaction);
+            await VerifyBase(cancellation).ConfigureAwait(false);
+            var config = new JObject { ["encoding"] = "base64", ["maxRetries"] = isBase ? 5 : 0, ["skipPreflight"] = true,
+                ["preflightCommitment"] = isBase ? "confirmed" : "processed" };
+            return await Submit(HistoricalEndpoint(endpoint, isBase), isBase, transaction, expectedSignature, config, cancellation).ConfigureAwait(false);
+        }
+        private async Task<string> Submit(Uri first, bool isBase, byte[] transaction, string expectedSignature, JObject config, CancellationToken cancellation)
+        {
             var parameters = new JArray(Convert.ToBase64String(transaction), config);
             string signature;
-            try { signature = String(await Call(endpoint.Address, "sendTransaction", parameters, 65536, cancellation).ConfigureAwait(false)); }
-            catch (Exception error) when (endpoint.IsBase && second != null && NotTaken(error))
+            try { signature = String(await Call(first, "sendTransaction", parameters, 65536, cancellation).ConfigureAwait(false)); }
+            catch (Exception error) when (isBase && second != null && NotTaken(error))
             {
                 ClientLog.Failure("send-first-endpoint", error);
                 var other = await Second(cancellation).ConfigureAwait(false);
@@ -238,8 +257,8 @@ namespace ZKube.Integration.Transport
             return await Status(endpoint.Address, signature, cancellation).ConfigureAwait(false);
         }
 
-        // These read-only probes accept a validated durable journal endpoint.
-        // They cannot create an RpcEndpoint or a blockhash lease for sending.
+        // These probes accept a validated durable journal endpoint. They read;
+        // none creates an RpcEndpoint or a blockhash lease for a new transaction.
         public async Task<RpcSignatureStatus> HistoricalSignatureStatus(string endpoint, bool isBase, string signature, CancellationToken cancellation = default)
         {
             TransactionSignatures.ValidateSignature(signature); await VerifyBase(cancellation).ConfigureAwait(false);

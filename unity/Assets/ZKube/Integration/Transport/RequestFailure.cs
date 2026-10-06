@@ -137,7 +137,7 @@ namespace ZKube.Integration.Transport
         // send itself, the first status seen, the settled outcome with the number
         // of checks it took, and the page showing it. Times are from the send;
         // a line names the action and never the signature.
-        private sealed class Sent { public System.Diagnostics.Stopwatch Clock; public string Action; public int Checks; public bool Seen, Settled; }
+        private sealed class Sent { public System.Diagnostics.Stopwatch Clock; public string Action, Detail; public int Checks, Sends = 1; public bool Seen, Settled; }
         private static readonly System.Collections.Generic.Dictionary<string, Sent> sent = new System.Collections.Generic.Dictionary<string, Sent>();
         private static void Timing(string signature, Func<Sent, string> line, bool forget = false)
         {
@@ -154,15 +154,18 @@ namespace ZKube.Integration.Transport
             }
             catch (Exception) { /* Logging never fails a request. */ }
         }
-        public static void Sending(string signature, string action)
+        // detail: the packet's size and which of the intent's sizes it is, largest first.
+        public static void Sending(string signature, string action, string detail = null)
         {
             lock (sent)
             {
                 if (sent.Count >= 8) sent.Clear();
-                sent[signature] = new Sent { Clock = System.Diagnostics.Stopwatch.StartNew(), Action = RequestFailure.Clean(action) };
+                sent[signature] = new Sent { Clock = System.Diagnostics.Stopwatch.StartNew(), Action = RequestFailure.Clean(action), Detail = detail };
             }
         }
-        public static void SentIn(string signature) => Timing(signature, entry => entry.Action + " sent=+" + entry.Clock.ElapsedMilliseconds + "ms");
+        public static void SentIn(string signature) => Timing(signature, entry => entry.Action + " sent=+" + entry.Clock.ElapsedMilliseconds + "ms" + entry.Detail);
+        // The same bytes sent again: counted, and said with the settled outcome.
+        public static void SentAgain(string signature) => Timing(signature, entry => { entry.Sends++; return null; });
         public static void Status(string signature, string seen) => Timing(signature, entry => {
             entry.Checks++;
             if (entry.Seen) return null;
@@ -170,7 +173,8 @@ namespace ZKube.Integration.Transport
         });
         public static void Settled(string signature, string outcome) => Timing(signature, entry => {
             if (entry.Settled) return null;
-            entry.Settled = true; return entry.Action + " settled=+" + entry.Clock.ElapsedMilliseconds + "ms outcome=" + outcome + " checks=" + entry.Checks;
+            entry.Settled = true; return entry.Action + " settled=+" + entry.Clock.ElapsedMilliseconds + "ms outcome=" + outcome + " checks=" + entry.Checks +
+                (entry.Sends > 1 ? " sends=" + entry.Sends : "");
         });
         public static void Shown(string signature) => Timing(signature, entry => entry.Settled ? entry.Action + " shown=+" + entry.Clock.ElapsedMilliseconds + "ms" : null, true);
 

@@ -369,11 +369,17 @@ deployment or spending approval.
   action in progress shows on its own button, one piece for every action: a loader and its step in a word (the
   wallet's turn, the send, the wait for Solana), never a line that stands still; reduced motion shows a still mark
   and the same word. A sent transaction is followed by that runner to a definite outcome (confirmed, failed or
-  expired) and the page updates without a tap; a page that finds one unconfirmed follows it too. Following only
-  reads: it never signs or sends. Each round of its wait is bounded; past one the page says it is still checking,
+  expired) and the page updates without a tap; a page that finds one unconfirmed follows it too. Following
+  never signs and never makes another transaction. A send is not the end, though: while a transaction this session
+  sent has no record on the cluster and its blockhash is still valid, a look that finds it missing sends the same
+  signed bytes again, at once when no endpoint took the send and otherwise every two seconds. Past its blockhash
+  nothing is sent and it never landed; one found waiting after a restart is only read, and so is one an endpoint
+  refused for what it is (a JSON-RPC error, a 4xx).
+  `ATransactionTheClusterHasNoRecordOfIsSentAgainWhileItsBlockhashIsValid` guards that. Each round of its wait is
+  bounded; past one the page says it is still checking,
   rests a moment and follows again by itself, so nobody is asked to check. A look that cannot read its answer is
   not a wait: after three in a row, each spaced twice as far as the last, the follow stops and the page says why
-  with a retry, which looks again and never sends. Nothing else waits on it: every tab opens and the Campaign
+  with a retry, which looks again and signs nothing. Nothing else waits on it: every tab opens and the Campaign
   plays. `ATransactionThatCannotBeConfirmedStopsBeingFollowedSaysWhyAndFreezesNothing` guards that.
   `AnActionShowsEachStepOnItsButtonUntilItsOutcome` and `AnActionInProgressShowsTheLoaderAndItsStepAndTakesNoTap`
   guard the button. A wallet that returns another message than it was given is refused, as Gate G1 requires, and
@@ -440,7 +446,8 @@ deployment or spending approval.
   still unconfirmed is the follower's, which looks every half second and backs off; a page the wallet's pause
   retired has not waited, and follows again when the app is back. A read that names a minimum slot and finds
   the node behind it is made again shortly and quietly, a bounded number of times, and is not a failure. The
-  device log carries each sent transaction's timing: the send, the first status, the settled outcome and the
+  device log carries each sent transaction's timing: the send, with its packet's size and which of its intent's
+  sizes it is, the first status, the settled outcome, with how many times it was sent when more than once, and the
   page showing it. `ASentTransactionIsLookedForPromptlyAndShownAtConfirmed`,
   `ANodeBehindTheNamedSlotIsWaitedForQuietlyAndBounded` and
   `APausedPurchaseThatConfirmsLateIsFollowedByThePageItself` guard them.

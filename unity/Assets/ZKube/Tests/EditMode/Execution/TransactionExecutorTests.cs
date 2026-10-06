@@ -179,7 +179,7 @@ namespace ZKube.Integration.Execution.Tests
                 Assert.That(http.Requests.Where(request => (string)request["method"] == "getMultipleAccounts").All(request => (string)request["params"][1]["commitment"] == "confirmed"), Is.True);
                 var timing = lines.Where(line => line.StartsWith("zKube timing: action=purchase-one ")).Select(line => line.Substring("zKube timing: action=purchase-one ".Length)).ToArray();
                 Assert.That(timing.Length, Is.EqualTo(3), string.Join(" | ", lines));
-                StringAssert.IsMatch(@"^sent=\+\d+ms$", timing[0]);
+                StringAssert.IsMatch(@"^sent=\+\d+ms bytes=\d+ size=1/1$", timing[0]);
                 StringAssert.IsMatch(@"^first-status=\+\d+ms seen=Missing$", timing[1]);
                 StringAssert.IsMatch(@"^settled=\+\d+ms outcome=ConfirmedSuccess checks=4$", timing[2]);
                 // The page that shows it closes the timing, once.
@@ -247,10 +247,70 @@ namespace ZKube.Integration.Execution.Tests
                 var unsent = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
                 Assert.That(unsent.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
                 Assert.That(http.Count("sendTransaction", Second) + http.Count("getSignatureStatuses", Second), Is.Zero);
-                // Without a second endpoint a send is made once, as before.
+                // Without a second endpoint every send is the first's.
                 Setup(); http.Confirmation = null;
                 http.Refuse = (endpoint, method) => method == "sendTransaction" ? new HttpStatusException(503) : null;
                 await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(http.Requests.Where(request => (string)request["method"] == "sendTransaction").All(request => (string)request["endpoint"] == first), Is.True);
+            }
+            finally { ClientLog.Sink = sink; }
+        }
+
+        // A send is not the end. While a transaction this session sent has no
+        // record on the cluster and its blockhash is valid, a look that finds it
+        // missing sends the same signed bytes again: at once when no endpoint took
+        // the send, else no more often than the executor's pace. It is signed
+        // once, keeps its blockhash, and past that blockhash nothing is sent.
+        [Test]
+        public async Task ATransactionTheClusterHasNoRecordOfIsSentAgainWhileItsBlockhashIsValid()
+        {
+            string team = (string)solana["inputs"]["validator"];
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                // No endpoint took the send: the first look sends it again, and it lands.
+                int refused = 1; http.Confirmation = null; http.AfterSend = () => http.Confirmation = "confirmed";
+                http.Refuse = (endpoint, method) => method == "sendTransaction" && refused-- > 0 ? new HttpStatusException(503) : null;
+                var result = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+                var sends = http.Requests.Where(request => (string)request["method"] == "sendTransaction").ToArray();
+                Assert.That(sends.Length, Is.EqualTo(2));
+                Assert.That((string)sends[1]["params"][0], Is.EqualTo((string)sends[0]["params"][0]), "The same signed bytes");
+                Assert.That((bool)sends[1]["params"][1]["skipPreflight"], Is.True, "Simulated before it was signed");
+                Assert.That(native.Asked.Count, Is.EqualTo(1), "Signed once"); Assert.That(http.Count("getLatestBlockhash"), Is.EqualTo(1), "One blockhash");
+                Assert.That(http.Count("simulateTransaction"), Is.EqualTo(1));
+                Assert.That(lines.Count(line => line.Contains("action=purchase-one send kind=ServerError")), Is.EqualTo(1), string.Join(" | ", lines));
+                StringAssert.IsMatch(@"settled=\+\d+ms outcome=ConfirmedSuccess checks=\d+ sends=2$", lines.Single(line => line.Contains(" settled=")));
+
+                // An endpoint took it and the cluster stays silent: it is sent again at the executor's pace, not at every look.
+                Setup(); http.Confirmation = null;
+                var waiting = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(waiting.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That(http.Count("sendTransaction"), Is.EqualTo(1), "Six looks within the pace send nothing more");
+                executor.ResendEvery = TimeSpan.Zero;
+                Assert.That((await executor.Resume(owner, observer)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That(http.Count("sendTransaction"), Is.EqualTo(2)); Assert.That(native.Asked.Count, Is.EqualTo(1));
+                // A resend no endpoint takes is one log line, and the look still stands.
+                lines.Clear(); http.Refuse = (endpoint, method) => method == "sendTransaction" ? new TimeoutException("No answer within 30 s") : null;
+                var still = await executor.Resume(owner, observer);
+                Assert.That(still.Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(still.Failure, Is.Null);
+                Assert.That(lines.Count(line => line.StartsWith("zKube request failed: action=purchase-one send again kind=Timeout")), Is.EqualTo(1), string.Join(" | ", lines));
+                // Past its blockhash nothing is sent: it never landed.
+                http.Refuse = null; int before = http.Count("sendTransaction"); http.Height = 501; http.AbsentNonPlayer = true;
+                var expired = await executor.Resume(owner, new TestReconciler(accounts, planner));
+                Assert.That(expired.Outcome, Is.EqualTo(ExecutionOutcome.ExpiredReconciled)); Assert.That(http.Count("sendTransaction"), Is.EqualTo(before));
+
+                // An endpoint that answered about the transaction itself is not asked to forward what it refused.
+                Setup(); http.Confirmation = null; executor.ResendEvery = TimeSpan.Zero;
+                http.Refuse = (endpoint, method) => method == "sendTransaction" ? new RpcErrorReply(-32002, "Transaction simulation failed") : null;
+                Assert.That((await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That(http.Count("sendTransaction"), Is.EqualTo(1));
+
+                // After a restart the journal's transaction is only read: this session did not send it.
+                Setup(); http.Confirmation = null;
+                await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                var restarted = NewExecutor(); restarted.ResendEvery = TimeSpan.Zero;
+                Assert.That((await restarted.Resume(owner, observer)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
                 Assert.That(http.Count("sendTransaction"), Is.EqualTo(1));
             }
             finally { ClientLog.Sink = sink; }

@@ -159,8 +159,8 @@ namespace ZKube.Tests.MoneyOverview
 
         // A sent transaction is followed by the client: the page reaches the
         // outcome without a tap. A round of the wait that runs out says it is
-        // still checking and the next one starts by itself; no round signs or
-        // sends again.
+        // still checking and the next one starts by itself; no round signs
+        // again, and what is sent again is the same bytes.
         [UnityTest] public IEnumerator ASentTransactionIsFollowedToItsOutcomeWithoutATap()
         {
             yield return PrepareScenario("session-enable-pending-success"); Follow(.02f, 10);
@@ -187,7 +187,9 @@ namespace ZKube.Tests.MoneyOverview
             Follow(.02f, 10); environment.Http.ConfirmAfter = 3;
             yield return Until(() => Adapter.LastReceipt.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess, "A later round finds the outcome"); yield return Idle();
             Assert.That(Text("Device state"), Is.EqualTo("Session active"));
-            Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+            Assert.That(Asked("signTransactions"), Is.EqualTo(1));
+            Assert.That(environment.Http.Requests.ToArray().Where(request => (string)request["method"] == "sendTransaction")
+                .Select(request => (string)request["params"][0]).Distinct().Count(), Is.EqualTo(1), "Whatever was sent again is the one signed transaction");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

@@ -22,6 +22,27 @@ namespace ZKube.Integration.Execution
         public const int PromptChecks = 5;
         public TimeSpan PromptEvery = TimeSpan.FromMilliseconds(400);
 
+        // A send can fail to reach the cluster, or be dropped on its way. While a
+        // transaction this session sent has no record on the cluster and its
+        // blockhash is still valid, a look that finds it missing sends the same
+        // signed bytes again: at once when no endpoint took the send, else no
+        // more often than this. It is never signed again and never given another
+        // blockhash; a transaction found waiting after a restart is only read,
+        // and so is one an endpoint refused for what it is.
+        public TimeSpan ResendEvery = TimeSpan.FromSeconds(2);
+        private readonly Dictionary<string, DateTime> sentAt = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        private async Task SendAgain(PendingTransaction pending, CancellationToken cancellation)
+        {
+            lock (sentAt)
+            {
+                if (!sentAt.TryGetValue(pending.Signature, out var last) || DateTime.UtcNow - last < ResendEvery) return;
+                sentAt[pending.Signature] = DateTime.UtcNow;
+            }
+            try { await rpc.Resend(pending.Endpoint, pending.IsBase, pending.Transaction, cancellation).ConfigureAwait(false); ClientLog.SentAgain(pending.Signature); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error) { ClientLog.Failure(pending.Intent + " send again", error); }
+        }
+
         // Told where a transaction stands as it is made: "wallet" when the owner's wallet is asked,
         // "sending" when the signed bytes leave, "confirming" once they are sent. For what the player
         // sees; it changes nothing here.
@@ -78,10 +99,10 @@ namespace ZKube.Integration.Execution
                 // A size that does not fit a packet, that its payer cannot fund
                 // or that its simulation rejects steps down to the next; only
                 // the last, the intent alone, can fail the intent.
-                byte[] transaction = null;
+                byte[] transaction = null; int size = 0;
                 for (int index = 0; ; index++)
                 {
-                    plan = sizes[index]; bool last = index == sizes.Count - 1;
+                    plan = sizes[index]; bool last = index == sizes.Count - 1; size = index + 1;
                     byte[] message;
                     try { message = plan.CompileMessage(lease.Blockhash); transaction = SolanaWire.UnsignedTransaction(message); }
                     catch (Exception error) when (!last && (error is ArgumentException || error is FormatException)) { continue; }
@@ -127,11 +148,20 @@ namespace ZKube.Integration.Execution
                     if (pending != null) return Rejected(intent, "pending-transaction-exists");
                     return Rejected(intent, "journal-write-failed");
                 }
-                ClientLog.Sending(pending.Signature, intent); Step?.Invoke("sending");
+                ClientLog.Sending(pending.Signature, intent, " bytes=" + transaction.Length + " size=" + size + "/" + sizes.Count); Step?.Invoke("sending");
+                lock (sentAt) { if (sentAt.Count >= 8) sentAt.Clear(); sentAt[pending.Signature] = DateTime.UtcNow; }
                 try { await rpc.Send(endpoint, transaction, fastEr ? RpcSubmissionPolicy.ErSession : RpcSubmissionPolicy.Wallet,
                     lease, cancellation).ConfigureAwait(false); }
-                // The persisted signature is the only retry/recovery identity.
-                catch (Exception error) { ClientLog.Failure(intent + " send", error); }
+                // The persisted signature is the only retry/recovery identity. No endpoint took it: the first look
+                // that finds it missing sends it again. A busy endpoint is asked again at the usual pace. An endpoint
+                // that answered about the transaction itself is not asked to forward what it refused.
+                catch (Exception error)
+                {
+                    ClientLog.Failure(intent + " send", error);
+                    lock (sentAt)
+                        if (SolanaRpcTransport.NotTaken(error)) sentAt[pending.Signature] = DateTime.MinValue;
+                        else if (RequestFailure.Of(error).Kind != FailureKind.Busy) sentAt.Remove(pending.Signature);
+                }
                 ClientLog.SentIn(pending.Signature); Step?.Invoke("confirming");
                 // A transaction lands within a block or two. It is looked for at
                 // once and then promptly a few more times, so the usual outcome
@@ -199,7 +229,7 @@ namespace ZKube.Integration.Execution
                 {
                     if (status.Confirmation != RpcConfirmation.Missing) return Pending(pending, "confirmation-pending");
                     height = await rpc.HistoricalBlockHeight(pending.Endpoint, pending.IsBase, cancellation).ConfigureAwait(false);
-                    if (height <= pending.LastValidBlockHeight) return Pending(pending, "signature-not-yet-observed");
+                    if (height <= pending.LastValidBlockHeight) { await SendAgain(pending, cancellation).ConfigureAwait(false); return Pending(pending, "signature-not-yet-observed"); }
                     // Absence before the expiry-height observation cannot prove
                     // expiry. Search history again afterward and reject regression.
                     var afterExpiry = await rpc.HistoricalSignatureStatus(pending.Endpoint, pending.IsBase, pending.Signature, cancellation).ConfigureAwait(false);
@@ -232,6 +262,7 @@ namespace ZKube.Integration.Execution
                 if (!await reconciler.Reconcile(new ExecutionReconciliation(pending, description, minimumSlot, observations.ToArray(), status, expired), cancellation).ConfigureAwait(false))
                     return Pending(pending, "affected-state-unresolved");
                 await journal.Complete(pending, pending.Signature, confirmed, expired, height, true).ConfigureAwait(false);
+                lock (sentAt) sentAt.Remove(pending.Signature);
                 var settled = new ExecutionResult(expired ? ExecutionOutcome.ExpiredReconciled :
                     status.ErrorJson == null ? ExecutionOutcome.ConfirmedSuccess : ExecutionOutcome.ConfirmedFailure,
                     pending.Intent, pending.Signature, chainError: status.ErrorJson);

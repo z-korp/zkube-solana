@@ -87,7 +87,8 @@ namespace ZKube.Integration.Presentation
             "Operation" => LastReceipt?.Outcome == ExecutionOutcome.Pending,
             _ => false };
         // Follows what this address has waiting, from whichever page shows it, and
-        // from the retry of a wait that ran out. It never signs or sends.
+        // from the retry of a wait that ran out. It never signs, and sends nothing but
+        // the same bytes again (the executor's rule, while their blockhash is valid).
         public Task FollowTransaction() => Run(async (epoch, token) => {
             string family = Family(); ClearRefusal();
             ExecutionResult result;
