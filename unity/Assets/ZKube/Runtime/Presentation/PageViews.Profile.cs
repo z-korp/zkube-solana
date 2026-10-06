@@ -164,9 +164,20 @@ namespace ZKube.Presentation
         // its header ends with the Unmute chip), the card of haptics, reduced
         // motion, the text size and How to play, a row that replays every lesson,
         // then the identity's own cards. The identity's actions are the foot row.
+        // A phone with no height to spare tightens the two cards evenly, their padding and their rows, as the pause
+        // and the profile do; every word keeps its size and every row its touch height.
+        private const float TightSettingsPadU = 5, TightSettingsRowU = 44;
         private void Settings(SettingsPageView value)
         {
-            var kit = Kit; var inside = kit.Inside();
+            var kit = Kit;
+            var slots = SettingsSlots(value, kit, false);
+            if (!kit.Fits(slots)) slots = SettingsSlots(value, kit, true);
+            Place(kit, slots);
+        }
+        private ScreenKit.Slots SettingsSlots(SettingsPageView value, ScreenKit kit, bool tight)
+        {
+            var inside = kit.Inside(); float pad = tight ? TightSettingsPadU : ScreenKit.CardPadU;
+            if (tight) inside.RowU = TightSettingsRowU;
             ScreenKit.Side? unmute = null;
             if (value.Muted)
             {
@@ -180,7 +191,7 @@ namespace ZKube.Presentation
                 });
             }
             var body = new List<Piece> { kit.Card(Words.SettingsSoundHeading, new[] { Volume(inside, "Music", Words.SettingsMusic, SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
-                Volume(inside, "Effects", Words.SettingsEffects, SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card", end: unmute) };
+                Volume(inside, "Effects", Words.SettingsEffects, SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card", padU: pad, end: unmute) };
             string current = (value.LargeText ? Words.SettingsTextLarger : Words.SettingsTextStandard) + " ›";
             body.Add(kit.Card(null, new[] { Switch(inside, "Haptics", Words.SettingsHaptics, value.Haptics, value.ToggleHaptics, false),
                 Switch(inside, "Reduced motion", Words.SettingsReducedMotion, value.ReducedMotion, value.ToggleMotion, true),
@@ -191,9 +202,9 @@ namespace ZKube.Presentation
                     "Language: " + Words.Code, Languages, ScreenKit.Role.WayIn),
                 Tapped(inside.Row("How to play row", inside.Icon("How to play icon", SkinSlots.HandPointer, 26), Words.SettingsHowToPlay, null,
                     inside.Value("How to play chevron", "›", SkinTokens.Text), true),
-                    "How to play", () => Teach(Lessons.HowToPlay(brand == "arena"), null), ScreenKit.Role.WayIn) }, "Switches card"));
+                    "How to play", () => Teach(Lessons.HowToPlay(brand == "arena"), null), ScreenKit.Role.WayIn) }, "Switches card", padU: pad));
             if (value.Identity.Length != 0) body.Add(BlockPiece("Identity settings", value.Identity, kit));
-            Place(kit, new ScreenKit.Slots { Title = kit.Title(Words.TabSettings, null), Body = body, Tertiary = Control(value.Tertiary), Destructive = Control(value.Destructive) });
+            return new ScreenKit.Slots { Title = kit.Title(Words.TabSettings, null), Body = body, Tertiary = Control(value.Tertiary), Destructive = Control(value.Destructive) };
         }
         // The languages, each in its own name, two to a row so twelve fit the small
         // phone without scrolling: the composer's pair of choices, the one in use
@@ -235,7 +246,7 @@ namespace ZKube.Presentation
             float d = ui.Density, u = inside.U, size = 26 * u, levelWidth = Mathf.Max(ui.TextWidth(Words.FormatPercent(100), inside.NumeralDp, SkinUi.Type.Display),
                 ui.TextWidth(Words.SettingsOff, inside.NumeralDp, SkinUi.Type.Display));
             float labelWidth = Mathf.Max(ui.TextWidth(Words.SettingsMusic, inside.CaptionDp, SkinUi.Type.Caption), ui.TextWidth(Words.SettingsEffects, inside.CaptionDp, SkinUi.Type.Caption)) + 4 * u;
-            return new Piece(inside.Touch(50), rect => {
+            return new Piece(inside.Touch(inside.RowU), rect => {
                 if (ruled) inside.Rule(title + " rule", rect);
                 var hit = ui.Rect<Image>(title + " switch", new Rect(rect.x, rect.y, size + 10 * u + labelWidth, rect.height), shell.Page);
                 hit.color = Color.clear; hit.raycastTarget = true;

@@ -417,13 +417,15 @@ namespace ZKube.Presentation
         // A row (.row3): what leads it (its icon), its caption with a smaller
         // line under it, and what sits on its right, 10u apart and centred, at
         // least 50u tall. A row after another is ruled from it.
+        // The height of a row in u; a page with no height to spare sets its rows closer, never under the touch minimum.
+        public float RowU = 50;
         public Piece Row(string name, Side? lead, string caption, string small, Side? right, bool ruled, string captionToken = SkinTokens.Text)
         {
             float u = U;
             float text = width - (lead.HasValue ? lead.Value.Width + 10 * u : 0) - (right.HasValue ? right.Value.Width + 10 * u : 0);
             float captionHeight = Block(caption, text, CaptionDp, SkinUi.Type.Caption, CaptionLeading);
             float smallHeight = Block(small, text, SmallDp, SkinUi.Type.Caption, CaptionLeading);
-            float height = Mathf.Max(Touch(50), Mathf.Max(lead?.Height ?? 0, Mathf.Max(captionHeight + smallHeight, right?.Height ?? 0)));
+            float height = Mathf.Max(Touch(RowU), Mathf.Max(lead?.Height ?? 0, Mathf.Max(captionHeight + smallHeight, right?.Height ?? 0)));
             return new Piece(height, rect => {
                 if (ruled) Rule(name + " rule", rect);
                 float x = rect.x;
