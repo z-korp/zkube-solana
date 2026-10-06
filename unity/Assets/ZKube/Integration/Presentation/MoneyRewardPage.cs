@@ -168,7 +168,7 @@ namespace ZKube.Integration.Presentation
             else if (pending || board.ClaimStatus == "claimable")
             {
                 // Sealing a day and claiming a reward are this device's own transactions.
-                if (!state.Session.Current) page.Primary = Act("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, StandInIcons.Device);
+                if (!state.Session.Current) page.Primary = Act("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconDevice);
                 else if (state.Session.Funding != "ready") page.Primary = Act("Top up deposit", () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconPlus);
                 else if (pending) page.Primary = Act("Seal results", () => _ = SealResults(), CanSealResults, SkinSlots.IconLock);
                 else page.Primary = Act("Claim " + Sol(board.Yours.PayoutLamports), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind), SkinSlots.IconTrophy,

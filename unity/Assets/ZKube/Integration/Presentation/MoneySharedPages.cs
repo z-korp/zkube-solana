@@ -73,7 +73,7 @@ namespace ZKube.Integration.Presentation
                         Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }) };
             // The foot row: the last operation, and Disconnect last.
             view.Tertiary = PageAction("Last operation", OpenOperation, () => PageAvailable() && !Busy); view.Tertiary.Icon = SkinSlots.IconClock;
-            view.Destructive = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()); view.Destructive.Icon = StandInIcons.Wallet;
+            view.Destructive = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()); view.Destructive.Icon = SkinSlots.IconWallet;
             return view;
         }
         // The Campaign's result is the journey's; the Arcade's is its last kept run.

@@ -780,8 +780,7 @@ lowest row with Play between them, and its header says "Realm N of 10". A level'
 left, like every page opened from another. A result page shows a result: with none to show, it is Home. On
 Settings, How to play is the last row of the switches card, Unmute is a chip at the end of the Sound card's header
 while everything is muted, and the identity's actions are the foot row: Restore purchases in Realms; Last
-operation, then Disconnect, in the Arena. A page taller than its phone is checked at its top and at its foot. The device and the wallet have no icon of
-their own yet: `StandInIcons` names the kit icons that stand in for them until the art is drawn.
+operation, then Disconnect, in the Arena. A page taller than its phone is checked at its top and at its foot.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration
 path owns both products, and money-only schemas stay out of store packages.

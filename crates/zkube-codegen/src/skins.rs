@@ -50,7 +50,7 @@ pub const UI_STRETCH_SLOTS: [&str; 33] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 89] = [
+pub const UI_FIXED_SLOTS: [&str; 91] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -97,6 +97,10 @@ pub const UI_FIXED_SLOTS: [&str; 89] = [
     // figure (white, tinted by its state) and a live board's lit dot.
     "icon-plus",
     "icon-live",
+    // The device a player sets up and manages, and the wallet that connects,
+    // disconnects and approves.
+    "icon-device",
+    "icon-wallet",
     // The Kredits page: the balance's coin and the three packs' pictures,
     // one size, one light and one weight.
     "coin-balance",

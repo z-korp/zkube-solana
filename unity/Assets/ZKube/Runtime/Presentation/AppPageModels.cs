@@ -251,13 +251,6 @@ namespace ZKube.Presentation
     // An identity's own page, drawn from the kit by the shared page views: the
     // header, then blocks top-down. A page keeps its key while it redraws in
     // place; a new key is a new page and enters with the page motion.
-    // The two icons the placement rule asks of the art (a device, a wallet) are not
-    // drawn yet: until they are, these kit icons stand in for them, from this one place.
-    public static class StandInIcons
-    {
-        public const string Device = SkinSlots.IconSettings, Wallet = SkinSlots.IconKey;
-    }
-
     // A stepper: what it steps and that step's state, between its two arrows. An arrow
     // that cannot step is absent here and drawn dimmed, so the bar never changes shape.
     public sealed class StepperView

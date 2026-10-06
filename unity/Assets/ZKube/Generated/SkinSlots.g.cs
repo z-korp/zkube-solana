@@ -76,6 +76,8 @@ namespace ZKube.Core.Generated
         public const string IconFlag = "icon-flag";
         public const string IconPlus = "icon-plus";
         public const string IconLive = "icon-live";
+        public const string IconDevice = "icon-device";
+        public const string IconWallet = "icon-wallet";
         public const string CoinBalance = "coin-balance";
         public const string Pack1 = "pack-1";
         public const string Pack10 = "pack-10";

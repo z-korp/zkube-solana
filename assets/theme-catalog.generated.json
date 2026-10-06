@@ -2656,6 +2656,26 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/icon-device.png",
+          "slot": "icon-device"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wallet.png",
+          "slot": "icon-wallet"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/coin-balance.png",
           "slot": "coin-balance"
         },
