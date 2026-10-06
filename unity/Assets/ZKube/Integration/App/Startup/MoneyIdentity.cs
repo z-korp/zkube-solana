@@ -16,6 +16,8 @@ namespace ZKube.Integration.App
     {
         public TextAsset SolanaSchema, SessionSchema;
         public string BaseUri, RouterUri, ExpectedGenesis, StandingsUri;
+        // A second endpoint of the same cluster for a send the first does not take; empty has none.
+        public string SecondBaseUri;
         // A mainnet RPC endpoint for the Seeker ID lookup; empty shows addresses.
         public string NameUri;
         [NonSerialized] public MoneyClientServices Services;
@@ -41,7 +43,7 @@ namespace ZKube.Integration.App
                 string directory = Path.Combine(Application.persistentDataPath, "campaign");
                 services = new MoneyClientServices(Configuration.SolanaSchema?.text, Configuration.SessionSchema?.text,
                     new MoneyConnectionConfig(Configuration.BaseUri, Configuration.RouterUri, Configuration.ExpectedGenesis, Configuration.NameUri,
-                        Configuration.StandingsUri),
+                        Configuration.StandingsUri, Configuration.SecondBaseUri),
                     http, native, native, clock, owner => {
                         string path = Path.Combine(directory, owner + ".json");
                         return new LocalProductStore(_ => AtomicProductFile.Read(path),

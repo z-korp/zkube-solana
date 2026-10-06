@@ -38,8 +38,13 @@ namespace ZKube.Integration.App.Tests
             var e = new MoneyTestEnvironment();
             foreach (var config in new[] { null, new MoneyConnectionConfig(null, e.Config.RouterUri, e.Config.ExpectedGenesis),
                 new MoneyConnectionConfig(e.Config.BaseUri, e.Config.RouterUri, "mainnet"),
-                new MoneyConnectionConfig(e.Config.BaseUri, e.Config.BaseUri, e.Config.ExpectedGenesis) })
+                new MoneyConnectionConfig(e.Config.BaseUri, e.Config.BaseUri, e.Config.ExpectedGenesis),
+                // A second Base endpoint is another HTTPS endpoint, or absent.
+                new MoneyConnectionConfig(e.Config.BaseUri, e.Config.RouterUri, e.Config.ExpectedGenesis, secondBaseUri: e.Config.BaseUri),
+                new MoneyConnectionConfig(e.Config.BaseUri, e.Config.RouterUri, e.Config.ExpectedGenesis, secondBaseUri: e.Config.RouterUri),
+                new MoneyConnectionConfig(e.Config.BaseUri, e.Config.RouterUri, e.Config.ExpectedGenesis, secondBaseUri: "http://second.invalid/") })
                 Assert.Throws<MoneyConfigurationException>(() => e.Create(config));
+            Assert.DoesNotThrow(() => e.Create(new MoneyConnectionConfig(e.Config.BaseUri, e.Config.RouterUri, e.Config.ExpectedGenesis, secondBaseUri: "https://second.invalid/")));
             Assert.That(e.Http.Requests, Is.Empty); Assert.That(e.Native.Calls + e.Store.Calls, Is.Zero);
             e.Http.Genesis = "wrong-genesis";
             await ZKube.Integration.Tests.AsyncAssert.Throws<Exception>(async () => await e.Flow.RefreshPublic());

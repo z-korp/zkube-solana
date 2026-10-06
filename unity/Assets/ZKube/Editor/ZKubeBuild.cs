@@ -25,7 +25,7 @@ namespace ZKube.Editor
 
         [Serializable] internal sealed class Network
         {
-            public string baseUri, routerUri, expectedGenesis, standingsUri, nameUri;
+            public string baseUri, secondBaseUri, routerUri, expectedGenesis, standingsUri, nameUri;
         }
         [Serializable] internal sealed class AndroidIdentity
         {

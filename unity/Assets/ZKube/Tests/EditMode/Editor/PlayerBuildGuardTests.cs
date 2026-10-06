@@ -67,7 +67,7 @@ namespace ZKube.Editor.Tests
 
         [Serializable] private sealed class ToolchainNetworks { public NamedNetwork[] androidIdentities; }
         [Serializable] private sealed class NamedNetwork { public string name; public NetworkValues network; }
-        [Serializable] private sealed class NetworkValues { public string baseUri, routerUri, expectedGenesis, standingsUri; }
+        [Serializable] private sealed class NetworkValues { public string baseUri, secondBaseUri, routerUri, expectedGenesis, standingsUri; }
 
         [TestCase("store", "ZKube.Store")]
         [TestCase("money", "ZKube.Money")]
@@ -94,7 +94,7 @@ namespace ZKube.Editor.Tests
                     // scene the money identity gets, including the one a test restores.
                     var network = JsonUtility.FromJson<ToolchainNetworks>(System.IO.File.ReadAllText("toolchain.json"))
                         .androidIdentities.Single(item => item.name == "money").network;
-                    foreach (var (field, expected) in new[] { ("BaseUri", network.baseUri), ("RouterUri", network.routerUri),
+                    foreach (var (field, expected) in new[] { ("BaseUri", network.baseUri), ("SecondBaseUri", network.secondBaseUri), ("RouterUri", network.routerUri),
                         ("ExpectedGenesis", network.expectedGenesis), ("StandingsUri", network.standingsUri) })
                     {
                         Assert.That(config.FindPropertyRelative(field).stringValue, Is.Not.Empty, field);

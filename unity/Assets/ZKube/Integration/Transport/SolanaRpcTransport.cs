@@ -15,6 +15,13 @@ namespace ZKube.Integration.Transport
         public const int MaximumAccountBytes = 262144;
         public const int MaximumBatchAccounts = 16;
         private readonly IJsonRpcHttp http;
+        // A second endpoint of the same cluster, or null. A send the first refuses
+        // with a server error, a timeout or a dropped connection goes to it with
+        // the same signed bytes, and a signature the first has no record of is
+        // looked for on it. Nothing else is asked of it, and nothing before its
+        // genesis has matched the cluster's.
+        private readonly Uri second;
+        private bool secondVerified;
         private readonly Uri router;
         private readonly string expectedGenesis, program;
         private readonly Dictionary<string, string> placements = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -25,13 +32,35 @@ namespace ZKube.Integration.Transport
         public string BaseEndpoint => Base.Address.AbsoluteUri;
         public string RouterEndpoint => router.AbsoluteUri;
 
-        public SolanaRpcTransport(IJsonRpcHttp http, string baseEndpoint, string routerEndpoint, string expectedGenesis, string program)
+        public SolanaRpcTransport(IJsonRpcHttp http, string baseEndpoint, string routerEndpoint, string expectedGenesis, string program,
+            string secondBaseEndpoint = null)
         {
             this.http = http ?? throw new ArgumentNullException(nameof(http));
             SolanaAddress.Bytes(expectedGenesis); SolanaAddress.Bytes(program);
             this.expectedGenesis = expectedGenesis; this.program = program;
             Base = new RpcEndpoint(Endpoint(baseEndpoint), true, this); router = Endpoint(routerEndpoint);
             if (Base.Address == router) throw new ArgumentException("Base and Router must be separate endpoints");
+            second = string.IsNullOrWhiteSpace(secondBaseEndpoint) ? null : Endpoint(secondBaseEndpoint);
+            if (second != null && (second == Base.Address || second == router)) throw new ArgumentException("The second Base endpoint must be another endpoint");
+        }
+        // The second endpoint once it has named the cluster's genesis; null without one, or while it cannot.
+        private async Task<Uri> Second(CancellationToken cancellation)
+        {
+            if (second == null) return null;
+            if (!Volatile.Read(ref secondVerified))
+            {
+                string actual = String(await Call(second, "getGenesisHash", new JArray(), 4096, cancellation).ConfigureAwait(false));
+                if (actual != expectedGenesis) throw new FormatException("The second Base RPC genesis does not match the configured cluster");
+                Volatile.Write(ref secondVerified, true);
+            }
+            return second;
+        }
+        // The failures that say nothing about the transaction: the endpoint did not take the request.
+        private static bool NotTaken(Exception error)
+        {
+            if (error is OperationCanceledException && !(error is TimeoutException)) return false;
+            var kind = RequestFailure.Of(error).Kind;
+            return kind == FailureKind.ServerError || kind == FailureKind.Timeout || kind == FailureKind.NoNetwork;
         }
 
         public async Task VerifyBase(CancellationToken cancellation = default)
@@ -172,7 +201,9 @@ namespace ZKube.Integration.Transport
         // Stateful operations journal these exact signed bytes. Cosmetic star
         // maxima instead retain their idempotent retry intent in the play record.
         // A thrown transport/protocol error after submission is an unknown outcome;
-        // this method never retries, refreshes a blockhash, or re-signs an intent.
+        // this method never refreshes a blockhash or re-signs an intent. A Base
+        // send the first endpoint did not take goes once to the second, the same
+        // bytes and so the same signature: the cluster holds a signature once.
         public async Task<string> Send(RpcEndpoint endpoint, byte[] transaction, RpcSubmissionPolicy policy, RpcBlockhash lease, CancellationToken cancellation = default)
         {
             transaction = transaction == null ? throw new ArgumentNullException(nameof(transaction)) : (byte[])transaction.Clone();
@@ -184,7 +215,18 @@ namespace ZKube.Integration.Transport
             var config = new JObject { ["encoding"] = "base64", ["maxRetries"] = policy == RpcSubmissionPolicy.ErSession ? 0 : 5,
                 ["preflightCommitment"] = policy == RpcSubmissionPolicy.ErSession ? "processed" : "confirmed" };
             if (policy == RpcSubmissionPolicy.ErSession) config["skipPreflight"] = true;
-            string signature = String(await Call(endpoint.Address, "sendTransaction", new JArray(Convert.ToBase64String(transaction), config), 65536, cancellation).ConfigureAwait(false));
+            var parameters = new JArray(Convert.ToBase64String(transaction), config);
+            string signature;
+            try { signature = String(await Call(endpoint.Address, "sendTransaction", parameters, 65536, cancellation).ConfigureAwait(false)); }
+            catch (Exception error) when (endpoint.IsBase && second != null && NotTaken(error))
+            {
+                ClientLog.Failure("send-first-endpoint", error);
+                var other = await Second(cancellation).ConfigureAwait(false);
+                // This exact transaction was simulated on the first endpoint before it was signed, and a
+                // node a slot behind the blockhash would refuse it in preflight: the second forwards it as it is.
+                var forwarded = (JObject)config.DeepClone(); forwarded["skipPreflight"] = true;
+                signature = String(await Call(other, "sendTransaction", new JArray(Convert.ToBase64String(transaction), forwarded), 65536, cancellation).ConfigureAwait(false));
+            }
             TransactionSignatures.ValidateSignature(signature);
             if (signature != expectedSignature) throw new FormatException("RPC returned a different transaction signature");
             return signature;
@@ -201,7 +243,23 @@ namespace ZKube.Integration.Transport
         public async Task<RpcSignatureStatus> HistoricalSignatureStatus(string endpoint, bool isBase, string signature, CancellationToken cancellation = default)
         {
             TransactionSignatures.ValidateSignature(signature); await VerifyBase(cancellation).ConfigureAwait(false);
-            return await Status(HistoricalEndpoint(endpoint, isBase), signature, cancellation, true).ConfigureAwait(false);
+            var first = HistoricalEndpoint(endpoint, isBase);
+            if (!isBase || second == null) return await Status(first, signature, cancellation, true).ConfigureAwait(false);
+            // A Base signature may have been sent through the second endpoint: where
+            // the first has no record of it, or cannot answer, the second is asked.
+            // A record on either is the cluster's; absence is still the first's to say.
+            RpcSignatureStatus status = null; Exception unanswered = null;
+            try { status = await Status(first, signature, cancellation, true).ConfigureAwait(false); }
+            catch (Exception error) when (NotTaken(error)) { unanswered = error; }
+            if (status != null && status.Confirmation != RpcConfirmation.Missing) return status;
+            try
+            {
+                var other = await Status(await Second(cancellation).ConfigureAwait(false), signature, cancellation, true).ConfigureAwait(false);
+                if (status == null || other.Confirmation != RpcConfirmation.Missing) return other;
+            }
+            catch (Exception error) when (status != null && !(error is OperationCanceledException)) { ClientLog.Failure("status-second-endpoint", error); }
+            if (status == null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(unanswered).Throw();
+            return status;
         }
         public async Task<ulong> HistoricalBlockHeight(string endpoint, bool isBase, CancellationToken cancellation = default)
         {
@@ -271,12 +329,12 @@ namespace ZKube.Integration.Transport
         }
         private async Task<JToken> Call(Uri endpoint, string method, JArray parameters, int bound, CancellationToken cancellation)
         {
-            if (endpoint != Base.Address && endpoint != router && !RollupMethods.Contains(method))
+            if (endpoint != Base.Address && endpoint != second && endpoint != router && !RollupMethods.Contains(method))
                 throw new InvalidOperationException("A rollup connection is not asked " + method);
             long id = Interlocked.Increment(ref requestId);
             var request = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["method"] = method, ["params"] = parameters };
             try { return Result(await http.Post(endpoint, request.ToString(Formatting.None), bound, cancellation).ConfigureAwait(false), id, bound); }
-            catch (Exception error) when (RequestFailure.Mark(error, endpoint == Base.Address ? "Solana" : "the game server", endpoint, method)) { throw; }
+            catch (Exception error) when (RequestFailure.Mark(error, endpoint == Base.Address || endpoint == second ? "Solana" : "the game server", endpoint, method)) { throw; }
         }
         private static JToken Result(string json, long id, int bound)
         {

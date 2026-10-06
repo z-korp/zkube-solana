@@ -45,9 +45,10 @@ namespace ZKube.Integration.Execution.Tests
             observer = new TestReconciler(accounts, planner);
             executor = NewExecutor();
         }
-        private TransactionExecutor NewExecutor() => new TransactionExecutor(planner,
+        private const string Second = "https://second.invalid/";
+        private TransactionExecutor NewExecutor(string second = null) => new TransactionExecutor(planner,
             new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"],
-                (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId) { SlotWaitEvery = TimeSpan.FromMilliseconds(2) },
+                (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId, second) { SlotWaitEvery = TimeSpan.FromMilliseconds(2) },
             new WalletClient(native), new TransactionJournal(store)) { PromptEvery = TimeSpan.FromMilliseconds(2) };
         private PendingTransaction SignedPurchase() => new PendingTransaction(owner, "purchase-one", (string)rpcFixture["inputs"]["base"], true,
             Convert.FromBase64String((string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["signedTransaction"]),
@@ -195,6 +196,107 @@ namespace ZKube.Integration.Execution.Tests
                 Assert.That(await store.Read(owner, "journal"), Is.Not.Null);
             }
             finally { ClientLog.Sink = sink; }
+        }
+
+        // A send the first endpoint does not take (a server error, no answer in
+        // time, a dropped connection) says nothing about the transaction. The same
+        // signed bytes go once to the second endpoint of the cluster, which is asked
+        // nothing before its genesis has matched; the wallet is asked once. An
+        // answer that is about the request itself is never sent on.
+        [Test]
+        public async Task ASendTheFirstEndpointDoesNotTakeGoesToTheSecondWithTheSameSignedBytes()
+        {
+            string team = (string)solana["inputs"]["validator"], first = (string)rpcFixture["inputs"]["base"];
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                foreach (var (refusal, kind) in new (Exception, string)[] {
+                    (new HttpStatusException(503, "upstream connect error or disconnect/reset before headers"), "ServerError"),
+                    (new TimeoutException("No answer within 30 s"), "Timeout"),
+                    (new System.Net.Http.HttpRequestException("The connection was reset"), "NoNetwork") })
+                {
+                    Setup(); lines.Clear(); executor = NewExecutor(Second);
+                    http.Refuse = (endpoint, method) => method == "sendTransaction" && endpoint.AbsoluteUri == first ? refusal : null;
+                    var result = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                    Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), kind);
+                    var sends = http.Requests.Where(request => (string)request["method"] == "sendTransaction").ToArray();
+                    CollectionAssert.AreEqual(new[] { first, Second }, sends.Select(request => (string)request["endpoint"]), kind);
+                    Assert.That((string)sends[1]["params"][0], Is.EqualTo((string)sends[0]["params"][0]), "The same signed bytes");
+                    Assert.That(result.Signature, Is.EqualTo(TransactionSignatures.ValidateFullySigned(Convert.FromBase64String((string)sends[1]["params"][0]))));
+                    Assert.That((bool)sends[1]["params"][1]["skipPreflight"], Is.True, "Simulated on the first endpoint before it was signed");
+                    Assert.That(native.Asked.Count, Is.EqualTo(1), "The wallet signs once");
+                    var asked = http.Requests.Where(request => (string)request["endpoint"] == Second).Select(request => (string)request["method"]).ToArray();
+                    CollectionAssert.AreEqual(new[] { "getGenesisHash", "sendTransaction" }, asked, "Nothing before its genesis, and nothing but the send");
+                    var failed = lines.Where(line => line.StartsWith("zKube request failed")).ToArray();
+                    Assert.That(failed.Length, Is.EqualTo(1), string.Join(" | ", lines));
+                    StringAssert.StartsWith("zKube request failed: action=send-first-endpoint kind=" + kind + " service=Solana host=", failed[0]);
+                    if (kind == "ServerError") StringAssert.Contains("status=503 type=HttpStatusException message=\"HTTP status 503: upstream connect error or disconnect/reset before headers\"", failed[0]);
+                }
+                // The endpoint took the request and answered about it: that answer stands.
+                foreach (var refusal in new Exception[] { new RpcErrorReply(-32002, "Transaction simulation failed"), new HttpStatusException(429), new HttpStatusException(400) })
+                {
+                    Setup(); executor = NewExecutor(Second);
+                    http.Refuse = (endpoint, method) => method == "sendTransaction" && endpoint.AbsoluteUri == first ? refusal : null;
+                    await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                    Assert.That(http.Count("sendTransaction"), Is.EqualTo(1), refusal.Message);
+                    Assert.That(http.Count("sendTransaction", Second), Is.Zero, refusal.Message);
+                }
+                // An endpoint of another cluster is never sent to.
+                Setup(); executor = NewExecutor(Second); http.SecondGenesis = "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY"; http.Confirmation = null;
+                http.Refuse = (endpoint, method) => method == "sendTransaction" && endpoint.AbsoluteUri == first ? new HttpStatusException(503) : null;
+                var unsent = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(unsent.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That(http.Count("sendTransaction", Second) + http.Count("getSignatureStatuses", Second), Is.Zero);
+                // Without a second endpoint a send is made once, as before.
+                Setup(); http.Confirmation = null;
+                http.Refuse = (endpoint, method) => method == "sendTransaction" ? new HttpStatusException(503) : null;
+                await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(http.Count("sendTransaction"), Is.EqualTo(1));
+            }
+            finally { ClientLog.Sink = sink; }
+        }
+
+        // What went through the second endpoint is the cluster's all the same. A
+        // signature the first endpoint has no record of is looked for on the
+        // second, and a record there settles it; absent from both once its
+        // blockhash has passed, it never landed. A second endpoint that cannot
+        // answer costs a log line, never the look.
+        [Test]
+        public async Task ASignatureTheFirstEndpointHasNoRecordOfIsLookedForOnTheSecond()
+        {
+            string team = (string)solana["inputs"]["validator"], first = (string)rpcFixture["inputs"]["base"];
+            executor = NewExecutor(Second); http.Confirmation = null; http.SecondConfirmation = "confirmed";
+            http.Refuse = (endpoint, method) => method == "sendTransaction" && endpoint.AbsoluteUri == first ? new HttpStatusException(503) : null;
+            var result = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(http.Count("getSignatureStatuses", first), Is.EqualTo(1)); Assert.That(http.Count("getSignatureStatuses", Second), Is.EqualTo(1));
+            Assert.That(http.Requests.Where(request => (string)request["method"] == "getMultipleAccounts").All(request => (string)request["endpoint"] == first), Is.True,
+                "What it changed is read where the pages read");
+            Assert.That(await store.Read(owner, "journal"), Is.Null);
+
+            // The first endpoint knows it: the second is not asked.
+            Setup(); executor = NewExecutor(Second);
+            Assert.That((await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(http.Requests.Count(request => (string)request["endpoint"] == Second), Is.Zero);
+
+            // On neither, with its blockhash still valid: not yet. Past it: it never landed.
+            Setup(); executor = NewExecutor(Second); http.Confirmation = null;
+            var pending = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            Assert.That(pending.Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(pending.Code, Is.EqualTo("signature-not-yet-observed"));
+            Assert.That(http.Count("getSignatureStatuses", Second), Is.EqualTo(http.Count("getSignatureStatuses", first)));
+            // The second endpoint stops answering: the look still stands on the first.
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                http.Refuse = (endpoint, method) => endpoint.AbsoluteUri == Second ? new HttpStatusException(429) : null;
+                var still = await executor.Resume(owner, observer);
+                Assert.That(still.Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(still.Failure, Is.Null);
+                Assert.That(lines.Count(line => line.StartsWith("zKube request failed: action=status-second-endpoint kind=Busy")), Is.EqualTo(1), string.Join(" | ", lines));
+            }
+            finally { ClientLog.Sink = sink; }
+            http.Refuse = null; http.Height = 501; http.AbsentNonPlayer = true;
+            var expired = await executor.Resume(owner, new TestReconciler(accounts, planner));
+            Assert.That(expired.Outcome, Is.EqualTo(ExecutionOutcome.ExpiredReconciled), expired.Code);
         }
 
         // The node that answers a read can be a slot or two behind the slot the
@@ -612,6 +714,10 @@ namespace ZKube.Integration.Execution.Tests
             public int BehindSlot, UnseenStatuses;
             public byte[] Sent;
             public Action AfterSend;
+            // What an endpoint answers a call with instead of its result; and what the second endpoint says of itself and of a signature.
+            public Func<Uri, string, Exception> Refuse;
+            public string SecondGenesis, SecondConfirmation;
+            public int Count(string method, string endpoint) => Requests.Count(request => (string)request["method"] == method && (string)request["endpoint"] == endpoint);
             public readonly Dictionary<string, JToken> ExtraAccounts = new Dictionary<string, JToken>();
             public Http(ConcurrentQueue<string> events, TestMemory store, JObject rpc, JObject solana, JObject plans, string owner)
             { Transport = new TestHttp { Reply = Respond }; this.events = events; this.store = store; this.rpc = rpc; this.solana = solana; this.plans = plans; this.owner = owner; }
@@ -621,10 +727,12 @@ namespace ZKube.Integration.Execution.Tests
                 await Task.Yield(); cancellation.ThrowIfCancellationRequested();
                 string method = (string)request["method"];
                 events.Enqueue(method);
+                if (Refuse?.Invoke(endpoint, method) is Exception refused) throw refused;
+                bool second = endpoint.AbsoluteUri == Second;
                 JToken result;
                 switch (method)
                 {
-                    case "getGenesisHash": result = rpc["inputs"]["expectedGenesis"]; break;
+                    case "getGenesisHash": result = second && SecondGenesis != null ? SecondGenesis : rpc["inputs"]["expectedGenesis"]; break;
                     case "getLatestBlockhash": result = TestHttp.Context(new JObject { ["blockhash"] = solana["inputs"]["blockhash"], ["lastValidBlockHeight"] = 500 }, 1000); break;
                     case "getFeeForMessage": result = TestHttp.Context(new JValue(Fee), 1000); break;
                     case "getBalance": result = TestHttp.Context(new JValue(Balance), 1000); break;
@@ -640,6 +748,8 @@ namespace ZKube.Integration.Execution.Tests
                         AfterSend?.Invoke();
                         if (ThrowAfterSend) throw new IOException("Synthetic response loss after submission");
                         result = new JValue(signature); break;
+                    case "getSignatureStatuses" when second: result = TestHttp.Context(new JArray(SecondConfirmation == null ? JValue.CreateNull() : new JObject {
+                        ["slot"] = 990, ["confirmationStatus"] = SecondConfirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() }), 1000); break;
                     case "getSignatureStatuses": result = TestHttp.Context(new JArray(Confirmation == null || UnseenStatuses-- > 0 ? JValue.CreateNull() : new JObject {
                         ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() }), 1000); break;
                     case "getBlockHeight": result = new JValue(Height); break;

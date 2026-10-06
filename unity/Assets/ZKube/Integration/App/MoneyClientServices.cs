@@ -26,10 +26,12 @@ namespace ZKube.Integration.App
         public string NameUri { get; }
         // The public read model, or empty: the app then shows the chain's boards alone.
         public string StandingsUri { get; }
+        // A second endpoint of the same cluster, for a send the first does not take; or empty.
+        public string SecondBaseUri { get; }
         public MoneyConnectionConfig(string baseUri, string routerUri, string expectedGenesis, string nameUri = null,
-            string standingsUri = null)
+            string standingsUri = null, string secondBaseUri = null)
         { BaseUri = baseUri; RouterUri = routerUri; ExpectedGenesis = expectedGenesis; NameUri = nameUri;
-            StandingsUri = standingsUri; }
+            StandingsUri = standingsUri; SecondBaseUri = secondBaseUri; }
         internal void Validate()
         {
             if (string.IsNullOrWhiteSpace(BaseUri) || string.IsNullOrWhiteSpace(RouterUri) || string.IsNullOrWhiteSpace(ExpectedGenesis))
@@ -39,6 +41,8 @@ namespace ZKube.Integration.App
                 throw new MoneyConfigurationException("unsupported-wallet-cluster");
             if (!ValidUri(BaseUri, out var baseAddress) || !ValidUri(RouterUri, out var routerAddress) || baseAddress == routerAddress)
                 throw new MoneyConfigurationException("invalid-base-router-endpoints");
+            if (!string.IsNullOrWhiteSpace(SecondBaseUri) && (!ValidUri(SecondBaseUri, out var secondAddress) || secondAddress == baseAddress || secondAddress == routerAddress))
+                throw new MoneyConfigurationException("invalid-second-base-endpoint");
             if (!string.IsNullOrWhiteSpace(StandingsUri) && (!ValidUri(StandingsUri, out var standings) || !string.IsNullOrEmpty(standings.Query)))
                 throw new MoneyConfigurationException("invalid-standings-endpoint");
         }
@@ -89,7 +93,7 @@ namespace ZKube.Integration.App
                 ZKube.Core.Generated.Protocol.ProtocolAccountVersion);
             Planner = new TransactionPlanner(Protocol, Tokens);
             Wallet = new WalletClient(native); Identity = new ClientIdentity(Wallet);
-            Rpc = new SolanaRpcTransport(http, config.BaseUri, config.RouterUri, config.ExpectedGenesis, Protocol.ProgramId);
+            Rpc = new SolanaRpcTransport(http, config.BaseUri, config.RouterUri, config.ExpectedGenesis, Protocol.ProgramId, config.SecondBaseUri);
             Journal = new TransactionJournal(storage); Sessions = new SessionRecordStore(storage, Tokens, Protocol.ProgramId);
             RunMarkers = new RunStateStore(storage, Accounts);
             var persistence = new RunPersistence(RunMarkers);

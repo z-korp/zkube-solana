@@ -29,7 +29,7 @@ namespace ZKube.Editor
                 money.Configuration = new MoneyConfiguration {
                     SolanaSchema = Load<TextAsset>("Assets/ZKube/Integration/Generated/solana.json"),
                     SessionSchema = Load<TextAsset>("Assets/ZKube/Integration/Generated/session.json"),
-                    BaseUri = network?.baseUri, RouterUri = network?.routerUri, ExpectedGenesis = network?.expectedGenesis,
+                    BaseUri = network?.baseUri, SecondBaseUri = network?.secondBaseUri, RouterUri = network?.routerUri, ExpectedGenesis = network?.expectedGenesis,
                     StandingsUri = network?.standingsUri, NameUri = network?.nameUri };
                 product = money;
             }

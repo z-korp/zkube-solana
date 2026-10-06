@@ -261,6 +261,7 @@ namespace ZKube.Integration.App.Tests
                     var pending = await Services.Journal.Load(Owner);
                     Assert.That(pending, Is.Not.Null); Assert.That(pending.Transaction, Is.EqualTo(bytes));
                     SentSignature = signature; SentTransaction = bytes;
+                    if (Http.LandsWhenSent) Http.Confirmation = "confirmed";
                     if (Http.Confirmation == "confirmed") ApplyAfter();
                     if (UiScenario == "daily-playable" || UiScenario == "daily-entered")
                     {

@@ -42,6 +42,7 @@
       ],
       "network": {
         "baseUri": "https://rpc.magicblock.app/devnet",
+        "secondBaseUri": "https://api.devnet.solana.com",
         "routerUri": "https://devnet-router.magicblock.app/",
         "expectedGenesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
         "standingsUri": "https://zkube-arena.jean-christophe-mehr.workers.dev",

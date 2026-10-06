@@ -15,6 +15,11 @@ it("the_arena_clients_network_is_the_devnet_the_services_use", () => {
   expect(network.expectedGenesis).toBe(SOLANA_DEVNET_GENESIS_HASH);
   expect(network.baseUri).toBe(SOLANA_ENDPOINT);
   expect(network.routerUri).toBe(MAGICBLOCK_DEVNET_ROUTER_RPC);
+  // A second endpoint for a send the first does not take: another host, over HTTPS. The client
+  // asks it nothing before its genesis has matched, so it can only ever be this same Devnet.
+  const second = new URL(network.secondBaseUri!);
+  expect(second.protocol).toBe("https:");
+  expect([new URL(SOLANA_ENDPOINT).host, new URL(MAGICBLOCK_DEVNET_ROUTER_RPC).host]).not.toContain(second.host);
   expect(new URL(network.standingsUri!).protocol).toBe("https:");
   expect(toolchain.androidIdentities.find((identity) => identity.name === "store")!.network).toBeUndefined();
 });

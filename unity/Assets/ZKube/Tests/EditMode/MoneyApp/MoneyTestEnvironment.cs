@@ -29,9 +29,12 @@ namespace ZKube.Integration.App.Tests
         private MoneyAppFlow flow;
         public MoneyAppFlow Flow => flow ??= new MoneyAppFlow(Services);
         public long Now; public string Owner => (string)Plans["inputs"]["owner"];
+        // The cluster's second Base endpoint, as the Arena is configured with one.
+        public const string SecondBase = "https://second.invalid/";
         public MoneyTestEnvironment()
         {
-            var rpc = Fixture("transport"); Config = new MoneyConnectionConfig((string)rpc["inputs"]["base"], (string)rpc["inputs"]["router"], (string)rpc["inputs"]["expectedGenesis"]);
+            var rpc = Fixture("transport"); Config = new MoneyConnectionConfig((string)rpc["inputs"]["base"], (string)rpc["inputs"]["router"], (string)rpc["inputs"]["expectedGenesis"],
+                secondBaseUri: SecondBase);
             Http.Genesis = Config.ExpectedGenesis; Http.Er = (string)rpc["inputs"]["er"]; Http.Program = (string)rpc["inputs"]["program"]; Http.Validator = (string)Plans["inputs"]["validator"];
             Now = (long)Plans["inputs"]["now"]; Native.Owner = Owner; Http.Environment = this; Native.AllowCreation = () => UiScenario != null;
             Native.Reply = async request => {
@@ -84,6 +87,12 @@ namespace ZKube.Integration.App.Tests
             public void FailNext(string method, Exception failure) { FailMethod = method; Failure = failure; }
             // Every call of this method fails, until it is set back to null.
             public string FailEvery; public Exception EveryFailure;
+            // The cluster's block height; a blockhash here is valid through 500.
+            public ulong BlockHeight = 400;
+            // The cluster has no record of a transaction until one reaches it, and confirms the one that does.
+            public bool LandsWhenSent;
+            // What an endpoint answers a call with instead of its result.
+            public Func<Uri, string, Exception> Refuse;
             // The cluster confirms the sent transaction at this status request.
             public int ConfirmAfter;
             public JToken StatusError;
@@ -94,6 +103,7 @@ namespace ZKube.Integration.App.Tests
             private async Task<JToken> Respond(Uri endpoint, JObject request, CancellationToken cancellation)
             {
                 cancellation.ThrowIfCancellationRequested(); string method = (string)request["method"];
+                if (Refuse?.Invoke(endpoint, method) is Exception refused) throw refused;
                 if (method == FailMethod) { FailMethod = null; throw Failure; }
                 if (method == FailEvery) throw EveryFailure;
                 if (method == "getSignatureStatuses" && ConfirmAfter > 0 && --ConfirmAfter == 0) Environment.ConfirmPendingSuccess();
@@ -119,7 +129,7 @@ namespace ZKube.Integration.App.Tests
                     case "getMultipleAccounts": result = TestHttp.Context(new JArray(request["params"][0].Values<string>().Select(Account))); break;
                     case "getAccountInfo": result = TestHttp.Context(Account((string)request["params"][0])); break;
                     case "getSignatureStatuses": result = TestHttp.Context(new JArray { Confirmation == null ? JValue.CreateNull() : new JObject { ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() } }); break;
-                    case "getBlockHeight": result = new JValue(400); break;
+                    case "getBlockHeight": result = new JValue(BlockHeight); break;
                     case "getMinimumBalanceForRentExemption": result = new JValue(890880); break;
                     case "getLatestBlockhash" when AllowFeeQuote: result = TestHttp.Context(new JObject { ["blockhash"] = Blockhash, ["lastValidBlockHeight"] = 500 }); break;
                     case "getFeeForMessage" when AllowFeeQuote: result = TestHttp.Context(new JValue(5400)); break;

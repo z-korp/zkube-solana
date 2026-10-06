@@ -713,7 +713,16 @@ entry; it is not a general fee sponsor.
 `prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op` guards preparation.
 
 Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
-`AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve placement
+`AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. The cluster has a
+second Base endpoint (owner, 2026-10-06, after the first answered every entry's send with HTTP 503). A Base send
+the first endpoint does not take, a server error, no answer in time or a dropped connection, goes once to the
+second: the same signed bytes, so the same signature, never signed again, and without preflight, since that exact
+transaction was simulated on the first before it was signed. A Base signature the first endpoint has no record of
+is looked for on the second, and a record on either is the cluster's. The second endpoint is asked nothing else,
+and nothing before its genesis has matched the cluster's; every page reads the first.
+`ASendTheFirstEndpointDoesNotTakeGoesToTheSecondWithTheSameSignedBytes`,
+`ASignatureTheFirstEndpointHasNoRecordOfIsLookedForOnTheSecond` and
+`AnEntryTheFirstEndpointRefusesGoesThroughTheSecondAndOpensItsBoard` guard it. Resolve placement
 through `getDelegationStatus`. A rollup connection is asked only the calls a MagicBlock rollup answers, listed
 once in the transport, which refuses any other by name before it is made; a rollup has no rent-exemption call, so
 every rent is the generated constant and no endpoint is asked for one. The test doubles answer Method not found
@@ -938,7 +947,8 @@ progress and eligibility, while one Daily query supplies content and time.
 pointer boundary and atomic output.
 
 The root assets directory is authoritative. unity/toolchain.json owns identity metadata, including the money
-identity's cluster (Base and Router endpoints, genesis, standings), which the build copies into the App scene;
+identity's cluster (Base, second Base and Router endpoints, genesis, standings), which the build copies into the
+App scene;
 `SelectedSceneHasOneSharedStartupAndOnlyItsIdentityConfiguration` and
 `the_arena_clients_network_is_the_devnet_the_services_use` guard the copy and its agreement with the services;
 unity/tools/build.py owns imports, fixtures, builds and each identity's dependency locks (the store's carry
