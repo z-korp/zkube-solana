@@ -1,0 +1,18 @@
+Solana logomark
+
+mark.svg, mark-white.svg and mark-black.svg are the Solana logomark as the Solana Foundation issues it: the
+gradient mark from https://solana.com/branding and the one-colour white and black marks from the brand kit that
+page links to. Their bytes are unchanged; sources.json records where each was downloaded and its SHA-256.
+mark.png, mark-white.png and mark-black.png are proportional rasterizations of those files, 128 px tall, with
+nothing added.
+
+The mark is the Solana Foundation's trademark, not this project's, and its use here is under the Foundation's
+brand guidelines (https://solana.com/branding), which govern over anything in this repository. zKube shows it
+after an amount to say the amount is in SOL, and claims no ownership of it and no affiliation with or
+endorsement by the Foundation.
+
+How it is used here, as those guidelines ask:
+- Never recoloured, tinted, outlined, shadowed, skewed or cropped. Each surface takes one of the three issued
+  versions: the gradient or the white on a dark surface, the black on a light one.
+- Kept clear of everything else by half its height on every side, the amount before it included.
+- It is not a part of any skin: no skin restyles or replaces it, and it has no slot in the skin catalog.

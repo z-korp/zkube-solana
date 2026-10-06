@@ -20,7 +20,10 @@ namespace ZKube.Integration.Presentation
             return string.IsNullOrEmpty(name) ? "Objective" : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }
 
-        // A SOL amount with at least two decimals: 0.10 SOL, 0.005 SOL.
-        public static string Sol(ulong lamports) => (lamports / 1000000000m).ToString("0.00#######", CultureInfo.InvariantCulture) + " SOL";
+        // A SOL amount is its figure with at least two decimals (0.10, 0.005) and then the Solana mark, which the
+        // kit draws in the version its surface takes. Only a sentence says the word instead.
+        public static string Sol(ulong lamports) => Figure(lamports) + CurrencyMark.Tag;
+        public static string SolInWords(ulong lamports) => Figure(lamports) + " SOL";
+        private static string Figure(ulong lamports) => (lamports / 1000000000m).ToString("0.00#######", CultureInfo.InvariantCulture);
     }
 }

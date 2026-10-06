@@ -133,17 +133,19 @@ namespace ZKube.Tests.MoneyOverview
         }
         private void Refuse(string family)
         { Set("refusal", "Not approved in your wallet."); Set("refusalFamily", family); Set("refusalRetry", (System.Action)(() => { })); Redraw(); }
-        // Every SOL amount has one format, with at least two decimals.
+        // Every SOL amount has one format: its figure with at least two decimals, then the Solana mark.
+        // Only a sentence says the word.
         [Test] public void SolAmountsShowAtLeastTwoDecimals()
         {
-            Assert.That(MoneyText.Sol(0), Is.EqualTo("0.00 SOL"));
-            Assert.That(MoneyText.Sol(10_000_000), Is.EqualTo("0.01 SOL"));
-            Assert.That(MoneyText.Sol(100_000_000), Is.EqualTo("0.10 SOL"));
-            Assert.That(MoneyText.Sol(5_000_000), Is.EqualTo("0.005 SOL"));
-            Assert.That(MoneyText.Sol(262_000_000), Is.EqualTo("0.262 SOL"));
-            Assert.That(MoneyText.Sol(2_400_000_000), Is.EqualTo("2.40 SOL"));
-            Assert.That(MoneyText.Sol(ulong.MaxValue), Is.EqualTo("18446744073.709551615 SOL"));
-            Assert.That(MoneyAppAdapter.KreditPurchaseLabel(10), Is.EqualTo("Buy 10 Kredits · 0.10 SOL"));
+            Assert.That(MoneyText.Sol(0), Is.EqualTo("0.00" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(10_000_000), Is.EqualTo("0.01" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(100_000_000), Is.EqualTo("0.10" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(5_000_000), Is.EqualTo("0.005" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(262_000_000), Is.EqualTo("0.262" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(2_400_000_000), Is.EqualTo("2.40" + CurrencyMark.Tag));
+            Assert.That(MoneyText.Sol(ulong.MaxValue), Is.EqualTo("18446744073.709551615" + CurrencyMark.Tag));
+            Assert.That(MoneyAppAdapter.KreditPurchaseLabel(10), Is.EqualTo("Buy 10 Kredits · 0.10" + CurrencyMark.Tag));
+            Assert.That(MoneyText.SolInWords(300_000), Is.EqualTo("0.0003 SOL"));
         }
         // Stops one scenario's app so the next scenario starts its own.
         private IEnumerator EndScenario()

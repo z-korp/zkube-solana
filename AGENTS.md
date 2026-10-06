@@ -841,6 +841,16 @@ it. Kit art carries no seam or stray highlight;
 `NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 
+A SOL amount is its figure followed by the Solana logomark; the word SOL stands only in a sentence. The mark is
+the Solana Foundation's, not a skin's: assets/brand/solana holds the three issued files unchanged, with where each
+came from and the note on its use, the build refuses one that differs from its recorded hash, no skin has a slot
+for it, and only the Arena's identity, which names it in unity/toolchain.json, carries it. One formatter ends an
+amount with the mark, and one kit owner, `CurrencyMark`, draws it in every label: the gradient on a dark surface
+where it stands 20 dp or taller, the white below that, the black on the lit primary; never tinted, at its own
+shape, on the baseline and half its height clear of the figure. No page chooses.
+`SolAmountsShowAtLeastTwoDecimals`, `AnAmountsMarkIsTheIssuedOneItsSurfaceTakesClearOfItsFigure` and
+`test_only_the_arena_carries_the_solana_mark_and_only_as_issued` guard the format, the drawing and the files.
+
 Each guardian has ten full frames, a paws layer drawn over the rail it leans on, and a contact rail line; its
 title and ten lines are authored per realm in the catalog. Its contact also records where the blink changes its
 face (the eyes) and the centre of what the talk frames change below them (the mouth), and the codegen holds

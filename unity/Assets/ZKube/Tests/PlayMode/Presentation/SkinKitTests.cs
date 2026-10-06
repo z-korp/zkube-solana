@@ -274,6 +274,37 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(SkinUi.ButtonDp, label.fontSize, .01f);
         }
 
+        // An amount ends with the currency's mark, as issued: the white one where it stands under 20 dp on a dark
+        // surface, the gradient from 20 dp, the black on the lit primary; never tinted, as tall as its share of the
+        // text's size, on the baseline and half its height clear of the figure.
+        [Test] public void AnAmountsMarkIsTheIssuedOneItsSurfaceTakesClearOfItsFigure()
+        {
+            string amount = "0.262" + CurrencyMark.Tag;
+            var small = ui.Label("Small amount", amount, new Rect(20, 20, 300, 40), 14, SkinTokens.Accent, root.transform, SkinUi.Type.Number);
+            var large = ui.Label("Large amount", amount, new Rect(20, 80, 300, 60), 28, SkinTokens.Accent, root.transform, SkinUi.Type.Number);
+            ui.TextButton("Claim", new Rect(20, 160, 300, 56), "Claim " + amount, () => { }, true, root.transform, out var lit);
+            ui.TextButton("Quiet", new Rect(20, 240, 300, 56), amount, () => { }, false, root.transform, out var teal);
+            foreach (var (label, version) in new[] { (small, "CurrencyWhite"), (large, "Currency"), (lit, "CurrencyBlack"), (teal, "CurrencyWhite") })
+            {
+                label.ForceMeshUpdate();
+                var info = label.textInfo; var mark = info.characterInfo[info.characterCount - 1]; var figure = info.characterInfo[info.characterCount - 2];
+                Assert.AreEqual(TMP_TextElementType.Sprite, mark.elementType, label.name + ": the amount ends with the mark, not with words");
+                Assert.AreEqual(version, label.spriteAsset.name.Replace("(Clone)", ""), label.name + ": the version its surface takes");
+                Assert.IsFalse(label.GetParsedText().Contains("SOL"), label.name + ": no word beside the figure");
+                float height = mark.topLeft.y - mark.bottomLeft.y, width = mark.bottomRight.x - mark.bottomLeft.x;
+                Assert.AreEqual(CurrencyMark.HeightEm * label.fontSize, height, .5f, label.name + ": the mark's height");
+                var sheet = (Texture2D)label.spriteAsset.spriteSheet;
+                Assert.AreEqual((float)sheet.width / sheet.height, width / height, .01f, label.name + ": the mark keeps its shape");
+                Assert.AreEqual(figure.baseLine, mark.bottomLeft.y, .5f, label.name + ": the mark stands on the baseline");
+                Assert.GreaterOrEqual(mark.bottomLeft.x - figure.xAdvance, CurrencyMark.ClearHeights * height - .5f, label.name + ": half its height clear of the figure");
+                var colours = info.meshInfo[mark.materialReferenceIndex].colors32;
+                for (int i = 0; i < 4; i++)
+                    Assert.AreEqual(new Color32(255, 255, 255, 255), colours[mark.vertexIndex + i], label.name + ": the mark is never tinted");
+            }
+            Assert.AreEqual(CurrencyMark.Version.Gradient, CurrencyMark.For(28, false)); Assert.AreEqual(CurrencyMark.Version.White, CurrencyMark.For(27, false));
+            Assert.Greater(ui.TextWidth(amount, 14, SkinUi.Type.Number), ui.TextWidth("0.262", 14, SkinUi.Type.Number) + CurrencyMark.HeightEm * 14, "A measured amount includes its mark");
+        }
+
         [Test] public void MedallionsShowThePortraitMasterThroughTheRingsOpening()
         {
             var portrait = art.Sprite("boss__portrait");

@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'unity/tools'))
 from cli import run_main
-from build import identity, abis, stage_brand, BRAND_FILES
+from build import identity, abis, stage_brand, BRAND_FILES, MARK_FILES
 import tempfile
 from inspect_android import elf, metadata_check, payload, manifest_check, MONEY_ASSEMBLIES
 from inspect_android import open_archive, read_member, display_name_check, product_name_check
@@ -96,15 +96,36 @@ class StaticTests(unittest.TestCase):
                 stage_brand(profile, directory)
                 files = {p.relative_to(directory).as_posix(): p.read_bytes()
                          for p in directory.rglob('*') if p.is_file() and p.suffix != '.meta'}
-            self.assertEqual(set(BRAND_FILES.values()), set(files), 'Only the brand files remain; the shared icon is retired')
+            marks = MARK_FILES if name == 'money' else {}
+            self.assertEqual(set(BRAND_FILES.values()) | set(marks.values()), set(files), 'Only the brand files remain; the shared icon is retired')
             for source, target in BRAND_FILES.items():
                 self.assertEqual((ROOT / profile['brand'] / source).read_bytes(), files[target])
+            for source, target in marks.items():
+                self.assertEqual((ROOT / profile['currencyMark'] / source).read_bytes(), files[target])
             staged[name] = files
         for target in BRAND_FILES.values():
             self.assertNotEqual(staged['money'][target], staged['store'][target], target)
         self.assertFalse((ROOT / 'assets/pwa-512x512.png').exists())
         self.toolchain['androidIdentities'][1]['brand'] = 'assets/skins'
         with self.assertRaisesRegex(RuntimeError, 'assets/brand'): identity(self.toolchain, 'store')
+
+    def test_only_the_arena_carries_the_solana_mark_and_only_as_issued(self):
+        self.assertEqual('assets/brand/solana', identity(self.toolchain, 'money')['currencyMark'])
+        self.assertNotIn('currencyMark', identity(self.toolchain, 'store'))
+        solana = ROOT / 'assets/brand/solana'
+        self.assertIn('Solana Foundation', (solana / 'LICENCE.txt').read_text())
+        # A mark that is not the issued file is refused, as is one without its sources or its note.
+        with tempfile.TemporaryDirectory(dir=ROOT / 'assets/brand') as temporary:
+            copy_ = Path(temporary)
+            for path in solana.iterdir(): (copy_ / path.name).write_bytes(path.read_bytes())
+            self.toolchain['androidIdentities'][0]['currencyMark'] = copy_.relative_to(ROOT).as_posix()
+            identity(self.toolchain, 'money')
+            (copy_ / 'mark.svg').write_bytes((copy_ / 'mark.svg').read_bytes().replace(b'<svg', b'<svg opacity="0.9"', 1))
+            with self.assertRaisesRegex(RuntimeError, 'issued mark was changed'): identity(self.toolchain, 'money')
+            (copy_ / 'LICENCE.txt').unlink()
+            with self.assertRaisesRegex(RuntimeError, 'licence note'): identity(self.toolchain, 'money')
+        self.toolchain['androidIdentities'][0]['currencyMark'] = 'assets/skins/lumen'
+        with self.assertRaisesRegex(RuntimeError, 'assets/brand'): identity(self.toolchain, 'money')
 
     def test_each_package_launch_window_carries_its_own_splash(self):
         for name, other in (('money', 'store'), ('store', 'money')):

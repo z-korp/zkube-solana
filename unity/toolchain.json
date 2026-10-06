@@ -36,6 +36,7 @@
       "locks": "NativeAndroid/unity-locks",
       "productName": "zKube: Arena",
       "brand": "assets/brand/arena",
+      "currencyMark": "assets/brand/solana",
       "excludedAssemblies": [
         "ZKube.Store"
       ],

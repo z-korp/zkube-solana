@@ -35,7 +35,7 @@ namespace ZKube.Tests.Presentation
             views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Arena", "arena", 1);
         }
         private static PackView[] Packs(Func<int, PackView, PackView> change = null) =>
-            new[] { (1, SkinSlots.Pack1, "0.01 SOL"), (10, SkinSlots.Pack10, "0.10 SOL"), (25, SkinSlots.Pack25, "0.25 SOL") }.Select((pack, index) => {
+            new[] { (1, SkinSlots.Pack1, "0.01" + CurrencyMark.Tag), (10, SkinSlots.Pack10, "0.10" + CurrencyMark.Tag), (25, SkinSlots.Pack25, "0.25" + CurrencyMark.Tag) }.Select((pack, index) => {
                 var view = new PackView { Name = "Pack " + pack.Item1, Art = pack.Item2, Count = pack.Item1.ToString(), Price = pack.Item3,
                     Buy = new PageAction { Label = pack.Item3, Name = "Buy " + pack.Item1 } };
                 return change == null ? view : change(index, view);
@@ -60,20 +60,20 @@ namespace ZKube.Tests.Presentation
             yield return Open();
             var busy = new PageAction { Label = "Approve in wallet", Short = "In wallet", Name = "Action progress", Progress = "Approve in wallet" };
             var states = new (string name, Func<PanelBlock[]> blocks)[] {
-                ("at rest", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01 SOL"), PanelBlock.PackRow(Packs()) }),
-                ("in progress", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01 SOL"),
+                ("at rest", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag), PanelBlock.PackRow(Packs()) }),
+                ("in progress", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag),
                     PanelBlock.PackRow(Packs((index, pack) => { if (index == 1) { pack.Buy = busy; pack.Price = busy.Label; } else { pack.Buy = null; pack.Dim = true; } return pack; })) }),
-                ("still checking", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01 SOL"),
+                ("still checking", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag),
                     PanelBlock.PackRow(Packs((index, pack) => { if (index == 1) { pack.Buy = new PageAction { Label = "Confirming", Name = "Action progress", Progress = "Confirming" }; pack.Price = "Confirming"; }
                         else { pack.Buy = null; pack.Dim = true; } return pack; }), "Still checking. This either completes or changes nothing.", true) }),
-                ("refused", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01 SOL"),
+                ("refused", () => new[] { PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag),
                     PanelBlock.PackRow(Packs((index, pack) => { if (index == 1) { pack.Refused = true; pack.Price = "Try again"; pack.Buy = new PageAction { Label = "Try again" }; } return pack; }),
                         "Not approved in your wallet.") }),
-                ("gained", () => new[] { PanelBlock.Balance("22", "22 entries", "0.01 SOL", null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1) }),
+                ("gained", () => new[] { PanelBlock.Balance("22", "22 entries", "0.01" + CurrencyMark.Tag, null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1) }),
                 ("before launch", () => new[] { PanelBlock.Balance("0", null, null, "The Arena opens soon."),
                     PanelBlock.PackRow(Packs((index, pack) => { pack.Buy = null; pack.Dim = true; return pack; })),
                     PanelBlock.Button(new PageAction { Label = "Play Campaign" }, false, SkinSlots.IconPlay) }),
-                ("no device", () => new[] { PanelBlock.Balance("0", "0 entries", "0.01 SOL"), PanelBlock.PackRow(Packs()),
+                ("no device", () => new[] { PanelBlock.Balance("0", "0 entries", "0.01" + CurrencyMark.Tag), PanelBlock.PackRow(Packs()),
                     PanelBlock.Button(new PageAction { Label = "Set up device to play", Name = "Set up device" }, false) }),
                 ("found confirming", () => new[] { PanelBlock.Balance(null, null, null, "Confirming your purchase"),
                     PanelBlock.PackRow(Packs((index, pack) => { pack.Buy = null; pack.Dim = true; return pack; })) }),
@@ -114,15 +114,15 @@ namespace ZKube.Tests.Presentation
         {
             yield return Open(); Phones.Compact(shell);
             int bought = 0, retried = 0;
-            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01 SOL"), PanelBlock.PackRow(Packs((index, pack) => { pack.Buy.Invoke = () => bought = index + 1; return pack; })));
+            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag), PanelBlock.PackRow(Packs((index, pack) => { pack.Buy.Invoke = () => bought = index + 1; return pack; })));
             Assert.That(Words("Kredit balance"), Is.EqualTo("12"));
-            StringAssert.Contains("12 entries", Words("Entries words")); StringAssert.Contains("0.01 SOL", Words("Unit price words"));
+            StringAssert.Contains("12 entries", Words("Entries words")); StringAssert.Contains("0.01" + CurrencyMark.Tag, Words("Unit price words"));
             root.GetComponentsInChildren<Button>().Single(button => button.name == "Buy 10").onClick.Invoke();
             Assert.That(bought, Is.EqualTo(2), "The whole card is the tap");
             Assert.That(SkinUi.ScreenRect((RectTransform)root.GetComponentsInChildren<Button>().Single(button => button.name == "Buy 10").transform), Is.EqualTo(Area("Pack 10")));
 
             var busy = new PageAction { Label = "Approve in wallet", Short = "In wallet", Name = "Action progress", Progress = "Approve in wallet" };
-            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01 SOL"),
+            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag),
                 PanelBlock.PackRow(Packs((index, pack) => { if (index == 1) { pack.Buy = busy; pack.Price = busy.Label; } else { pack.Buy = null; pack.Dim = true; } return pack; })));
             Assert.That(Words("Pack 10 price words"), Is.EqualTo("In wallet"), "A narrow card takes the step's shorter words");
             Assert.That(Named("Pack 10 rim").Single().color, Is.EqualTo(shell.Artwork.Token(SkinTokens.Accent)), "The tapped card is rimmed in gold");
@@ -133,7 +133,7 @@ namespace ZKube.Tests.Presentation
                 Assert.That(root.GetComponentsInChildren<CanvasGroup>().Single(group => group.name == "Pack " + other + " card").alpha, Is.EqualTo(PageViews.PackDim), "Pack " + other + " dims");
             Assert.That(root.GetComponentsInChildren<CanvasGroup>().Single(group => group.name == "Pack 10 card").alpha, Is.EqualTo(1));
 
-            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01 SOL"), PanelBlock.PackRow(Packs((index, pack) => {
+            yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag), PanelBlock.PackRow(Packs((index, pack) => {
                 if (index == 1) { pack.Refused = true; pack.Price = "Try again"; pack.Buy = new PageAction { Label = "Try again", Invoke = () => retried++ }; } return pack; }),
                 "Not approved in your wallet."));
             Assert.That(Named("Pack 10 rim").Single().color, Is.EqualTo(shell.Artwork.Token(SkinTokens.Negative)), "The refused card is rimmed in ember");
@@ -152,8 +152,8 @@ namespace ZKube.Tests.Presentation
             foreach (bool still in new[] { false, true })
             {
                 source.Still = still; string at = still ? "reduced motion" : "motion";
-                yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01 SOL"), PanelBlock.PackRow(Packs()));
-                yield return Draw(PanelBlock.Balance("22", "22 entries", "0.01 SOL", null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1));
+                yield return Draw(PanelBlock.Balance("12", "12 entries", "0.01" + CurrencyMark.Tag), PanelBlock.PackRow(Packs()));
+                yield return Draw(PanelBlock.Balance("22", "22 entries", "0.01" + CurrencyMark.Tag, null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1));
                 Assert.That(Words("Kredit balance gained"), Is.EqualTo("+10"), at);
                 Assert.That(int.Parse(Words("Kredit balance")), Is.LessThan(22), at + ": the figure starts from what it was");
                 Assert.That(Named("Kredit flight").Length, Is.EqualTo(still ? 0 : PageViews.FlightCoins), at + ": the coins' flight");
@@ -161,7 +161,7 @@ namespace ZKube.Tests.Presentation
                 Assert.That(Words("Kredit balance"), Is.EqualTo("22"), at + ": it counts up to the confirmed balance");
                 Assert.That(Named("Kredit flight").Length, Is.Zero, at + ": the coins have landed");
                 // Drawn again while the gain shows, nothing replays.
-                yield return Draw(PanelBlock.Balance("22", "22 entries", "0.01 SOL", null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1));
+                yield return Draw(PanelBlock.Balance("22", "22 entries", "0.01" + CurrencyMark.Tag, null, "+10", "12"), PanelBlock.PackRow(Packs(), null, false, 1));
                 Assert.That(Words("Kredit balance"), Is.EqualTo("22"), at); Assert.That(Named("Kredit flight").Length, Is.Zero, at);
                 yield return Draw(PanelBlock.Balance(null, null, null, "Reading your balance"), PanelBlock.PackRow(Packs((index, pack) => { pack.Buy = null; pack.Dim = true; return pack; })));
                 Assert.That(Named("Balance loader").Single().GetComponent<Turn>() != null, Is.EqualTo(!still), at + ": the balance's loader");

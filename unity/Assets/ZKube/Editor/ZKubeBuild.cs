@@ -258,16 +258,27 @@ namespace ZKube.Editor
         // before any realm art.
         private static void ImportBrand()
         {
-            foreach (var name in new[] { "IconBackground.png", "IconForeground.png", "Icon.png", "Resources/ZKube/Splash.jpg", "Resources/ZKube/Wordmark.png" })
+            // A currency's mark, where the identity stages one, is drawn inline in text far under its own size:
+            // uncompressed, at its own shape, with mipmaps so it stays sharp there.
+            var marks = Directory.Exists(Brand + "Resources/ZKube/Marks")
+                ? Directory.GetFiles(Brand + "Resources/ZKube/Marks", "*.png").Select(path => path.Substring(Brand.Length).Replace('\\', '/')).OrderBy(path => path)
+                : Enumerable.Empty<string>();
+            foreach (var name in new[] { "IconBackground.png", "IconForeground.png", "Icon.png", "Resources/ZKube/Splash.jpg", "Resources/ZKube/Wordmark.png" }.Concat(marks))
             {
                 AssetDatabase.ImportAsset(Brand + name, ImportAssetOptions.ForceSynchronousImport);
                 var importer = AssetImporter.GetAtPath(Brand + name) as TextureImporter
                     ?? throw new InvalidOperationException("Missing staged brand file " + name);
-                bool splash = name.EndsWith(".jpg"), sprite = name.StartsWith("Resources/");
+                bool splash = name.EndsWith(".jpg"), sprite = name.StartsWith("Resources/"), mark = name.Contains("/Marks/");
                 importer.textureType = sprite ? TextureImporterType.Sprite : TextureImporterType.Default;
                 importer.textureShape = TextureImporterShape.Texture2D;
                 importer.spriteImportMode = sprite ? SpriteImportMode.Single : SpriteImportMode.None;
-                importer.mipmapEnabled = false; importer.alphaIsTransparency = !splash;
+                importer.mipmapEnabled = mark; importer.alphaIsTransparency = !splash;
+                if (mark)
+                {
+                    importer.filterMode = FilterMode.Trilinear; importer.npotScale = TextureImporterNPOTScale.None; importer.wrapMode = TextureWrapMode.Clamp;
+                    var settings = new TextureImporterSettings(); importer.ReadTextureSettings(settings);
+                    settings.spriteMeshType = SpriteMeshType.FullRect; importer.SetTextureSettings(settings);
+                }
                 importer.maxTextureSize = splash ? 4096 : sprite ? 1024 : 512;
                 importer.textureCompression = splash ? TextureImporterCompression.Compressed : TextureImporterCompression.Uncompressed;
                 importer.SaveAndReimport();

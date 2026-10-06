@@ -8,7 +8,7 @@ namespace ZKube.Tests.Presentation
     // figure and today's two boards with full columns and the reader's rows.
     public static class ArenaLanding
     {
-        public static ArcadeView View(string pot = "0.10 SOL", string kredits = "3", KreditLevel level = KreditLevel.Enough, string result = "48,210",
+        public static ArcadeView View(string pot = "0.10" + CurrencyMark.Tag, string kredits = "3", KreditLevel level = KreditLevel.Enough, string result = "48,210",
             bool classic = false, string claims = null)
         {
             BoardColumnView Column(string name, string pictogram, string chip) => new BoardColumnView { Name = name, Pictogram = pictogram, Chip = chip,

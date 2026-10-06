@@ -79,6 +79,7 @@ namespace ZKube.Presentation
             text.text = value; text.fontSize = sizeDp * Density * Scale;
             text.color = Art.Token(token); text.alignment = alignment; text.raycastTarget = false;
             text.enableWordWrapping = true; text.enableAutoSizing = false; text.overflowMode = TextOverflowModes.Overflow;
+            CurrencyMark.Wear(text, sizeDp * Scale, false);
             return text;
         }
 
@@ -177,6 +178,8 @@ namespace ZKube.Presentation
             }
             text = Label(name + " label", label, new Rect(rect.x + pad + lead, rect.y, rect.width - 2 * pad - lead, rect.height), sizeDp,
                 ink, face.transform, type);
+            // On the lit face an amount's mark is its issued dark one, as an icon there is its lit picture.
+            CurrencyMark.Wear(text, sizeDp * Scale, primary);
             return button;
         }
 
@@ -557,6 +560,7 @@ namespace ZKube.Presentation
             text.enableAutoSizing = false; text.enableWordWrapping = true;
             text.font = Art.Font(type); text.fontSize = sizeDp * Density * Scale;
             Letter(text, type);
+            CurrencyMark.Wear(text, sizeDp * Scale, false);
             return text;
         }
 

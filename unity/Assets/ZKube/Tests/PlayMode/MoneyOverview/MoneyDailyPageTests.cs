@@ -25,7 +25,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return OpenDailyPage();
             StringAssert.Contains("Kitsune · Japan", DailyText());
-            StringAssert.Contains("0.00 SOL", DailyText());
+            StringAssert.Contains("0.00" + CurrencyMark.Tag, DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume run"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);

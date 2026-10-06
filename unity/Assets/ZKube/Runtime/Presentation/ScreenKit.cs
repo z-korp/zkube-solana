@@ -465,7 +465,8 @@ namespace ZKube.Presentation
         public Side Value(string name, string text, string token = SkinTokens.Score, float? sizeDp = null)
         {
             float size = sizeDp ?? NumeralDp;
-            float w = TextWidth(System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", ""), size, SkinUi.Type.Display), h = size * Ui.Scale * Ui.Density;
+            // Measured as written: its tags (a dimmed part, a currency's mark) are read as the label reads them.
+            float w = TextWidth(text, size, SkinUi.Type.Display), h = size * Ui.Scale * Ui.Density;
             return new Side(w, h, rect => {
                 var label = Text(name, text, rect, size, token, SkinUi.Type.Display, 1, TextAlignmentOptions.Right);
                 label.textWrappingMode = TextWrappingModes.NoWrap; label.richText = true;

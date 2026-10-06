@@ -69,14 +69,14 @@ namespace ZKube.Integration.Presentation
                     ("Device disabled", "Disabled", SkinTokens.Text,
                         "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
                     ("Set up this device", "Not set up", SkinTokens.Text,
-                        "About " + Sol(DeviceFunding.RunCostShownLamports) + " per run. The rest returns when you disable this device.");
+                        "About " + MoneyText.SolInWords(DeviceFunding.RunCostShownLamports) + " per run. The rest returns when you disable this device.");
             if (!session.Current)
                 return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
                     "The authorization has ended. Your wallet replaces it with a new one for this device." :
                     "Renew before playing. Your wallet replaces the current authorization with a new one for this device.");
             if (session.Funding != "ready")
                 return ("Deposit low", "Deposit low", SkinTokens.Text,
-                    "Top up the deposit to continue. Your wallet brings it back to " + Sol(DeviceFunding.DepositLamports) + ".");
+                    "Top up the deposit to continue. Your wallet brings it back to " + MoneyText.SolInWords(DeviceFunding.DepositLamports) + ".");
             return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
                 SkinTokens.Positive, "This device enters Dailies with your Kredits.");
         }

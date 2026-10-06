@@ -817,7 +817,7 @@ namespace ZKube.Tests.Presentation
             foreach (bool arcade in new[] { false, true })
             {
                 source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } },
-                    Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL" } : null };
+                    Arcade = arcade ? new ArcadeView { Pot = "0.10" + CurrencyMark.Tag } : null };
                 yield return Page(arcade ? "Arena" : "Home", () => views.Render(AppPage.Home), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
             }
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,

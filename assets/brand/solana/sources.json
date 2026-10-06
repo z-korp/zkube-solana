@@ -1,0 +1,14 @@
+{
+  "mark.svg": {
+    "url": "https://solana.com/src/img/branding/solanaLogoMark.svg",
+    "sha256": "3d3401109aa061dec40a8659f1847817a8e647f98de1e65e76e86a95bbe1f08a"
+  },
+  "mark-white.svg": {
+    "url": "https://drive.google.com/uc?export=download&id=1jvDZ52R7-TdumuczkRjrSj5NWyydycCo",
+    "sha256": "b5b7850b78b730a4112ad7115bf5362e872695be96b556fa4f65278cc1c35e09"
+  },
+  "mark-black.svg": {
+    "url": "https://drive.google.com/uc?export=download&id=1wDdXhlbTnwwFSy429pBxB0LNoPWYz6t6",
+    "sha256": "e9fb82bdc7de650a2134b69b05f4e645d5d1cdcb1b376e747297163b370f5c5d"
+  }
+}

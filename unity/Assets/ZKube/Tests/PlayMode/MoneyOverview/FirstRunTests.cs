@@ -120,7 +120,7 @@ namespace ZKube.Tests.MoneyOverview
                 .Where(text => text.ToLowerInvariant().Contains("fee") || text.ToLowerInvariant().Contains("allowance")), Is.Empty, page);
             yield return FirstRun("session-enable-success", null); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
-            Assert.That(deposit, Is.EqualTo("0.021 SOL"));
+            Assert.That(deposit, Is.EqualTo("0.021" + CurrencyMark.Tag));
             Assert.That(Text("Deposit"), Is.EqualTo(deposit));
             Assert.That(Text("Device guide"), Is.EqualTo("About 0.0003 SOL per run. The rest returns when you disable this device."));
             NoFee("setup");
@@ -134,7 +134,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return FirstRun("session-refill-success", null); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
             Assert.That(Text("Device state"), Is.EqualTo("Deposit low"));
-            Assert.That(Text("Deposit"), Is.EqualTo("0.00 SOL"));
+            Assert.That(Text("Deposit"), Is.EqualTo("0.00" + CurrencyMark.Tag));
             Assert.That(Text("Device guide"), Is.EqualTo("Top up the deposit to continue. Your wallet brings it back to " + deposit + "."));
             NoFee("low");
             yield return SessionClick("Top up deposit"); yield return Idle();

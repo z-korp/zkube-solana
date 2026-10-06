@@ -62,7 +62,27 @@ def _identity(toolchain, name):
     brand = PurePosixPath(profile['brand'])
     if brand.parent != PurePosixPath('assets/brand') or not all((ROOT / brand / name).is_file() for name in BRAND_FILES):
         raise RuntimeError('Android identity requires its own assets/brand directory with ' + ', '.join(BRAND_FILES))
+    if 'currencyMark' in profile:
+        currency_mark(profile)
     return profile
+
+
+# The mark an identity shows after an amount of its currency (the Arena's Solana logomark) is a
+# third party's: the issued files as they are, with their sources and the note on their use. It is
+# no skin slot, so no skin restyles it, and only the identity that names it carries it.
+MARK_FILES = {"mark.png": "Resources/ZKube/Marks/Currency.png", "mark-white.png": "Resources/ZKube/Marks/CurrencyWhite.png",
+              "mark-black.png": "Resources/ZKube/Marks/CurrencyBlack.png"}
+
+
+def currency_mark(profile):
+    mark = PurePosixPath(profile['currencyMark'])
+    directory = ROOT / mark
+    if mark.parent != PurePosixPath('assets/brand') or not all((directory / name).is_file() for name in (*MARK_FILES, 'LICENCE.txt', 'sources.json')):
+        raise RuntimeError('A currency mark is an assets/brand directory with ' + ', '.join(MARK_FILES) + ', its sources and its licence note')
+    for name, source in json.loads((directory / 'sources.json').read_text()).items():
+        if hashlib.sha256((directory / name).read_bytes()).hexdigest() != source['sha256']:
+            raise RuntimeError('The issued mark was changed: ' + (mark / name).as_posix())
+    return directory
 
 
 # Each product's launcher icon (adaptive layers and the legacy icon), its splash
@@ -74,12 +94,14 @@ BRAND_FILES = {"icon-foreground.png": "IconForeground.png", "icon-background.png
 
 
 def stage_brand(profile, directory):
-    source = ROOT / profile["brand"]
+    sources = {target: ROOT / profile["brand"] / name for name, target in BRAND_FILES.items()}
+    if "currencyMark" in profile:
+        sources.update({target: currency_mark(profile) / name for name, target in MARK_FILES.items()})
     staged = set()
-    for name, target in BRAND_FILES.items():
+    for target, source in sources.items():
         destination = directory / target
         destination.parent.mkdir(parents=True, exist_ok=True)
-        data = (source / name).read_bytes()
+        data = source.read_bytes()
         if not destination.exists() or destination.read_bytes() != data:
             destination.write_bytes(data)
         staged.add(destination)

@@ -45,7 +45,7 @@ namespace ZKube.Tests.Presentation
             public void Report(Exception error) => throw error;
         }
         private static readonly string Max = ulong.MaxValue.ToString("N0", CultureInfo.InvariantCulture);
-        private static readonly string MaxSol = (ulong.MaxValue / 1000000000m).ToString("0.00#######", CultureInfo.InvariantCulture) + " SOL";
+        private static readonly string MaxSol = (ulong.MaxValue / 1000000000m).ToString("0.00#######", CultureInfo.InvariantCulture) + CurrencyMark.Tag;
         private GameObject root;
 
         [UnityTearDown] public IEnumerator TearDown() { if (root != null) UnityEngine.Object.Destroy(root); yield return null; }
@@ -101,7 +101,7 @@ namespace ZKube.Tests.Presentation
                 PanelBlock.Card("Device", new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = "Session active",
                     Token = SkinTokens.Positive, Action = new PageAction { Label = "Manage" } }),
                 PanelBlock.Button(new PageAction { Label = "Wear the automatic emblem" }, false),
-                PanelBlock.Button(new PageAction { Label = "Buy 25 Kredits · 0.25 SOL" }, true),
+                PanelBlock.Button(new PageAction { Label = "Buy 25 Kredits · 0.25" + CurrencyMark.Tag }, true),
                 PanelBlock.Button(new PageAction { Label = "Try connecting again" }, false) } }));
             Assert.That(PageText.Visible(root.transform).Select(text => text.text), Has.Member("Objective"), "A pill too narrow for its words takes its shorter ones");
         }
@@ -110,7 +110,7 @@ namespace ZKube.Tests.Presentation
         {
             Assert.That(NumberFit.Abbreviate("9,007,199,254,740,993"), Is.EqualTo("9.0Qa"));
             Assert.That(NumberFit.Abbreviate(Max), Is.EqualTo("18.4Qi"));
-            Assert.That(NumberFit.Abbreviate(MaxSol), Is.EqualTo("18.4B SOL"));
+            Assert.That(NumberFit.Abbreviate(MaxSol), Is.EqualTo("18.4B" + CurrencyMark.Tag));
             Assert.That(NumberFit.Abbreviate("#1 · 999"), Is.EqualTo("#1 · 999"));
             Assert.That(NumberFit.Abbreviate("1,840"), Is.EqualTo("1.8K"));
             // A count in running text keeps its figures up to seven digits.

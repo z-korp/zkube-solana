@@ -25,10 +25,10 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Text("Kredit balance"), Is.EqualTo("25"));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             var offers = host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")).Select(button => button.name).ToArray();
-            Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01 SOL", "Buy 10 Kredits · 0.10 SOL", "Buy 25 Kredits · 0.25 SOL" }));
+            Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01" + CurrencyMark.Tag, "Buy 10 Kredits · 0.10" + CurrencyMark.Tag, "Buy 25 Kredits · 0.25" + CurrencyMark.Tag }));
             Canvas.ForceUpdateCanvases();
             var prices = host.GetComponentsInChildren<TMPro.TMP_Text>().Where(label => label.name.StartsWith("Pack ") && label.name.EndsWith(" price words")).ToArray();
-            Assert.That(prices.Select(label => label.text), Is.EqualTo(new[] { "0.01 SOL", "0.10 SOL", "0.25 SOL" }), "Each card's button is its price");
+            Assert.That(prices.Select(label => label.text), Is.EqualTo(new[] { "0.01" + CurrencyMark.Tag, "0.10" + CurrencyMark.Tag, "0.25" + CurrencyMark.Tag }), "Each card's button is its price");
             foreach (var label in prices)
             {
                 label.ForceMeshUpdate();
