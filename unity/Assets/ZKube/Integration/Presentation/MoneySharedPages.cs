@@ -142,17 +142,19 @@ namespace ZKube.Integration.Presentation
         private byte ShownRealm => shell.Artwork?.RealmId is byte realm && realm != 0 ? realm : TodayRealm;
         private void Draw()
         {
-            var notices = new[] { NoticeFor(Family()) };
+            // The page is made before its notice is: a reason the page drew is its own, and the notice leaves it out.
+            refusalDrawn = false;
+            string[] Notices() => new[] { NoticeFor(Family()) };
             switch (Family())
             {
                 // The Arena has one home page. Without an address it carries the connect
                 // request, and before its read lands what it is waiting for, in its own slots.
                 case "Connect": views.Render(AppPage.Home); break;
                 case "Campaign":
-                    views.Render(campaignPage.Value, campaign.Unsaved ? notices.Append(RunBoard.UnsavedWarning) : notices); break;
+                    views.Render(campaignPage.Value, campaign.Unsaved ? Notices().Append(RunBoard.UnsavedWarning) : Notices()); break;
                 case "Daily":
                     if (dailyRead == null) views.Render(AppPage.Home);
-                    else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
+                    else if (confirmingDaily) views.RenderPanel(EntryPage(), Notices());
                     else
                     {
                         views.Render(AppPage.Home);
@@ -161,26 +163,26 @@ namespace ZKube.Integration.Presentation
                     }
                     break;
                 // A page without its read shows its failure itself.
-                case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : notices); break;
-                case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : notices); break;
-                case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : notices); break;
+                case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : Notices()); break;
+                case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : Notices()); break;
+                case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : Notices()); break;
                 case "Profile":
                     if (profileRead == null) views.RenderPanel(Waiting("Profile", Words.TabProfile, null, AppPage.Profile, pageNotice));
-                    else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, notices);
-                    else views.RenderPanel(ProfilePanel(), notices);
+                    else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, Notices());
+                    else views.RenderPanel(ProfilePanel(), Notices());
                     break;
                 case "Operation": views.RenderPanel(OperationPage()); break;
-                case "Settings": views.Render(AppPage.Settings, notices); break;
-                case "Result": views.Render(AppPage.Result, notices); break;
+                case "Settings": views.Render(AppPage.Settings, Notices()); break;
+                case "Result": views.Render(AppPage.Result, Notices()); break;
                 default: throw new InvalidOperationException("Unknown page " + Family());
             }
         }
         // While a wallet request is open, Disconnect stays within reach, last in the foot row.
         private PageAction Disconnecting() => PageAction(Words.ArenaDisconnect, () => _ = Disconnect(), () => PageAvailable(), "Disconnect", SkinSlots.IconWallet);
-        // A failure the page itself does not show goes on it as a notice; the
-        // Connect, Device and Kredits pages show their refused action themselves.
+        // What the page should say above itself: a refused action's reason where the page did not
+        // draw it, else a failed read or what the last operation left to say.
         private string NoticeFor(string family) => family == "Connect" ? null :
-            refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" && family != "Daily" && family != "Operation" ? refusal : failure ?? info;
+            RefusalOn(family) != null && !refusalDrawn ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
         // read failed, why, with the way forward. A read that went stale is

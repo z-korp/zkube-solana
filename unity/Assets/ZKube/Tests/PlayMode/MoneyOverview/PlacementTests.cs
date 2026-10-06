@@ -38,6 +38,11 @@ namespace ZKube.Tests.MoneyOverview
             bool tabs = source.GetComponentsInChildren<SkinTabBar>().Any(bar => bar.gameObject.activeInHierarchy);
             if (!first && !scene && (!tabs || views.ShownPanel != null))
                 Assert.That(views.LeadsBack, Is.True, at + ": the Android back key leads back from this page");
+            // A page says a thing once. A failed action's reason has one owner, the page's own line or the
+            // notice above it, never both: no sentence stands twice on a page.
+            var said = source.GetComponentsInChildren<TMPro.TMP_Text>().Where(text => text.isActiveAndEnabled && text.text.TrimEnd().EndsWith(".") && text.text.Contains(" "))
+                .GroupBy(text => text.text).Where(group => group.Count() > 1).Select(group => group.Key + " (" + string.Join(", ", group.Select(text => text.name)) + ")").ToArray();
+            Assert.That(said, Is.Empty, at + ": said twice on the page");
             // A lit button does what it says where it is tapped. One that opens another page instead is
             // on this short list only because its words name that page: the Kredits shop, the device's
             // set-up, the boards, the Campaign, and the way on from a result.

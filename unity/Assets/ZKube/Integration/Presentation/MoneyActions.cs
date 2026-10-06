@@ -170,12 +170,17 @@ namespace ZKube.Integration.Presentation
 
         // This page's refused action: its reason and its retry, in place of the action itself.
         private string RefusalOn(string family) => refusalFamily == family ? refusal : null;
+        // A failed action's reason has one owner. A page that draws it takes it here, and by
+        // taking it is that owner: the notice over the page then leaves it out. A page that only
+        // asks whether there is one (RefusalOn) leaves the reason to the notice.
+        private string RefusalFor(string family) { string reason = RefusalOn(family); if (reason != null) refusalDrawn = true; return reason; }
+        private bool refusalDrawn;
         private static PanelBlock RefusalLine(string reason) => PanelBlock.Text("Action refused", reason, SkinTokens.Negative, true);
         // A page hands these three states over by role: the reason stands over the foot
         // row, the action in its primary slot, and the way out of a wallet request last.
         private bool Refused(string family, PanelPageView page, Func<bool> available)
         {
-            if (RefusalOn(family) == null) return false;
+            if (RefusalFor(family) == null) return false;
             page.Reason = RefusalLine(refusal);
             page.Primary = PageAction(Words.ActionTryAgain, refusalRetry, available, "Try again", SkinSlots.IconRetry);
             return true;

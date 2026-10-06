@@ -517,6 +517,11 @@ deployment or spending approval.
   wallet is asked), the boards, the Campaign, and the way on from a result. An action that opens a page without
   saying so is recorded where it is tapped, and every Arena test fails on one when its scenario ends;
   `EveryPagePlacesItsControlsByRole` holds the lit buttons that open a page to that short list.
+- **One reason, said once:** a failed action's reason has one owner. A page that draws it in its own line takes
+  it from the runner and by taking it is that owner; a page that draws none leaves it to the notice above the
+  page, which is made after the page and leaves out what the page drew. No list says which pages do which.
+  `EveryPagePlacesItsControlsByRole` walks a refused action on the landing, This device, the Boards page, the
+  profile and Wear selection, and on every page of the walk no sentence stands twice.
 - **Arena landing:** the Arena's home is one page that fits both phones without scrolling: today's Daily card over
   today's boards. The Daily card is one grid on the card's two edges (owner, 2026-10-06), which the boards under
   it share: the guardian's portrait with its name, realm and the objective; one strip of three equal cells on one

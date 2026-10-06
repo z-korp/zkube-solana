@@ -121,7 +121,7 @@ namespace ZKube.Integration.Presentation
             if (state.Entry.Status == "pending-transaction")
             {
                 // A transaction still unconfirmed: the card's action is the loader, followed without a tap.
-                if (RefusalOn("Daily") != null) Reason(arcade, RefusalOn("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
+                if (RefusalOn("Daily") != null) Reason(arcade, RefusalFor("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
                 action = RefusalOn("Daily") != null ? PageAction(Words.ActionTryAgain, refusalRetry, CanUseDaily, "Try again", SkinSlots.IconRetry) : Progressing();
             }
             // Readiness says whether the slot holds a run to resume; one past its recovery deadline is retired by the next entry.
@@ -149,7 +149,7 @@ namespace ZKube.Integration.Presentation
             }
             // A request made on this card shows on it: the tapped button is its loader, and one that did
             // not go through leaves its reason here with the retry.
-            if (state.Entry.Status != "pending-transaction" && RefusalOn("Daily") is string refused)
+            if (state.Entry.Status != "pending-transaction" && RefusalFor("Daily") is string refused)
             { arcade.Reason = refused; arcade.Detail = null; arcade.Warning = true; action = PageAction(Words.ActionTryAgain, refusalRetry, CanUseDaily, "Try again", SkinSlots.IconRetry); }
             else if (sessionActionPending && actingOn == "Daily") { if (slow) Reason(arcade, StillChecking, null); action = Progressing(); }
             // A device request made on another page and still finishing keeps the next step in view, waiting.
@@ -262,7 +262,7 @@ namespace ZKube.Integration.Presentation
             var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
             var arcade = new ArcadeView { Headline = today != null && !today.Launched ? Words.ArenaHeadlineOpensSoon : null };
             var connect = PageAction(Words.ArenaConnect, () => _ = Connect(), () => PageAvailable() && !Busy, "Connect", SkinSlots.IconWallet);
-            string refused = RefusalOn("Connect");
+            string refused = RefusalFor("Connect");
             if (refused != null)
             {
                 arcade.Reason = refused; arcade.Warning = true;

@@ -108,7 +108,7 @@ namespace ZKube.Integration.Presentation
                 return page;
             }
             bool acting = economyActionPending || sessionActionPending, pending = state.Pending != null, waits = acting || pending;
-            string refused = RefusalOn("Kredits");
+            string refused = RefusalFor("Kredits");
             // Without the card it belongs to (a purchase found on arrival), the progress stands on the balance.
             bool known = SessionViewPolicy.KreditPacks.Contains(actingPack), onBalance = waits && !known && refused == null;
             bool gained = Time.unscaledTime < kreditGainUntil && balance > kreditsBefore;
