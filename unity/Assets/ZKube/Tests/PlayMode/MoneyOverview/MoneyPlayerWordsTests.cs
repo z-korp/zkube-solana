@@ -148,6 +148,7 @@ namespace ZKube.Tests.MoneyOverview
         // Stops one scenario's app so the next scenario starts its own.
         private IEnumerator EndScenario()
         {
+            NoStrayOpens();
             yield return Wait(host.GetComponent<AppStartup>().StopAsync());
             Object.Destroy(host); host = null; yield return null;
         }

@@ -80,8 +80,8 @@ namespace ZKube.Integration.Presentation
 
         private PanelPageView DevicePage()
         {
-            var back = sessionFromSettings ? PageAction(null, () => OpenSharedPage(AppPage.Settings), PageAvailable) :
-                PageAction(null, () => _ = OpenDaily(), PageAvailable);
+            var back = sessionFromSettings ? Leading(null, () => OpenSharedPage(AppPage.Settings), PageAvailable) :
+                Leading(null, () => _ = OpenDaily(), PageAvailable);
             if (sessionRead == null) { var waiting = Waiting("Device", Words.ArenaDeviceTitle, Words.ArenaDeviceSubtitle, sessionFromSettings ? AppPage.Settings : AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
@@ -136,6 +136,17 @@ namespace ZKube.Integration.Presentation
         public Task RefillDeviceSession() => ChangeDeviceSession(false, false);
         public Task DisableDeviceSession() => ChangeDeviceSession(false, true);
 
+        // The deposit's top-up from the page it is tapped on (the landing, the Boards page): the
+        // request the device page makes, through the one runner, so it shows on this page, a
+        // refusal stays here with its retry, and the page is read again when it lands.
+        public Task TopUpDeposit()
+        {
+            if (sessionActionPending || economyActionPending) return Task.CompletedTask;
+            toppingUpFrom = browsingDaily && dailyRead != null && dailyRead.TryValue(out var card) ? card : null;
+            return Act("deposit top-up", true, async token => (await Flow.RefillSession()).Value, RefreshVisiblePage, () => _ = TopUpDeposit());
+        }
+        // The Daily card a top-up was asked on, as the chain last confirmed it: the card stays while the wallet is asked.
+        private MoneyDailyState toppingUpFrom;
         private Task ChangeDeviceSession(bool ensure, bool disable)
         {
             if (!browsingSession || sessionActionPending || economyActionPending || sessionRead == null || !sessionRead.IsCurrent || sessionRead.Value.Pending != null)

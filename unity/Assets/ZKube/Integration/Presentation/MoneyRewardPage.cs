@@ -115,7 +115,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView RewardPage()
         {
             // The way back is a way off the page: never held.
-            var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
+            var back = Leading(null, () => _ = OpenDaily(), PageAvailable);
             // The page hands its controls over by role: one action at most in the foot
             // row, and the day stepper, the lowest row, in every state.
             var page = new PanelPageView { Key = "Boards", Title = Words.ArenaBoardsTitle, Back = back, Tab = AppPage.Home };
@@ -168,8 +168,8 @@ namespace ZKube.Integration.Presentation
             else if (pending || board.ClaimStatus == "claimable")
             {
                 // Sealing a day and claiming a reward are this device's own transactions.
-                if (!state.Session.Current) page.Primary = Act(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconDevice, "Set up device");
-                else if (state.Session.Funding != "ready") page.Primary = Act(Words.ArenaDeviceTopUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconPlus, "Top up deposit");
+                if (!state.Session.Current) page.Primary = Leading(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device", SkinSlots.IconDevice);
+                else if (state.Session.Funding != "ready") page.Primary = Act(Words.ArenaDeviceTopUp, () => _ = TopUpDeposit(), () => PageAvailable() && !Busy, SkinSlots.IconPlus, "Top up deposit");
                 else if (pending) page.Primary = Act(Words.ArenaBoardsSeal, () => _ = SealResults(), CanSealResults, SkinSlots.IconLock, "Seal results");
                 else page.Primary = Act(Words.ArenaRewardsClaim(Sol(board.Yours.PayoutLamports)), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind), SkinSlots.IconTrophy,
                     "Collect " + MoneyText.Board(board.Kind, catalog));

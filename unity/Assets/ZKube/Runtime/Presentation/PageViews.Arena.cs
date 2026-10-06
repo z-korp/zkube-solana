@@ -19,27 +19,15 @@ namespace ZKube.Presentation
         public const int LandingRowsSeeker = 10, LandingRowsCompact = 5;
 
         // The Arena's Home, one glanceable page: the Arena lockup over the
-        // painting; today's Daily card with the prize pool, the Kredit figure
-        // and the one action, which is the player's next step (and why no entry
-        // can be made, when none can); then today's boards side by side.
+        // painting; today's Daily card with its one action, which is the
+        // player's next step; then today's boards side by side.
         private void ArcadeHome(DailyPageView value)
         {
             var kit = Kit;
             var arcade = value.Arcade; var realm = catalog.Realm(value.Realm);
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
             long? clock = arcade.Headline == null && value.ClosesAt > 0 && value.Now != null ? value.ClosesAt - countdownSecond : (long?)null;
-            var inside = kit.Inside();
-            var rows = new List<Piece>();
-            if (arcade.Pot != null || arcade.Kredits != null) rows.Add(PotRow(inside, arcade));
-            if (arcade.Reason != null)
-            {
-                rows.Add(CardLine("Daily reason", arcade.Reason, arcade.Warning ? SkinTokens.Negative : SkinTokens.Text, inside));
-                if (arcade.Detail != null) rows.Add(CardLine("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, inside));
-            }
-            var pieces = new List<Piece> { Lockup(kit, Step(90, 72)), DailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock, false, rows.ToArray(),
-                // The one action wears its own icon: the play triangle only where it plays.
-                Buttons(inside, ScreenKit.Role.CardAction, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
-                    action.Icon ?? (i == 0 ? SkinSlots.IconPlay : null))).ToArray())) };
+            var pieces = new List<Piece> { Lockup(kit, Step(90, 72)), ArenaDailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock) };
             if (arcade.HasBoards)
             {
                 // The boards take the room the Daily card leaves, less the gaps to it and to the page's foot.
@@ -58,47 +46,132 @@ namespace ZKube.Presentation
             return new Piece(height, rect => inside.Text(name, text, rect, inside.SmallDp, token, SkinUi.Type.Caption, ScreenKit.CaptionLeading));
         }
 
-        // The prize pool as the card's one big figure, and the Kredit figure at the line's end.
-        private Piece PotRow(ScreenKit inside, ArcadeView arcade)
+        // Today's Daily on the Arena: one grid on the card's two edges (owner,
+        // 2026-10-06). Three rows and nothing between them but the card's line:
+        //   who and what   the guardian's portrait, its name and realm, and the
+        //                  objective under them
+        //   the strip      three equal cells on one plate and one baseline, each a
+        //                  mark and a figure and no word: the pot, the time left,
+        //                  the Kredits (which open Kredits)
+        //   the button     the player's next step, across the card
+        // The card's line stands over the button as its reason: one line is
+        // always kept for it, so the card is as tall in every state, and only a
+        // reason that needs a second line grows it. The day's state, where
+        // entries are not open, is a tag beside the card's heading.
+        public const float DailyRowGapU = 10, DailyLineGapU = 4, StripGapU = 6, StripHeightU = 34;
+        private Piece ArenaDailyCard(ScreenKit kit, DailyPageView value, string title, long? clock)
         {
-            float u = inside.U;
-            ScreenKit.Side? kredits = arcade.Kredits == null ? (ScreenKit.Side?)null : KreditFigure(inside, arcade);
-            float room = inside.Width - (kredits.HasValue ? kredits.Value.Width + 10 * u : 0);
-            ScreenKit.Side? pot = null;
-            if (arcade.Pot != null)
+            var inside = kit.Inside(); var arcade = value.Arcade; float u = inside.U;
+            // Who and what.
+            float face = Step(56, 48), room = inside.Width - face * u - 12 * u;
+            string caption = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
+            ScreenKit.Side? objective = null;
+            if (value.ObjectiveKind != 0)
             {
-                var (shown, size) = NumberFit.Fit(ui, arcade.Pot, room, 28 * inside.K);
-                pot = inside.Value("Prize pool value", shown, SkinTokens.Accent, size);
+                var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
+                var picture = inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, 24);
+                // The caption takes the room beside its pictogram, on as many lines as it needs.
+                float width = Mathf.Min(inside.TextWidth(caption, inside.SmallDp, SkinUi.Type.Caption) + 2, room - picture.Width - 8 * u);
+                float height = inside.Block(caption, width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+                string words = caption;
+                objective = inside.Beside(8, picture, new ScreenKit.Side(width, height, rect => inside.Text("Daily line", words, rect, inside.SmallDp,
+                    SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left)));
+                caption = null;
             }
-            float height = Mathf.Max(pot?.Height ?? 0, kredits?.Height ?? 0);
-            return new Piece(height, rect => {
-                if (pot.HasValue) pot.Value.Draw(new Rect(rect.x, rect.center.y - pot.Value.Height / 2, pot.Value.Width, pot.Value.Height));
-                if (kredits.HasValue)
-                    kredits.Value.Draw(new Rect(rect.xMax - kredits.Value.Width, rect.center.y - kredits.Value.Height / 2, kredits.Value.Width, kredits.Value.Height));
-            });
-        }
-        // The Kredit figure: the coin and the confirmed balance on the dark pill.
-        // Its state is its own: plain when there is enough, a gold rim and a plus
-        // on the last one, an ember rim and a plus at none. It opens Kredits.
-        private ScreenKit.Side KreditFigure(ScreenKit inside, ArcadeView arcade)
-        {
-            float u = inside.U, plus = arcade.KreditLevel == KreditLevel.Enough ? 0 : 16 * u;
-            var chip = inside.Chip("Kredit figure", SkinSlots.IconKredit, 18, arcade.Kredits, null);
-            float width = chip.Width + (plus == 0 ? 0 : plus + 4 * u);
-            return new ScreenKit.Side(width, chip.Height, rect => {
-                string token = arcade.KreditLevel == KreditLevel.None ? SkinTokens.Negative : SkinTokens.Accent;
-                if (plus > 0) ui.Pill("Kredit figure rim", new Rect(rect.x - 1.5f * u, rect.y - 1.5f * u, rect.width + 3 * u, rect.height + 3 * u), shell.Page, ui.Art.Token(token));
-                if (plus > 0) ui.Pill("Kredit figure plate", rect, shell.Page, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
-                chip.Draw(new Rect(rect.x, rect.y, chip.Width, rect.height));
-                if (plus > 0)
+            var identity = PortraitRow(inside, "Daily", face, image => Portrait(value.Realm, image), title, caption, objective, null);
+
+            // The day's state beside the heading, where the two fit one line; else it is the card's line.
+            ScreenKit.Side? state = arcade.Headline == null ? (ScreenKit.Side?)null
+                : Tag(kit, arcade.Headline, arcade.Warning ? SkinTokens.Negative : SkinTokens.TextMuted, "Daily headline");
+            float heading = ui.TextWidth(Words.DailyToday.ToUpperInvariant(), inside.HeaderDp, SkinUi.Type.Display) * 1.12f;
+            bool tagged = state.HasValue && heading + 6 * u + state.Value.Width <= inside.Width;
+
+            // The card's line: the reason, or the deposit against what an entry needs, or the day's state.
+            float numeral = Mathf.Max(14, inside.SmallDp), lineHeight = numeral * ui.Scale * ui.Density * ScreenKit.CaptionLeading;
+            string said = arcade.Reason ?? (tagged ? null : arcade.Headline);
+            string saidName = arcade.Reason != null ? "Daily reason" : "Daily headline";
+            string saidToken = arcade.Warning ? SkinTokens.Negative : arcade.Reason != null ? SkinTokens.Text : SkinTokens.TextMuted;
+            float saidHeight = said == null ? 0 : inside.Block(said, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+            float detailHeight = arcade.Reason == null || arcade.Detail == null ? 0 : inside.Block(arcade.Detail, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+            bool deposit = said == null && arcade.Deposit != null && arcade.EntryNeeds != null;
+            var line = new Piece(Mathf.Max(lineHeight, saidHeight + detailHeight), rect => {
+                if (said != null)
                 {
-                    // The top-up mark, in the state's ink like the rim.
-                    ui.Piece("Kredit top-up", SkinSlots.IconPlus, new Rect(rect.xMax - plus - 5 * u, rect.center.y - plus / 2, plus, plus), shell.Page).color = ui.Art.Token(token);
+                    float top = rect.center.y + (saidHeight + detailHeight) / 2;
+                    inside.Text(saidName, said, new Rect(rect.x, top - saidHeight, rect.width, saidHeight), inside.SmallDp, saidToken, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+                    if (detailHeight > 0)
+                        inside.Text("Daily reason detail", arcade.Detail, new Rect(rect.x, top - saidHeight - detailHeight, rect.width, detailHeight), inside.SmallDp,
+                            arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+                }
+                else if (deposit)
+                {
+                    // What the device holds, short of what an entry needs: two amounts and the device's mark, no sentence.
+                    string low = ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.Negative)), need = ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted));
+                    string figures = "<color=#" + low + ">" + arcade.Deposit + "</color><color=#" + need + "> / " + arcade.EntryNeeds + "</color>";
+                    float icon = 16 * u, width = ui.TextWidth(figures, numeral, SkinUi.Type.Display), x = rect.center.x - (icon + 6 * u + width) / 2;
+                    Tinted("Daily deposit icon", SkinSlots.IconDevice, new Rect(x, rect.center.y - icon / 2, icon, icon), SkinTokens.TextMuted, shell.Page);
+                    var label = ui.Label("Daily deposit", figures, new Rect(x + icon + 6 * u, rect.y, width, rect.height), numeral, SkinTokens.Text, shell.Page, SkinUi.Type.Display,
+                        TextAlignmentOptions.Left);
+                    label.richText = true; label.textWrappingMode = TextWrappingModes.NoWrap;
+                }
+            });
+            // The one action wears its own icon: the play triangle only where it plays.
+            // A card with no step to offer yet (its read is on its way) keeps the button's place.
+            var buttons = value.Actions.Length == 0 ? inside.Space(62) : Buttons(inside, ScreenKit.Role.CardAction, true, value.Actions.Select((action, i) =>
+                (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, action.Icon ?? (i == 0 ? SkinSlots.IconPlay : null))).ToArray());
+            var rows = inside.Stack(DailyLineGapU, inside.Stack(DailyRowGapU, identity, StatStrip(inside, arcade, clock)), line, buttons);
+            return kit.Card(Words.DailyToday, new[] { rows }, "Daily card", tag: tagged ? state : null);
+        }
+
+        // The strip: the pot, the time left and the Kredits, three equal cells on
+        // one plate each and one baseline, each a mark and a figure at one size.
+        // A value the page does not have is a dash. The Kredit cell is the way to
+        // Kredits and shows its own state: plain when there is enough, a gold rim
+        // and a plus on the last one, an ember rim and a plus at none.
+        private Piece StatStrip(ScreenKit inside, ArcadeView arcade, long? clock)
+        {
+            float u = inside.U, gap = StripGapU * u, cell = (inside.Width - 2 * gap) / 3, mark = 16 * u, pad = 8 * u;
+            bool plus = arcade.Kredits != null && arcade.KreditLevel != KreditLevel.Enough;
+            const string none = "—";
+            string pot = arcade.Pot ?? none + CurrencyMark.Tag, kredits = arcade.Kredits ?? none;
+            string time = clock.HasValue ? DayClock(clock.Value) : none, widest = System.Text.RegularExpressions.Regex.Replace(time, "[0-9]", "8");
+            // One numeral size for the three: the largest at which the widest of them fits its cell.
+            float size = 18 * inside.K;
+            float Room(bool marked, bool topUp) => cell - 2 * pad - (marked ? mark + 5 * u : 0) - (topUp ? mark + 4 * u : 0);
+            foreach (var (words, room) in new[] { (pot, Room(false, false)), (widest, Room(true, false)), (kredits, Room(true, plus)) })
+                size = Mathf.Min(size, NumberFit.Fit(ui, words, room, size, false).Size);
+            pot = NumberFit.Fit(ui, pot, Room(false, false), size).Text;
+            clockEm = (inside.TextWidth("88", size, SkinUi.Type.Display) - inside.TextWidth("8", size, SkinUi.Type.Display)) / (size * ui.Scale * ui.Density);
+            return new Piece(StripHeightU * u, rect => {
+                var plate = new Color(11 / 255f, 20 / 255f, 28 / 255f, 1);
+                TMP_Text Cell(int index, string name, string icon, string words, string token, bool topUp)
+                {
+                    var at = new Rect(rect.x + index * (cell + gap), rect.y, cell, rect.height);
+                    ui.Pill(name, at, shell.Page, plate);
+                    float width = ui.TextWidth(System.Text.RegularExpressions.Regex.Replace(words, "<mspace[^>]*>|</mspace>", ""), size, SkinUi.Type.Display);
+                    float content = (icon == null ? 0 : mark + 5 * u) + width + (topUp ? 4 * u + mark : 0), x = at.center.x - content / 2;
+                    if (icon != null) { ui.Piece(name + " icon", icon, new Rect(x, at.center.y - mark / 2, mark, mark), shell.Page); x += mark + 5 * u; }
+                    var label = ui.Label(name + " number", words, new Rect(x, at.y, width, at.height), size, token, shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Left);
+                    label.richText = true; label.textWrappingMode = TextWrappingModes.NoWrap;
+                    return label;
+                }
+                Cell(0, "Prize pool value", null, pot, arcade.Pot == null ? SkinTokens.TextMuted : SkinTokens.Accent, false);
+                var left = Cell(1, "Daily countdown", SkinSlots.IconClock, widest, clock.HasValue ? SkinTokens.Score : SkinTokens.TextMuted, false);
+                if (clock.HasValue) { left.text = Tabular(time); countdown = left; }
+                // The Kredit cell's rim is drawn under its plate, in its state's ink like its plus.
+                var kredit = new Rect(rect.x + 2 * (cell + gap), rect.y, cell, rect.height);
+                string ink = arcade.KreditLevel == KreditLevel.None ? SkinTokens.Negative : SkinTokens.Accent;
+                if (plus) ui.Pill("Kredit figure rim", new Rect(kredit.x - 1.5f * u, kredit.y - 1.5f * u, kredit.width + 3 * u, kredit.height + 3 * u), shell.Page, ui.Art.Token(ink));
+                var count = Cell(2, "Kredit figure", SkinSlots.IconKredit, kredits, arcade.Kredits == null ? SkinTokens.TextMuted : SkinTokens.Score, plus);
+                if (plus)
+                {
+                    float x = SkinUi.ScreenRect(count.rectTransform).xMax + 4 * u;
+                    ui.Piece("Kredit top-up", SkinSlots.IconPlus, new Rect(x, kredit.center.y - mark / 2, mark, mark), shell.Page).color = ui.Art.Token(ink);
                 }
                 if (arcade.OpenKredits == null) return;
-                // The whole figure is the way to Kredits, at a finger's height.
-                float touch = Mathf.Max(rect.height, inside.Touch(44));
-                var hit = ui.Rect<Image>("Kredit figure tap", new Rect(rect.x, rect.center.y - touch / 2, rect.width, touch), shell.Page);
+                // The whole cell is the way to Kredits, at a finger's height.
+                float touch = Mathf.Max(kredit.height, inside.Touch(44));
+                var hit = ui.Rect<Image>("Kredit figure tap", new Rect(kredit.x, kredit.center.y - touch / 2, kredit.width, touch), shell.Page);
                 hit.color = Color.clear; Tap(hit, arcade.OpenKredits, ScreenKit.Role.Status);
             });
         }

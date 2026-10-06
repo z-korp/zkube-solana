@@ -77,7 +77,7 @@ namespace ZKube.Integration.Presentation
         // discounted or pushed, and the one-way rule stays in view.
         private PanelPageView KreditPage()
         {
-            var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
+            var back = Leading(null, () => _ = OpenDaily(), PageAvailable);
             var page = new PanelPageView { Key = "Kredits", Title = Words.ArenaKreditsTitle, Back = back, Tab = AppPage.Home };
             var terms = PanelBlock.Text("Kredit terms", Words.ArenaKreditsTerms, SkinTokens.TextMuted, true);
             PackView[] Cards(Func<uint, PackView> card) => SessionViewPolicy.KreditPacks.Select(card).ToArray();
@@ -103,7 +103,7 @@ namespace ZKube.Integration.Presentation
                 blocks.Add(PanelBlock.Balance(figure, null, null, Words.ArenaOpensSoon));
                 blocks.Add(PanelBlock.PackRow(Cards(Plain)));
                 // Before launch the one step is the Campaign, lit, as on the device page.
-                page.Primary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
+                page.Primary = Leading(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
                 blocks.Add(terms); page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -130,7 +130,7 @@ namespace ZKube.Integration.Presentation
             if (refused != null && !known) page.Primary = PageAction(Words.ActionTryAgain, refusalRetry, () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
             // The owner's wallet buys; an entry needs the device too.
             if (!waits && ownerRead != null && ownerRead.IsCurrent && ownerRead.Value.Session != null && ownerRead.Value.Session.Status == "none")
-                page.Tertiary = PageAction(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device", SkinSlots.IconDevice);
+                page.Tertiary = Leading(Words.ArenaDeviceSetUp, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device", SkinSlots.IconDevice);
             if (acting && (actionStep == "wallet" || actionStep == null)) page.Destructive = Disconnecting();
             blocks.Add(terms);
             page.Blocks = blocks.ToArray();

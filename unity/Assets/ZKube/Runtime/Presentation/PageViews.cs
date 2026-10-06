@@ -226,6 +226,7 @@ namespace ZKube.Presentation
             Made = (button, text) => {
                 if (text == null) { actions.Bind(button, action, fade: button.GetComponent<Placed>().Role != ScreenKit.Role.Step); return; }
                 actions.Bind(button, action, relabel: action.Progress == null ? value => text.text = value : (Action<string>)null);
+                button.GetComponent<Placed>().Opens = action.Opens;
                 Loader(button, action);
             } };
         // A stepper's arrow: one that cannot step is still drawn, dimmed, under its own name.
@@ -291,7 +292,7 @@ namespace ZKube.Presentation
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
             bool used = value.NextOpensAt > 0 && value.Now != null;
             long? clock = used ? value.NextOpensAt - countdownSecond : value.ClosesAt > 0 && value.Now != null ? value.ClosesAt - countdownSecond : (long?)null;
-            var pieces = new List<Piece> { Lockup(kit, 94), DailyCard(kit, value, realm.guardianName, clock, used, Array.Empty<Piece>(),
+            var pieces = new List<Piece> { Lockup(kit, 94), DailyCard(kit, value, realm.guardianName, clock, used,
                 Buttons(kit.Inside(), ScreenKit.Role.CardAction, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
                     i == 0 ? SkinSlots.IconPlay : SkinSlots.IconTrophy)).ToArray())) };
             if (!string.IsNullOrEmpty(value.Status)) pieces.Add(kit.Note(value.Status));
@@ -325,13 +326,13 @@ namespace ZKube.Presentation
         }
         // Today's Daily card: the guardian's portrait beside its name, the
         // objective's pictogram left of its caption, and the clock chip under
-        // them; once the attempt is used, that and the count to the next Daily.
-        // rows follow (the Arena's prize pool), then the card's buttons.
-        private Piece DailyCard(ScreenKit kit, DailyPageView value, string title, long? clock, bool used, Piece[] rows, Piece buttons)
+        // them; once the attempt is used, that and the count to the next Daily;
+        // then the card's buttons. Realms' card: the Arena draws its own grid.
+        private Piece DailyCard(ScreenKit kit, DailyPageView value, string title, long? clock, bool used, Piece buttons)
         {
             float u = kit.U; var inside = kit.Inside();
             // The day's own guardian, whatever realm the page's art is from.
-            float face = (value.Arcade == null ? Step(76, 60) : Step(72, 56)) * inside.U, room = inside.Width - face - 12 * inside.U;
+            float face = Step(76, 60) * inside.U, room = inside.Width - face - 12 * inside.U;
             string caption = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             ScreenKit.Side? objective = null;
             var under = new List<ScreenKit.Side>();
@@ -339,7 +340,7 @@ namespace ZKube.Presentation
             if (!used && value.ObjectiveKind != 0)
             {
                 var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
-                var picture = inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, value.Arcade == null ? 26 : 24);
+                var picture = inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, 26);
                 // The caption takes the room beside its pictogram, on as many lines as it needs.
                 float width = Mathf.Min(inside.TextWidth(caption, inside.SmallDp, SkinUi.Type.Caption) + 2, room - picture.Width - 8 * inside.U);
                 float height = inside.Block(caption, width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
@@ -361,10 +362,9 @@ namespace ZKube.Presentation
                     chip.Draw(rect);
                     var text = shell.Page.GetComponentsInChildren<TMP_Text>().Last(label => label.name == (used ? "Next Daily words" : "Daily countdown number"));
                     text.richText = true; text.text = shown;
-                    if (used) nextDaily = text; else if (value.Arcade?.Headline == null) countdown = text;
+                    if (used) nextDaily = text; else countdown = text;
                 }));
             }
-            if (value.Arcade?.Headline != null) under.Add(inside.Word("Daily headline", value.Arcade.Headline, inside.SmallDp, SkinTokens.Text));
             // Under the name: the objective, then the clock and what else the day
             // says, side by side where they fit beside the portrait, else one
             // under another.
@@ -372,7 +372,7 @@ namespace ZKube.Presentation
             if (under.Count != 0) { line = inside.Beside(8, under.ToArray()); if (line.Value.Width > room) line = inside.Over(4, under.ToArray()); }
             if (objective.HasValue) line = line.HasValue ? inside.Over(4, objective.Value, line.Value) : objective;
             var portrait = PortraitRow(inside, "Daily", face / inside.U, image => Portrait(value.Realm, image), title, caption, line, null);
-            return kit.Card(Words.DailyToday, new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
+            return kit.Card(Words.DailyToday, new[] { portrait, buttons }, "Daily card");
         }
         // The product's painted lockup in its 200u box, in the colours of the
         // page's realm: on Home, the day's Daily realm.

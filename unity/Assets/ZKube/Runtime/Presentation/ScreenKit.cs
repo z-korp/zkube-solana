@@ -718,8 +718,9 @@ namespace ZKube.Presentation
         // height, its lit words at 18u.
         // A button's words shrink toward 14 dp to fit it and, past that, take
         // their shorter form (shorter, by index) where there is one.
+        // fill gives the primary all the column the others leave, so a card's one button spans its two edges.
         public Piece Buttons((string name, string label, Action click, Kind kind, string icon)[] items, Action<int, Button, TMP_Text> made = null, bool small = false,
-            string[] shorter = null, bool oneRow = false)
+            string[] shorter = null, bool oneRow = false, bool fill = false)
         {
             float u = U, gap = 10 * u, column = width;
             float primaryDp = small ? 18 * K : 24 * K, secondaryDp = small ? 18 * K : 20 * K;
@@ -754,7 +755,7 @@ namespace ZKube.Presentation
                 float squeeze = !stacked && Row() > rect.width ? (rect.width - gap * (items.Length - 1)) / items.Sum(Wide) : 1;
                 float others = items.Where(item => item.kind != Kind.Primary).Sum(item => Wide(item) * squeeze) + gap * (items.Length - 1);
                 float primary = items.Any(item => item.kind == Kind.Primary)
-                    ? Mathf.Clamp(rect.width - others, Wide(items.First(item => item.kind == Kind.Primary)) * squeeze, 300 * u) : 0;
+                    ? Mathf.Clamp(rect.width - others, Wide(items.First(item => item.kind == Kind.Primary)) * squeeze, fill ? rect.width : 300 * u) : 0;
                 float x = rect.center.x - (primary + others) / 2, y = rect.yMax;
                 foreach (int i in order)
                 {
@@ -837,5 +838,6 @@ namespace ZKube.Presentation
     }
 
     // A control's role, set by the kit where it places the control (ScreenKit.As).
-    public sealed class Placed : MonoBehaviour { public ScreenKit.Role Role; }
+    // Opens says its tap opens another page, as its action declares.
+    public sealed class Placed : MonoBehaviour { public ScreenKit.Role Role; public bool Opens; }
 }

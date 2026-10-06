@@ -21,6 +21,7 @@ namespace ZKube.Tests.MoneyOverview
     // Arena's result, the pause and its confirm at both text sizes).
     public sealed partial class MoneyOverviewTests
     {
+        private static readonly string[] LitButtonsThatOpenAPage = { "Buy Kredits", "Set up device", "See boards", "Play Campaign", "Manage device", "Continue" };
         private IEnumerator Held(Component source, string at, bool first = false)
         {
             var shell = source.GetComponent<PageShell>(); var views = source.GetComponent<PageViews>();
@@ -37,6 +38,12 @@ namespace ZKube.Tests.MoneyOverview
             bool tabs = source.GetComponentsInChildren<SkinTabBar>().Any(bar => bar.gameObject.activeInHierarchy);
             if (!first && !scene && (!tabs || views.ShownPanel != null))
                 Assert.That(views.LeadsBack, Is.True, at + ": the Android back key leads back from this page");
+            // A lit button does what it says where it is tapped. One that opens another page instead is
+            // on this short list only because its words name that page: the Kredits shop, the device's
+            // set-up, the boards, the Campaign, and the way on from a result.
+            foreach (var button in source.GetComponentsInChildren<Button>().Where(button => button.gameObject.activeInHierarchy && button.GetComponent<Placed>().Opens &&
+                button.GetComponent<Image>()?.sprite != null && button.GetComponent<Image>().sprite.name.StartsWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary)))
+                Assert.That(LitButtonsThatOpenAPage, Does.Contain(button.name), at + ": the lit button " + button.name + " opens another page; its words must name that page");
             // A page taller than its phone is checked again at its foot.
             if (shell.Scroll.content.rect.height > shell.Viewport.rect.height + .5f)
             {

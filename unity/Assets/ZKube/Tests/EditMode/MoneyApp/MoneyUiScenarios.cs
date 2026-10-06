@@ -38,6 +38,7 @@ namespace ZKube.Integration.App.Tests
         public bool Consumed { get; private set; }
         private JObject Ui;
         private JToken expected, claim;
+        private bool toppingUp;
         private readonly List<JToken> after = new List<JToken>();
         private bool applied, failReadback, corruptReadback;
         private HeldCall walletHold;
@@ -167,6 +168,15 @@ namespace ZKube.Integration.App.Tests
         private bool programMissing;
         // The cluster refuses the next transaction it is asked to simulate.
         public void RefuseNextSimulation() => refuseSimulation = true;
+        // The device's deposit has run down: it holds less than an entry needs, and the next
+        // transaction that lands, the owner's top-up, brings it back to the deposit.
+        public void RunDownDeposit(ulong left = 1_200_000)
+        {
+            // The top-up is the next transaction, whatever the scenario expected to send first.
+            toppingUp = true; expected = null;
+            SetBalance((string)Plans["inputs"]["device"], left);
+            after.Add(SystemAccount((string)Plans["inputs"]["device"], DeviceFunding.DepositLamports));
+        }
         // The Daily move the rollup knows, and whether its next row lands with the
         // move, as it does on the rollup, or only when the test delivers it.
         public JToken DailyMove => DailyRow("moved")["move"];
@@ -195,7 +205,8 @@ namespace ZKube.Integration.App.Tests
         }
         private async Task<string> SignOwner(JObject request)
         {
-            if (UiScenario.StartsWith("profile-") || UiScenario.StartsWith("claim-"))
+            // A profile change or a claim is the device's own transaction: the owner signs there only to top the deposit up.
+            if ((UiScenario.StartsWith("profile-") || UiScenario.StartsWith("claim-")) && !toppingUp)
             { forbidden++; throw new InvalidOperationException("Unexpected owner signature"); }
             var hold = walletHold; walletHold = null;
             if (hold != null) { hold.Started.TrySetResult(true); await hold.Completion.Task; }
@@ -279,6 +290,8 @@ namespace ZKube.Integration.App.Tests
         {
             var instructions = TransactionSignatures.Describe(bytes).Instructions
                 .Where(value => value.ProgramId == Services.Protocol.ProgramId).Select(Services.Protocol.DecodeInstruction).ToArray();
+            // A transaction that calls nothing of the game (the deposit's top-up) changes no run.
+            if (instructions.Length == 0) return;
             string phase;
             if (instructions.Any(value => value.Name == "enter_arena"))
             { Http.Add(Ui["enteredPlayer"]); phase = "playing"; }

@@ -12,10 +12,12 @@ namespace ZKube.Integration.Client
         public uint DayId { get; }
         public ulong Kredits { get; }
         public SessionAssessment Session { get; }
+        // What the device must hold to enter now, the figure its deposit was held against; zero where no device was assessed.
+        public ulong EntryBalance { get; }
         public bool Ready => Status == "ready";
         internal DailyEntryReadiness(string status, uint day,
-            ulong kredits = 0, SessionAssessment session = null)
-        { Status = status; DayId = day; Kredits = kredits; Session = session; }
+            ulong kredits = 0, SessionAssessment session = null, ulong entryBalance = 0)
+        { Status = status; DayId = day; Kredits = kredits; Session = session; EntryBalance = entryBalance; }
     }
 
     internal sealed class DailyEntryObservation
@@ -111,10 +113,10 @@ namespace ZKube.Integration.Client
                 if (finalWindow.Snapshot == null) return new DailyEntryReadiness(finalWindow.Status, day, kredits: after.Kredits);
                 // The device pays the entry's rent itself, so readiness is the
                 // real cost of this entry rather than fees alone.
-                bool funded = session.Funding == "ready" &&
-                    session.Balance >= DeviceFunding.EntryBalanceLamports(observation.DailyPlayerExists);
+                ulong needed = DeviceFunding.EntryBalanceLamports(observation.DailyPlayerExists);
+                bool funded = session.Funding == "ready" && session.Balance >= needed;
                 return new DailyEntryReadiness(!session.Current ? "needs-session" : !funded ? "needs-refill" : "ready",
-                    day, kredits: after.Kredits, session: session);
+                    day, kredits: after.Kredits, session: session, entryBalance: needed);
             }
             var value = await Observe().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
