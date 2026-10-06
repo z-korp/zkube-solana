@@ -309,13 +309,37 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(IntPtr.Zero, NativeAtlasPointer(sharedAtlas), "The released atlas stays unloaded on the next frame");
             LogAssert.NoUnexpectedReceived();
         }
+        // Unity lets one coroutine wait on a load and logs an error for a second, which then goes on without
+        // the asset. Two owners that load the same atlases in one frame, as a page drawn twice while its
+        // portraits load does, both get them, with nothing in the log.
+        [UnityTest] public IEnumerator TwoOwnersLoadingTheSameAtlasesInOneFrameBothGetThemWithNothingInTheLog()
+        {
+            using var first = new BoardArt(); using var second = new BoardArt();
+            int done = 0;
+            board.StartCoroutine(Stepped(first.LoadPortraits(), () => done++));
+            board.StartCoroutine(Stepped(second.LoadPortraits(), () => done++));
+            float deadline = Time.realtimeSinceStartup + 30;
+            while (done < 2) { if (Time.realtimeSinceStartup > deadline) Assert.Fail("The portraits never loaded"); yield return null; }
+            string portrait = PageCatalog.Load().Portrait(4).sprite;
+            Assert.IsNotNull(first.Sprite(portrait)); Assert.IsNotNull(second.Sprite(portrait));
+            board.StartCoroutine(Stepped(first.Load(4), () => done++));
+            board.StartCoroutine(Stepped(second.Load(4), () => done++));
+            while (done < 4) { if (Time.realtimeSinceStartup > deadline) Assert.Fail("The realm never loaded"); yield return null; }
+            Assert.AreEqual(4, first.RealmId); Assert.AreEqual(4, second.RealmId);
+            Assert.IsNotNull(first.Sprite("boss__idle")); Assert.IsNotNull(second.Sprite("boss__idle"));
+            Assert.IsNotNull(first.Sprite(BoardArt.Mark)); Assert.IsNotNull(second.Sprite(BoardArt.Mark));
+            LogAssert.NoUnexpectedReceived();
+        }
+        // A load stepped the way the pages step theirs.
+        private static IEnumerator Stepped(IEnumerator load, Action then) { while (load.MoveNext()) yield return load.Current; then(); }
         [UnityTest] public IEnumerator DisposedPendingOwnerCannotUnloadTheOtherOwnersCompletedRequest()
         {
             using var pageArt = new BoardArt(); using var boardArt = new BoardArt();
             var pageLoad = pageArt.Load(3); var boardLoad = boardArt.Load(3);
             Assert.IsTrue(pageLoad.MoveNext()); Assert.IsTrue(boardLoad.MoveNext());
-            Assert.AreSame(pageLoad.Current, boardLoad.Current, "Concurrent owners share one in-flight request");
-            var request = (ResourceRequest)boardLoad.Current;
+            var request = (ResourceRequest)pageLoad.Current;
+            Assert.IsNull(boardLoad.Current, "The second owner waits for the load the first one was given, and yields no request");
+            Assert.AreEqual(2, AtlasOwners("ZKube/Atlases/" + boardArt.ThemeId), "Concurrent owners share one in-flight load");
             pageArt.Dispose(); yield return request;
             Assert.IsFalse(pageLoad.MoveNext(), "Disposed owner never publishes the shared result");
             while (boardLoad.MoveNext()) yield return boardLoad.Current;

@@ -19,10 +19,17 @@ namespace ZKube.Presentation
         private sealed class AtlasLoad
         {
             public readonly string Path;
-            public readonly ResourceRequest Request;
+            private readonly ResourceRequest request;
             public int Owners = 1;
             public bool Collected;
-            public AtlasLoad(string path) { Path = path; Request = Resources.LoadAsync<SpriteAtlas>(path); }
+            public AtlasLoad(string path, Action<AtlasLoad> done) { Path = path; request = Resources.LoadAsync<SpriteAtlas>(path); request.completed += _ => done(this); }
+            // Unity lets one coroutine yield a request and logs an error for a second, which then goes on
+            // without the asset. So the request is never handed out to be yielded: the first owner to wait
+            // is given it once, and every other owner waits until it is done.
+            private bool awaited;
+            public object Awaited() { if (awaited) return null; awaited = true; return request; }
+            public bool Done => request.isDone;
+            public SpriteAtlas Atlas => request.asset as SpriteAtlas;
         }
         private static readonly Dictionary<string, AtlasLoad> atlasLoads = new Dictionary<string, AtlasLoad>();
         // The atlases are late-binding, in Resources under their own tag. When
@@ -137,15 +144,16 @@ namespace ZKube.Presentation
             foreach (var swatch in theme.rgba)
                 colors[swatch.name] = new Color(swatch.value[0], swatch.value[1], swatch.value[2], swatch.value[3]);
             var selected = realmLoad = AcquireAtlas("ZKube/Atlases/" + ThemeId);
-            yield return selected.Request;
+            for (object wait = selected.Awaited(); ; wait = null) { yield return wait; if (selected.Done) break; }
             if (disposed || realmLoad != selected) yield break;
-            atlas = selected.Request.asset as SpriteAtlas;
+            atlas = selected.Atlas;
             if (common == null)
             {
                 if (commonLoad == null) commonLoad = AcquireAtlas("ZKube/Atlases/common");
-                yield return commonLoad.Request;
+                var shared = commonLoad;
+                for (object wait = shared.Awaited(); ; wait = null) { yield return wait; if (shared.Done) break; }
                 if (disposed || realmLoad != selected) yield break;
-                common = commonLoad.Request.asset as SpriteAtlas;
+                common = shared.Atlas;
             }
             var skin = data.DefaultSkin;
             var realmEntry = skin.realms.Single(value => value.realmId == realmId);
@@ -154,11 +162,12 @@ namespace ZKube.Presentation
                 tokens.Add(token.name, new Color(token.value[0], token.value[1], token.value[2], token.value[3]));
             var realmSkin = skinRealmLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-theme-" + realmId);
             if (skinUiLoad == null) skinUiLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-ui");
-            yield return realmSkin.Request;
-            yield return skinUiLoad.Request;
+            var ui = skinUiLoad;
+            for (object wait = realmSkin.Awaited(); ; wait = null) { yield return wait; if (realmSkin.Done) break; }
+            for (object wait = ui.Awaited(); ; wait = null) { yield return wait; if (ui.Done) break; }
             if (disposed || realmLoad != selected) yield break;
-            skinRealm = realmSkin.Request.asset as SpriteAtlas;
-            skinUi = skinUiLoad.Request.asset as SpriteAtlas;
+            skinRealm = realmSkin.Atlas;
+            skinUi = ui.Atlas;
             if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
             foreach (global::ZKube.Presentation.SkinUi.Type type in Enum.GetValues(typeof(global::ZKube.Presentation.SkinUi.Type)))
                 Font(type);
@@ -174,18 +183,17 @@ namespace ZKube.Presentation
             sprites.Clear(); ReleaseAtlas(ref commonLoad); common = null;
             ThemeId = "portraits";
             var selected = realmLoad = AcquireAtlas("ZKube/Atlases/portraits");
-            yield return selected.Request;
+            for (object wait = selected.Awaited(); ; wait = null) { yield return wait; if (selected.Done) break; }
             if (disposed || realmLoad != selected) yield break;
-            atlas = selected.Request.asset as SpriteAtlas;
+            atlas = selected.Atlas;
             if (atlas == null) throw new InvalidOperationException("Generated profile portraits are missing");
         }
         private static AtlasLoad AcquireAtlas(string path)
         {
             if (atlasLoads.TryGetValue(path, out var shared)) { shared.Owners++; return shared; }
-            var created = new AtlasLoad(path); atlasLoads.Add(path, created);
             // Completion can outlive one or all of its requesting BoardArt
             // owners. A new owner may also acquire this still-pending request.
-            created.Request.completed += _ => CollectAtlas(created);
+            var created = new AtlasLoad(path, CollectAtlas); atlasLoads.Add(path, created);
             return created;
         }
         private static void ReleaseAtlas(ref AtlasLoad owned)
@@ -195,9 +203,9 @@ namespace ZKube.Presentation
         }
         private static void CollectAtlas(AtlasLoad shared)
         {
-            if (shared.Collected || shared.Owners != 0 || !shared.Request.isDone) return;
+            if (shared.Collected || shared.Owners != 0 || !shared.Done) return;
             shared.Collected = true; atlasLoads.Remove(shared.Path);
-            if (shared.Request.asset != null) Resources.UnloadAsset(shared.Request.asset);
+            if (shared.Atlas != null) Resources.UnloadAsset(shared.Atlas);
         }
         public Sprite Sprite(string name)
         {

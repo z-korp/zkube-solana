@@ -968,6 +968,11 @@ One factory makes every board sprite and gives it its material before its sprite
 renderer handed a shared material afterwards draws with the texture of the sprite drawn before it.
 `EveryBoardSpriteDrawsItsOwnTextureOnEveryRealm` compares every realm's frame with and without the batcher.
 
+An atlas is loaded once for every owner that asks for it, a page and a board alike. Unity lets one coroutine wait
+on a load and gives a second an error and no asset, so the load never hands its request out to be yielded: the
+first owner to wait is given it once, and every other waits until it is done.
+`TwoOwnersLoadingTheSameAtlasesInOneFrameBothGetThemWithNothingInTheLog` guards it.
+
 The player renders in gamma colour space: the approved art and its soft alpha were composed that way, and
 linear blending darkened near-transparent edges. `ThePlayerBlendsInGammaSpaceAsTheArtIsApproved` pins it.
 Preparation clears the font engine's uninitialised kerning-pair flags, which otherwise dropped Label tracking
