@@ -104,8 +104,8 @@ namespace ZKube.Integration.Presentation
                 case "paused": arcade.Headline = "Play paused"; arcade.Warning = true; break;
                 case "not-open": arcade.Headline = "Opens later today"; break;
             }
-            var refresh = PageAction("Refresh", () => _ = RefreshOverview(), CanUseDaily);
-            var boards = PageAction("See boards", () => _ = OpenRewards(lobby.DayId), () => PageAvailable() && !Busy);
+            var refresh = PageAction("Refresh", () => _ = RefreshOverview(), CanUseDaily, icon: SkinSlots.IconRetry);
+            var boards = PageAction("See boards", () => _ = OpenRewards(lobby.DayId), () => PageAvailable() && !Busy, icon: SkinSlots.IconTrophy);
             // The one action is the player's next step; a reason stands only where the action does not say why.
             PageAction action;
             bool device = state.Entry.Status == "needs-session" || state.Entry.Status == "missing-player";
@@ -113,7 +113,7 @@ namespace ZKube.Integration.Presentation
             {
                 // A transaction still unconfirmed: the card's action is the loader, followed without a tap.
                 if (RefusalOn("Daily") != null) Reason(arcade, RefusalOn("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
-                action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily) : Progressing();
+                action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily, icon: SkinSlots.IconRetry) : Progressing();
             }
             // Readiness says whether the slot holds a run to resume; one past its recovery deadline is retired by the next entry.
             else if (state.Entry.Status == "resume")
@@ -121,9 +121,9 @@ namespace ZKube.Integration.Presentation
             else switch (state.Entry.Status)
             {
                 case "ready": action = PageAction("Enter · 1 Kredit", AskDailyEntry, () => CanEnterDaily() && boardHost != null); break;
-                case "needs-kredits": action = PageAction("Buy Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy); break;
-                case "needs-session": case "missing-player": action = PageAction("Set up device", () => _ = OpenSession(), CanUseDaily); break;
-                case "needs-refill": action = PageAction("Top up deposit", () => _ = OpenSession(), CanUseDaily); break;
+                case "needs-kredits": action = PageAction("Buy Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy, icon: SkinSlots.IconKredit); break;
+                case "needs-session": case "missing-player": action = PageAction("Set up device", () => _ = OpenSession(), CanUseDaily, icon: SkinSlots.IconDevice); break;
+                case "needs-refill": action = PageAction("Top up deposit", () => _ = OpenSession(), CanUseDaily, icon: SkinSlots.IconPlus); break;
                 case "suspended":
                     arcade.Headline = "Entries paused"; arcade.Warning = true; Reason(arcade, "Entries are paused.", null); action = campaign; break;
                 case "paused":
@@ -244,12 +244,12 @@ namespace ZKube.Integration.Presentation
         {
             var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
             var arcade = new ArcadeView { Headline = today != null && !today.Launched ? "Opens soon" : null };
-            var connect = PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect");
+            var connect = PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect", SkinSlots.IconWallet);
             string refused = RefusalOn("Connect");
             if (refused != null)
             {
                 arcade.Reason = refused; arcade.Warning = true;
-                connect = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy);
+                connect = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
             }
             else if (failure != null && !Busy) { arcade.Reason = failure; arcade.Warning = true; }
             else { arcade.Reason = "Your address. Your play."; arcade.Detail = arcade.Headline != null ? "Campaign is open now." : "Connecting is free."; }
@@ -261,7 +261,7 @@ namespace ZKube.Integration.Presentation
         {
             if (failure != null && !Busy)
                 return Home(new ArcadeView { Headline = "Not loaded", Reason = failure, Warning = true },
-                    0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy),
+                    0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry),
                     PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()));
             if (opening != null) return Home(new ArcadeView(), 0, new PageAction { Label = opening, Name = "Action progress", Progress = opening });
             return Home(new ArcadeView { Headline = "Checking…" }, 0);

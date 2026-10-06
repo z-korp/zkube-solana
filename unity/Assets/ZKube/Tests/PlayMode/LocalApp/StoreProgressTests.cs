@@ -57,27 +57,27 @@ namespace ZKube.Tests
             // Restore: its own button says Checking; reduced motion holds the hourglass still.
             store.Held = true;
             Click(app, "Restore purchases"); yield return Page(StorePage.Campaign);
-            InProgress("Restore purchases", "Checking", waits: "Unlock full Campaign");
-            Assert.That(Words(StoreButton("Unlock full Campaign")), Does.StartWith("Unlock full Campaign"));
+            InProgress("Restore purchases", "Checking", waits: "Unlock");
+            Assert.That(Words(StoreButton("Unlock")), Does.StartWith("Unlock"));
             Assert.That(app.GetComponentsInChildren<Turn>(), Is.Empty, "Reduced motion shows the loader still");
             store.Answer(); yield return Wait(() => !billing.Busy, "Restore did not finish"); yield return Page(StorePage.Campaign);
             Assert.That(Loaders(), Is.Zero);
             Assert.That(Words(StoreButton("Restore purchases")), Is.EqualTo("Restore purchases"));
-            Assert.That(StoreButton("Restore purchases").interactable && StoreButton("Unlock full Campaign").interactable, Is.True);
+            Assert.That(StoreButton("Restore purchases").interactable && StoreButton("Unlock").interactable, Is.True);
 
             // Purchase: its own button says Purchasing from the tap, through the store's sheet, to the outcome.
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
-            StoreButton("Unlock full Campaign").onClick.Invoke(); yield return Page(StorePage.Campaign);
-            InProgress("Unlock full Campaign", "Purchasing", waits: "Restore purchases");
-            Assert.That(StoreButton("Unlock full Campaign").GetComponentsInChildren<Turn>().Length, Is.EqualTo(1), "With motion the loader turns");
+            StoreButton("Unlock").onClick.Invoke(); yield return Page(StorePage.Campaign);
+            InProgress("Unlock", "Purchasing", waits: "Restore purchases");
+            Assert.That(StoreButton("Unlock").GetComponentsInChildren<Turn>().Length, Is.EqualTo(1), "With motion the loader turns");
             store.Held = false; store.Answer(); yield return Page(StorePage.Campaign);
             Assert.That(store.Bought, Is.EqualTo(1), "The purchase reached the store");
-            InProgress("Unlock full Campaign", "Purchasing", waits: "Restore purchases");
+            InProgress("Unlock", "Purchasing", waits: "Restore purchases");
             store.Reject(canceled: true);
             yield return Wait(() => !billing.Busy, "The purchase did not end"); yield return Page(StorePage.Campaign);
             Assert.That(Loaders(), Is.Zero);
             Assert.That(Texts(), Does.Contain("Purchase cancelled"), "The outcome is on the page");
-            Assert.That(StoreButton("Unlock full Campaign").interactable && StoreButton("Restore purchases").interactable, Is.True);
+            Assert.That(StoreButton("Unlock").interactable && StoreButton("Restore purchases").interactable, Is.True);
             Assert.That(store.Bought, Is.EqualTo(1));
         }
 
@@ -91,15 +91,15 @@ namespace ZKube.Tests
             InProgress("Restore purchases", "Checking");
             yield return ClosedRealm();
             Assert.That(billing.Busy, Is.True, "The store still holds the request");
-            InProgress("Restore purchases", "Checking", waits: "Unlock full Campaign");
+            InProgress("Restore purchases", "Checking", waits: "Unlock");
             // It lets go while nobody waits for it: the buttons come back without a tap.
             store.Answer();
             yield return Wait(() => Loaders() == 0, "The buttons did not come back by themselves"); yield return Page(StorePage.Campaign);
-            Assert.That(StoreButton("Restore purchases").interactable && StoreButton("Unlock full Campaign").interactable, Is.True);
+            Assert.That(StoreButton("Restore purchases").interactable && StoreButton("Unlock").interactable, Is.True);
 
             // A failure that comes late: the step until then, the store's reason and its retry after.
             Click(app, "Restore purchases"); yield return Page(StorePage.Campaign);
-            InProgress("Restore purchases", "Checking", waits: "Unlock full Campaign");
+            InProgress("Restore purchases", "Checking", waits: "Unlock");
             store.Failure = "Purchases are unavailable"; store.Answer();
             yield return Wait(() => app.Flow.StoreUnavailable && !billing.Busy, "The late failure was not reported"); yield return Page(StorePage.Campaign);
             Assert.That(Loaders(), Is.Zero);
@@ -110,7 +110,7 @@ namespace ZKube.Tests
             store.Failure = null; store.Answer();
             yield return Wait(() => !app.Flow.StoreUnavailable && !billing.Busy, "The retry did not reach the store"); yield return Page(StorePage.Campaign);
             Assert.That(Loaders(), Is.Zero);
-            Assert.That(StoreButton("Unlock full Campaign").interactable && StoreButton("Restore purchases").interactable, Is.True);
+            Assert.That(StoreButton("Unlock").interactable && StoreButton("Restore purchases").interactable, Is.True);
         }
     }
 }

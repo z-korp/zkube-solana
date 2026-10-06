@@ -37,8 +37,9 @@ namespace ZKube.Presentation
                 if (arcade.Detail != null) rows.Add(CardLine("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, inside));
             }
             var pieces = new List<Piece> { Lockup(kit, Step(90, 72)), DailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock, false, rows.ToArray(),
+                // The one action wears its own icon: the play triangle only where it plays.
                 Buttons(inside, ScreenKit.Role.CardAction, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
-                    i == 0 ? SkinSlots.IconPlay : (string)null)).ToArray())) };
+                    action.Icon ?? (i == 0 ? SkinSlots.IconPlay : null))).ToArray())) };
             if (arcade.HasBoards)
             {
                 // The boards take the room the Daily card leaves, less the gaps to it and to the page's foot.

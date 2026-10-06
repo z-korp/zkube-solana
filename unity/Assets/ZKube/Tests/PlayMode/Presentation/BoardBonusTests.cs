@@ -143,7 +143,7 @@ namespace ZKube.Presentation.Tests
                     var plate = Bounds(words.rectTransform); var panel = view.Layout.EarnPanel;
                     Assert.IsTrue(plate.xMin >= panel.xMin - .5f && plate.xMax <= panel.xMax + .5f && plate.yMin >= panel.yMin - .5f && plate.yMax <= panel.yMax + .5f, at + ": the prompt lies in the Earn panel");
                     var cancel = Bounds((RectTransform)view.GetComponentsInChildren<Button>().Single(button => button.name == "Bonus cancel").transform);
-                    Assert.GreaterOrEqual(cancel.width, Mathf.Min(48, panel.height) - .5f, at + ": the cancel is a full touch target");
+                    Assert.IsTrue(cancel.width >= 48 - .5f && cancel.height >= 48 - .5f, at + ": the cancel is a full 48 dp touch target, " + cancel);
                     Assert.IsFalse(cancel.Overlaps(plate), at + ": the cancel clears the words");
                     Assert.IsTrue(cancel.xMax <= view.Layout.GuardianButton.xMin + .5f, at + ": the cancel clears the tablet");
                     foreach (string other in new[] { "Tap a block to break it", "Tap a size to clear it" })

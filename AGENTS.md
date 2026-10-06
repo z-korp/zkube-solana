@@ -779,7 +779,10 @@ a result's entrance take a tap anywhere. An Arena identity page hands its button
 device the deposit's action is the primary and Disable device the last, an outline pill; Kredits, a page before
 launch and a page that did not load put their one step in the foot row; the profile's Manage device is its foot
 row, under the notice that asks for it; Your records and Last operation keep the tab bar and have Back as their
-one way back. The entry confirmation keeps Confirm with Not now beside it on one row.
+one way back. The entry confirmation keeps Confirm with Not now beside it on one row. Nothing a finger lands on
+reaches under 48 dp: the guided run's Skip tips and the armed bonus's cancel take the tap over 48 dp round their
+smaller faces (`TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
+`TheChosenStateFitsEveryPhone`).
 On the Campaign the stepper steps realms.
 A realm that is not open has the bar: the realm before, "Realm N of 10", the realm after, under its purchase and
 restore where the store closes it; a realm waiting for stars has no button, and its reason and the stepper lead
@@ -831,7 +834,10 @@ through to the face's light, readable at 24 px, already coloured and never tinte
 every icon and names the icons whose meaning is an inner shape; the kit alone picks the lit picture, in `OnFace`,
 and no page does. `every_icon_has_its_lit_picture_and_every_detail_icon_is_an_icon`,
 `test_every_icon_keeps_its_meaning_on_a_lit_face`, `PillsTakeALeadingIconAndTheButtonType` and
-`SelectedTabInkIsDarkOnTheChipAndTheOthersArePale` guard the set and its one owner. Kit art carries no seam or stray highlight;
+`SelectedTabInkIsDarkOnTheChipAndTheOthersArePale` guard the set and its one owner. An action wears the icon of
+what it does: the landing's one action is the wallet, the device, the plus, the Kredit, the trophy or the retry
+mark by its step, and the play triangle only where it plays; `TheLandingsOneActionIsThePlayersNextStep` guards
+it. Kit art carries no seam or stray highlight;
 `NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 

@@ -103,12 +103,12 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
             // The Arena's result names the two boards the run counts on and when
-            // places become final; Back to Arena leads, with Share beside it and the boards under them.
+            // places become final; Continue leads, with Share beside it and the boards under them.
             var arcade = SessionText();
             StringAssert.Contains("Daily run complete", arcade); StringAssert.Contains("Score board", arcade);
             StringAssert.Contains("Your best run counts", arcade);
             StringAssert.Contains("Places are final when each board is sealed after the day closes at 07:00 UTC.", arcade);
-            Assert.That(Find("Back to Arena").GetComponent<UnityEngine.UI.Image>().sprite.name, Does.StartWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary));
+            Assert.That(Find("Continue").GetComponent<UnityEngine.UI.Image>().sprite.name, Does.StartWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary));
             var shell = host.GetComponent<PageShell>();
             foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
                 (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker"), (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640") })
@@ -124,7 +124,7 @@ namespace ZKube.Tests.MoneyOverview
                     var card = host.GetComponentsInChildren<UnityEngine.UI.Image>().Single(image => image.name == "Screen card");
                     Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f),
                         name + ": the bubble stays above the card");
-                    foreach (var button in new[] { Find("Back to Arena"), Find("Share"), Find("See boards") })
+                    foreach (var button in new[] { Find("Continue"), Find("Share"), Find("See boards") })
                     {
                         var rect = SkinUi.ScreenRect((RectTransform)button.transform);
                         Assert.That(rect.height, Is.GreaterThanOrEqualTo(48 - .01f), name + ": " + button.name + " is 48 dp to touch");
@@ -142,7 +142,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Share"); yield return null;
             StringAssert.StartsWith(Application.productName + " · Daily", GUIUtility.systemCopyBuffer);
             // The way back is the landing page, where the next entry is offered.
-            yield return SessionClick("Back to Arena"); yield return Idle();
+            yield return SessionClick("Continue"); yield return Idle();
             Assert.That(controller.BrowsingDaily, Is.True);
             Assert.That(host.GetComponent<MoneyBoardHost>().HasRun, Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -164,7 +164,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty);
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.ResultPage().Score, Is.EqualTo(score), "The run counts at its last accepted state");
-            Assert.That(Find("Back to Arena").interactable, Is.True);
+            Assert.That(Find("Continue").interactable, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         // A run nobody resolved stands in the slot. Until its recovery deadline
@@ -199,14 +199,14 @@ namespace ZKube.Tests.MoneyOverview
             yield return Until(() => host.GetComponent<PageViews>().Shown == AppPage.Result && Says(MoneyBoardHost.UnsavedNotice), "The result says it is not saved yet");
             yield return Idle();
             Assert.That(environment.Consumed, Is.False);
-            Assert.That(Offers("Try again"), Is.True); Assert.That(Offers("Back to Arena"), Is.False);
+            Assert.That(Offers("Try again"), Is.True); Assert.That(Offers("Continue"), Is.False);
             Assert.That(Find("See boards").interactable, Is.True, "The boards are the way out");
             StringAssert.Contains("Daily run complete", SessionText());
             yield return SessionClick("Try again");
             yield return Until(() => Says(MoneyBoardHost.SavedNotice), "The result is saved"); yield return Idle();
             Assert.That(environment.Consumed, Is.True);
             Assert.That(Offers("Try again"), Is.False);
-            yield return SessionClick("Back to Arena"); yield return Idle();
+            yield return SessionClick("Continue"); yield return Idle();
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

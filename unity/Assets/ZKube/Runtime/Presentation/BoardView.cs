@@ -418,7 +418,8 @@ namespace ZKube.Presentation
             // While a power is armed the panel beside its tablet holds the prompt
             // and a cancel instead: the words sit by the thumb, where the power
             // was chosen.
-            float cancel = Mathf.Min(panel.height, BoardLayout.MinimumTouchDp * d);
+            // The cancel takes a tap over a full 48 dp, past the panel's edge where the panel is lower.
+            float cancel = BoardLayout.MinimumTouchDp * d;
             prompt = ui.Label("Bonus prompt", "", new Rect(panel.x + 10 * k * d, panel.y + 4 * k * d, panel.width - 12 * k * d - cancel, panel.height - 8 * k * d),
                 HudLayout.PromptPt, SkinTokens.Text, root, SkinUi.Type.Caption, TextAlignmentOptions.Left);
             prompt.lineSpacing = SkinUi.LineSpacing(prompt.font, HudLayout.CaptionLeading);

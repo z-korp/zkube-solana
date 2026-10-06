@@ -9,6 +9,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Presentation;
+using ZKube.Core.Generated;
 using ZKube.Presentation;
 using ZKube.Tests.Presentation;
 
@@ -35,14 +36,17 @@ namespace ZKube.Tests.MoneyOverview
         // Campaign before launch, the device, the run in flight, the entry.
         [UnityTest] public IEnumerator TheLandingsOneActionIsThePlayersNextStep()
         {
-            foreach (var (scenario, connect, action, kredits) in new[] {
-                ("public-disconnected", false, "Connect", false), ("arena-not-open", true, "Play Campaign", false),
-                ("public-disconnected", true, "Set up device", true), ("owner-overview", true, "Resume run", true),
-                ("daily-playable", true, "Enter · 1 Kredit", true) })
+            // The action wears its own icon, in its lit picture on the lit button: the play triangle only where it plays.
+            foreach (var (scenario, connect, action, kredits, icon) in new[] {
+                ("public-disconnected", false, "Connect", false, SkinSlots.IconWallet), ("arena-not-open", true, "Play Campaign", false, SkinSlots.IconPlay),
+                ("public-disconnected", true, "Set up device", true, SkinSlots.IconDevice), ("owner-overview", true, "Resume run", true, SkinSlots.IconPlay),
+                ("daily-playable", true, "Enter · 1 Kredit", true, SkinSlots.IconPlay) })
             {
                 yield return PrepareScenario(scenario);
                 if (connect) { Click("Connect"); yield return Idle(); }
                 CollectionAssert.AreEqual(new[] { action }, DailyActions(), scenario + ": the one action");
+                Assert.That(Find(action).GetComponentsInChildren<Image>().Single(image => image.name.EndsWith(" icon")).sprite.name, Does.StartWith(SkinSlots.OnLit(icon)),
+                    scenario + ": the action's own icon");
                 Assert.That(Offers("Kredits"), Is.EqualTo(kredits), scenario + ": the Kredit figure");
                 Assert.That(Offers("Rewards") || Offers("View result") || Says("Last operation") ||
                     host.GetComponentsInChildren<Image>().Any(image => image.name == "Last run card"), Is.False, scenario + ": nothing of the old page");

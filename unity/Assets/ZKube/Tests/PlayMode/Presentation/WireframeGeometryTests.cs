@@ -630,7 +630,7 @@ namespace ZKube.Tests.Presentation
                         Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
                     ResultPageView Daily(bool arcade) => new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = realm, Day = 20705,
                         ObjectiveKind = 1, ObjectiveValue = 3, Score = 1240, ObjectiveTotal = 7, Streak = 4, Tier = 3, Arcade = arcade,
-                        Done = new PageAction { Label = arcade ? "Back to Arena" : "Continue" }, Leaderboard = new PageAction { Label = arcade ? "See boards" : "Leaderboard" } };
+                        Done = new PageAction { Label = "Continue" }, Leaderboard = new PageAction { Label = arcade ? "See boards" : "Leaderboard" } };
                     foreach (var (name, page, result) in new[] { ("preview", AppPage.Level, (ResultPageView)null), ("Campaign result", AppPage.Result, campaign),
                         ("Realms Daily result", AppPage.Result, Daily(false)), ("Arena run result", AppPage.Result, Daily(true)) })
                     {

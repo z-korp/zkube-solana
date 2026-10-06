@@ -702,7 +702,7 @@ namespace ZKube.Tests
             app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);
             Assert.That(Texts(), Does.Contain("Realms 4–10 open with the full Campaign purchase."));
             Assert.That(FindButton(app, "Restore purchases").interactable, Is.True);
-            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.True);
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock"))), Is.True);
             var failing = new CampaignBilling(new Driver { Failure = "Purchases are unavailable" },
                 () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             UnityEngine.Object.Destroy(app.gameObject); yield return null; billing.Dispose(); billing = failing;
@@ -712,7 +712,7 @@ namespace ZKube.Tests
             app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);
             Assert.That(Texts(), Does.Contain("Store purchase unavailable").And.Contain("Check your connection and try again."));
             Assert.That(FindButton(app, "Try again").interactable, Is.True);
-            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.False);
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock"))), Is.False);
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Restore purchases")), Is.False);
         }
         // A result arrives in beats and a tap anywhere skips to its end: until then

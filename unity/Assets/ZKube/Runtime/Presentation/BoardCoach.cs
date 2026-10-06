@@ -372,7 +372,12 @@ namespace ZKube.Presentation
                 SkinTokens.TextOnPrimary, overlay, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
             label.lineSpacing = SkinUi.LineSpacing(label.font, HudLayout.BubbleLeading); label.raycastTarget = false;
             if (skip)
-                Ui.TextButton("Skip tips", new Rect(body.xMax - pad - 96 * d, body.y + 6 * d, 96 * d, 30 * d), Lessons.Skip, SkipTips, false, overlay, out _, sizeDp: 12);
+            {
+                // The pill keeps its small face in the bubble and takes a tap over 48 dp round it.
+                var pill = Ui.TextButton("Skip tips", new Rect(body.xMax - pad - 96 * d, body.y + 6 * d, 96 * d, 30 * d), Lessons.Skip, SkipTips, false, overlay, out _, sizeDp: 12);
+                float past = (BoardLayout.MinimumTouchDp - 30) / 2 * d;
+                pill.targetGraphic.raycastPadding = new Vector4(0, -past, 0, -past);
+            }
             said.Add(line);
         }
         private void SkipTips()

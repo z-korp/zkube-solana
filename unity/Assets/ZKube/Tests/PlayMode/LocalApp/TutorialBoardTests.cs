@@ -49,7 +49,10 @@ namespace ZKube.Tests
             Assert.That(Coach.Pointing.HasValue, Is.True, "The guardian points at a slide");
             var best = Coach.Pointing.Value;
             Assert.That(best.ToString(), Is.EqualTo(BoardHint.Best(board.Session.Accepted).Value.ToString()), "It is the core's best slide");
-            Assert.That(board.GetComponentsInChildren<Button>().Any(button => button.name == Lessons.Skip), Is.True, "The guide can be skipped");
+            var skip = board.GetComponentsInChildren<Button>().Single(button => button.name == Lessons.Skip);
+            var reach = skip.targetGraphic.raycastPadding;
+            Assert.That(((RectTransform)skip.transform).rect.height - reach.y - reach.w, Is.GreaterThanOrEqualTo(48 * board.View.Layout.Density - .5f),
+                "The guide can be skipped, by a tap over 48 dp round its small pill");
             yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 1 slide");
             yield return Play(best);
             Assert.That(Coach.Said.Count, Is.EqualTo(2));

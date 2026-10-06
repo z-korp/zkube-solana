@@ -138,7 +138,7 @@ namespace ZKube.Local.App
             view.Locked = "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase.";
             view.StoreProblem = offline ? "Store purchase unavailable" : null;
             view.Purchase = offline ? Store("Try again") :
-                Store("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice), purchase: true);
+                Store("Unlock" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice), purchase: true);
             view.Restore = offline ? null : Store("Restore purchases");
             return view;
         }

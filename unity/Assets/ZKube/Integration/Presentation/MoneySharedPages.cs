@@ -87,7 +87,7 @@ namespace ZKube.Integration.Presentation
             // not saved yet is asked for again here; the boards are the way out.
             bool unsaved = SavingResult && boardHost.Unsaved;
             value.Done = unsaved ? PageAction("Try again", boardHost.SaveAgain, PageAvailable)
-                : PageAction("Back to Arena", () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult);
+                : PageAction("Continue", () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult);
             uint day = value.Day;
             if (value.HasResult) value.Leaderboard = PageAction("See boards", () => { boardHost?.Close(); _ = OpenRewards(day); },
                 () => PageAvailable() && !Busy && (!SavingResult || boardHost.Unsaved));
