@@ -58,7 +58,9 @@ namespace ZKube.Integration.Presentation
             if (!browsingDaily || dailyRead == null) return;
             if (!dailyRead.IsCurrent)
             {
-                ClearDailyObservation(); return;
+                // An entry on its way keeps its card: its own looks retire this read, and the page reads again when it ends.
+                if (opening == null) ClearDailyObservation();
+                return;
             }
             if (!Busy && now() >= dailyRefreshAt) { confirmingDaily = false; _ = RefreshOverview(); }
         }
@@ -86,7 +88,12 @@ namespace ZKube.Integration.Presentation
         {
             if (identity.Owner == null) return ConnectHome();
             // A read invalidated since this frame's check is as good as absent: the next frame replaces it.
-            if (dailyRead == null || !dailyRead.TryValue(out var state)) return WaitingHome();
+            if (dailyRead == null || !dailyRead.TryValue(out var state))
+            {
+                // An entry on its way keeps the card it was tapped on: what the chain last confirmed, with the loader on its button.
+                if (opening == null || enteringFrom == null) return WaitingHome();
+                state = enteringFrom;
+            }
             var lobby = state.Lobby;
             var arcade = new ArcadeView { Pot = lobby.PotLamports.HasValue ? Sol(lobby.PotLamports.Value) : null };
             long freezes = (long)NativeEngine.Daily(lobby.DayId).FreezesAt;

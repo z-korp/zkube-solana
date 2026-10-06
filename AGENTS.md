@@ -391,6 +391,15 @@ deployment or spending approval.
   `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet` and
   `EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry` guard them;
   `EachFirstRunStepAsksForOneThingOnBothPhones` guards the first-run screens.
+- **An entry on its way:** from the tap on Confirm to its outcome an entry stays on the card it was tapped on
+  (owner, 2026-10-06, after three entries the endpoint refused): the card as the chain last confirmed it, pot and
+  Kredit figure included, with the loader and "Entering" on its button, never a bare card. The Kredit figure is the
+  chain's confirmed balance, always: nothing counts a Kredit down before the chain has. Confirmed, the run opens.
+  An entry that never landed says so there, "It never landed. Your Kredit is safe. Try again.", with the same
+  figure and the entry back on its button. What bounds the wait is the entry's blockhash, about forty seconds on
+  Devnet: only its passing proves the entry never landed, which is why the same bytes are sent again meanwhile.
+  `AnEntryNoEndpointTakesAtFirstIsSentAgainFromItsButtonAndOpensItsBoard` and
+  `AnEntryThatNeverLandsSaysSoOnItsCardWithTheKreditFigureUnchanged` guard it.
 - **Before launch:** the game has launched once the protocol account names a launch day and that day has come,
   which the launch transaction does together with the launch Daily. Until then the connect page, the Arcade,
   the device page and the Kredits page say the Arena opens soon and offer the Campaign, never an action that

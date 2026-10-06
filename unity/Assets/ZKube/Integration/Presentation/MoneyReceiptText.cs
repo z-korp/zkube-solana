@@ -30,7 +30,9 @@ namespace ZKube.Integration.Presentation
         public static string Refusal(ExecutionResult result) => result.Outcome switch {
             ExecutionOutcome.ConfirmedSuccess or ExecutionOutcome.CompletedLocally or ExecutionOutcome.Pending => null,
             ExecutionOutcome.ConfirmedFailure => "The transaction failed. Nothing changed.",
-            ExecutionOutcome.ExpiredReconciled => "The transaction expired before it was sent.",
+            // Sent, and it never reached a block before its blockhash ran out: nothing was spent.
+            ExecutionOutcome.ExpiredReconciled => result.Intent == "start-daily" ? "It never landed. Your Kredit is safe. Try again." :
+                "It never landed. Nothing changed. Try again.",
             ExecutionOutcome.FeeShortage => result.Code == "device-deposit-low" ?
                 "This device’s deposit is too low." : "Your wallet needs more SOL.",
             _ => result.WalletChange != null ? Refusal(result.Code) + " (" + result.WalletChange + ")" : result.Failure != null ? Refusal(result.Failure) : result.Code == "simulation-rejected" ? Simulation(result.ChainError) : Refusal(result.Code)

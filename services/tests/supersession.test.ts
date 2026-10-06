@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /expired before it was sent/i, trees: [UNITY],
+    reversal: "An entry that never landed says so on its card, with what is safe and the entry back on its button" },
   { pattern: /Refresh before|Refresh to (?:check|try)|needs? refreshing|Results changed\. Refresh/i, trees: [UNITY],
     reversal: "A stale or absent read restarts by itself; no line asks the player to refresh" },
   { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling|Daily frozen|New actions are closed|Resume the saved Daily run first/i, trees: [UNITY],
@@ -58,8 +60,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Campaign attempts use fresh seeds and synchronize reported progress" },
   { pattern: /Finalization allocates one|exact-sized allocation at finalization|Operator withdrawals remain governance actions|invokes the existing claim instruction|This Daily prize position was already claimed|The Daily prize claim window has closed/i, trees: AUTHORED,
     reversal: "Cadence funds growing boards; purchases pay the team and stale claims are no-ops" },
-  { pattern: /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally|Wake the guardian|still life/i, trees: [UNITY],
-    reversal: "Run copy describes player actions instead of internal operations" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {
