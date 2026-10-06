@@ -82,7 +82,8 @@ namespace ZKube.Tests.MoneyOverview
             var pointer = new PointerEventData(EventSystem.current) { position = point, button = PointerEventData.InputButton.Left };
             var hits = new List<RaycastResult>(); EventSystem.current.RaycastAll(pointer, hits);
             Assert.That(hits, Is.Not.Empty);
-            Assert.That(ExecuteEvents.GetEventHandler<IPointerClickHandler>(hits[0].gameObject), Is.EqualTo(button.gameObject));
+            Assert.That(ExecuteEvents.GetEventHandler<IPointerClickHandler>(hits[0].gameObject), Is.EqualTo(button.gameObject),
+                name + " is under " + hits[0].gameObject.name + " (in " + hits[0].gameObject.transform.parent?.name + ")");
             pointer.pointerCurrentRaycast = hits[0]; pointer.pressPosition = point;
             ExecuteEvents.Execute(button.gameObject, pointer, ExecuteEvents.pointerDownHandler);
             ExecuteEvents.Execute(button.gameObject, pointer, ExecuteEvents.pointerUpHandler);

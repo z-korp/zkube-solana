@@ -118,7 +118,7 @@ namespace ZKube.Integration.Presentation
             var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
             // The page hands its controls over by role: one action at most in the foot
             // row, and the day stepper, the lowest row, in every state.
-            var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home, ByRole = true };
+            var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home };
             PageAction Act(string label, Action invoke, Func<bool> available, string icon, string name = null)
             { var action = PageAction(label, invoke, available, name); action.Icon = icon; return action; }
             var blocks = new List<PanelBlock>();

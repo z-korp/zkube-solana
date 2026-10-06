@@ -182,7 +182,7 @@ namespace ZKube.Presentation.Tests
                                     Assert.GreaterOrEqual(resume.height / density, 48 - .01f, at); Assert.Greater(resume.height, home.height - .5f, at + ": Resume is the tallest");
                                     StringAssert.StartsWith(SkinSlots.ButtonPrimary, Face("Dialog Resume"), at); StringAssert.StartsWith(SkinSlots.ButtonSecondary, Face(PauseDialog.Home), at);
                                     Assert.IsFalse(Face("Dialog End run").StartsWith(SkinSlots.ButtonPrimary) || Face("Dialog End run").StartsWith(SkinSlots.ButtonSecondary), at + ": End run is the quiet one");
-                                    Assert.AreEqual((SkinSlots.IconPlay, SkinSlots.IconHome), (Icon("Dialog Resume"), Icon(PauseDialog.Home)), at);
+                                    Assert.AreEqual((SkinSlots.OnLit(SkinSlots.IconPlay), SkinSlots.IconHome), (Icon("Dialog Resume"), Icon(PauseDialog.Home)), at);
                                     // Nothing in a top corner takes a tap: every button lies under the title.
                                     float title = WorldRect(images.Single(image => image.name == "Screen title plate").rectTransform).yMin;
                                     foreach (var button in buttons) Assert.LessOrEqual(WorldRect((RectTransform)button.transform).yMax, title + .5f, at + ": " + button.name + " lies under the title");

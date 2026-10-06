@@ -89,7 +89,7 @@ namespace ZKube.Integration.Presentation
                 bool failed = failure != null && !Busy;
                 var waiting = new List<PanelBlock> { PanelBlock.Space(), PanelBlock.Balance(null, null, null, failed ? "Balance not loaded." : pageNotice ?? "Reading your balance") };
                 waiting.Add(PanelBlock.PackRow(Cards(Plain), failed ? failure : null));
-                if (failed) waiting.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
+                if (failed) page.Primary = PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
                 waiting.Add(terms);
                 page.Key = "Kredits waiting"; page.Blocks = waiting.ToArray();
                 return page;
@@ -102,7 +102,8 @@ namespace ZKube.Integration.Presentation
             {
                 blocks.Add(PanelBlock.Balance(figure, null, null, "The Arena opens soon."));
                 blocks.Add(PanelBlock.PackRow(Cards(Plain)));
-                blocks.Add(PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()), false, SkinSlots.IconPlay));
+                // Before launch the one step is the Campaign, lit, as on the device page.
+                page.Primary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable(), icon: SkinSlots.IconPlay);
                 blocks.Add(terms); page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -124,12 +125,13 @@ namespace ZKube.Integration.Presentation
             });
             int from = gained ? Array.IndexOf(SessionViewPolicy.KreditPacks.ToArray(), (uint)(balance - kreditsBefore)) : -1;
             blocks.Add(PanelBlock.PackRow(cards, refused ?? (slow && waits ? StillChecking : null), refused == null, from));
+            // The page's own buttons are the foot row's; the packs are its choices and it has no primary of its own.
             // A refusal with no card to stand on (a follow that failed) keeps its retry.
-            if (refused != null && !known) blocks.Add(Retry(() => PageAvailable() && !Busy));
+            if (refused != null && !known) page.Primary = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
             // The owner's wallet buys; an entry needs the device too.
             if (!waits && ownerRead != null && ownerRead.IsCurrent && ownerRead.Value.Session != null && ownerRead.Value.Session.Status == "none")
-                blocks.Add(PanelBlock.Button(PageAction("Set up device to play", () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device"), false));
-            if (acting && (actionStep == "wallet" || actionStep == null)) blocks.Add(DisconnectButton());
+                page.Tertiary = PageAction("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
+            if (acting && (actionStep == "wallet" || actionStep == null)) page.Destructive = Disconnecting();
             blocks.Add(terms);
             page.Blocks = blocks.ToArray();
             return page;

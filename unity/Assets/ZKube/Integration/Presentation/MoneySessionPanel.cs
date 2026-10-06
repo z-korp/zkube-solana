@@ -89,7 +89,7 @@ namespace ZKube.Integration.Presentation
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
             var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
-            if (!state.Launched && session.ValidUntil <= 0) { page.Blocks = OpensSoon(); return page; }
+            if (!state.Launched && session.ValidUntil <= 0) { OpensSoon(page); return page; }
             // A device to set up shows what the wallet puts on it; a device in use, how it stands.
             bool fresh = session.Status == "none" && look.Title == "Set up this device";
             var rows = new List<PanelBlock>();
@@ -99,23 +99,22 @@ namespace ZKube.Integration.Presentation
             rows.Add(PanelBlock.Row("Deposit", "Deposit", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.DepositLamports) : "—"));
             if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", "Authorization ends", Utc(session.ValidUntil)));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", rows.ToArray()) };
-            if (sessionActionPending) Requesting(blocks);
-            else if (state.Pending != null)
-            {
-                // The page follows it by itself, round after round.
-                Awaiting("Device", blocks, () => PageAvailable() && !Busy);
-            }
+            // The page follows a pending transaction by itself, round after round.
+            if (sessionActionPending) Requesting(page);
+            else if (state.Pending != null) Awaiting("Device", page, () => PageAvailable() && !Busy);
             else
             {
-                string refused = RefusalOn("Device");
-                blocks.Add(refused != null ? RefusalLine(refused) : PanelBlock.Text("Device guide", look.Guide, SkinTokens.TextMuted));
+                // The foot row: the step the device needs, and disabling it last, which asks first.
+                if (!Refused("Device", page, DeviceChangeable))
+                {
+                    blocks.Add(PanelBlock.Text("Device guide", look.Guide, SkinTokens.TextMuted));
+                    if (!session.Current)
+                        page.Primary = PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(), DeviceChangeable, icon: SkinSlots.IconDevice);
+                    else if (session.Funding != "ready")
+                        page.Primary = PageAction("Top up deposit", () => _ = RefillDeviceSession(), DeviceChangeable, icon: SkinSlots.IconPlus);
+                }
                 if (session.ValidUntil > 0)
-                    blocks.Add(PanelBlock.Button(PageAction("Disable this device", () => { revokeConfirming = true; Present(); }, DeviceChangeable), false));
-                if (refused != null) blocks.Add(Retry(DeviceChangeable));
-                else if (!session.Current)
-                    blocks.Add(PanelBlock.Button(PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(), DeviceChangeable), true));
-                else if (session.Funding != "ready")
-                    blocks.Add(PanelBlock.Button(PageAction("Top up deposit", () => _ = RefillDeviceSession(), DeviceChangeable), true));
+                    page.Destructive = PageAction("Disable device", () => { revokeConfirming = true; Present(); }, DeviceChangeable, "Disable this device", SkinSlots.IconDevice);
             }
             page.Blocks = blocks.ToArray();
             return page;
@@ -125,13 +124,14 @@ namespace ZKube.Integration.Presentation
         // Disabling asks first: what stops, and what the wallet gets back.
         private PanelPageView RevokePage()
         {
-            var keep = PageAction("Keep enabled", () => { revokeConfirming = false; Present(); }, () => PageAvailable());
+            // The confirm's two verbs: the safe choice first, the disable beside it.
+            var keep = PageAction("Keep enabled", () => { revokeConfirming = false; Present(); }, () => PageAvailable(), icon: SkinSlots.Tick);
             return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "Arena", Back = keep, Blocks = new[] {
                 PanelBlock.Card("Revoke card", PanelBlock.Title("Revoke device access?", centered: true),
                     PanelBlock.Text("Revoke effect", "This device will stop signing game actions and spending your prepaid Kredits."),
-                    PanelBlock.Text("Revoke return", "The deposit left returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.")),
-                PanelBlock.Button(keep, true),
-                PanelBlock.Button(PageAction("Disable in wallet", () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable), false) } };
+                    PanelBlock.Text("Revoke return", "The deposit left returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.")) },
+                Primary = keep,
+                Destructive = PageAction("Disable in wallet", () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable, icon: SkinSlots.IconWallet) };
         }
 
         public Task EnsureDeviceSession() => ChangeDeviceSession(true, false);

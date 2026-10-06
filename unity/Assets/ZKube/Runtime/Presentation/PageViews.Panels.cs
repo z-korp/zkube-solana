@@ -32,15 +32,7 @@ namespace ZKube.Presentation
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
             pageNotices = messages;
-            if (page.ByRole) Composed(page);
-            else
-            {
-                Frame(page.Tab, null, null, page.Back ?? page.Corner, null,
-                    leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
-                var kit = Kit; var pieces = new List<Piece>();
-                if ((page.Title ?? page.Subtitle) != null) pieces.Add(kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)));
-                PanelBody(page.Blocks, pieces, page.Tab.HasValue);
-            }
+            Composed(page);
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);
@@ -65,23 +57,6 @@ namespace ZKube.Presentation
             Place(kit, slots, page.Back);
         }
 
-        // A page's blocks under its title: a page without tabs centres them
-        // between spacers; the foot, from the page's last primary button on,
-        // sits at the bottom with its other buttons as secondaries.
-        private void PanelBody(PanelBlock[] blocks, List<Piece> pieces, bool tabs)
-        {
-            var kit = Kit;
-            int foot = Array.FindLastIndex(blocks, block => block.Kind == PanelKind.Button && block.Primary == 0);
-            if (foot < 0 || blocks.Skip(foot).Any(block => block.Kind != PanelKind.Button)) foot = blocks.Length;
-            if (!tabs) pieces.Add(Piece.Grow);
-            pieces.AddRange(BlockPieces(blocks.Take(foot).ToList(), kit, false));
-            pieces.Add(Piece.Grow);
-            if (foot < blocks.Length)
-                pieces.Add(Buttons(kit, blocks.Skip(foot).Select(block => (block.Action, block.Primary == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Secondary,
-                    block.Sprite)).ToArray()));
-            Compose(pieces.ToArray());
-        }
-
         // An identity's blocks as pieces of a composed screen (Home's Arcade
         // words, Settings' device card).
         private Piece BlockPiece(string name, IEnumerable<PanelBlock> blocks, ScreenKit kit) => kit.Stack(10, BlockPieces(blocks.ToList(), kit, false).ToArray());
@@ -97,8 +72,9 @@ namespace ZKube.Presentation
                 if (block.Kind == PanelKind.Button)
                 {
                     var run = blocks.Skip(i).TakeWhile(next => next.Kind == PanelKind.Button).ToArray();
-                    pieces.Add(Buttons(kit, run.Select(button => (button.Action, button.Primary == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, button.Sprite))
-                        .ToArray()));
+                    // A button among a card's lines is the card's own action; a page's buttons are its foot row's.
+                    pieces.Add(Buttons(kit, ScreenKit.Role.CardAction, run.Select(button => (button.Action, button.Primary == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
+                        button.Sprite)).ToArray()));
                     i += run.Length - 1;
                     continue;
                 }
@@ -176,10 +152,8 @@ namespace ZKube.Presentation
                         block.Ring));
                 }
                 case PanelKind.Pair:
-                    // A pair with one shown is two views of one thing; without, two actions.
-                    if (block.Primary >= 0) return Segments(block, kit);
-                    return Buttons(kit, block.Actions.Select((action, i) => (action, block.Primary == i ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, (string)null))
-                        .ToArray());
+                    // Two views of one thing, one of them shown.
+                    return Segments(block, kit);
                 case PanelKind.Bar:
                 {
                     // A chip and quiet buttons on one line, 8u apart, the chip at one end (.chip3 beside .b3.q).

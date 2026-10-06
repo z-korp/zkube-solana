@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -13,10 +14,10 @@ namespace ZKube.Tests.MoneyOverview
 {
     // The placement rule's guard (owner, 2026-10-06): every page of both apps, at
     // both phones, hands its controls over by role, and each stands in its role's
-    // one place (Placement.Check says which). This walk takes each page that
-    // has moved onto the composer; the tests that walk a page's every state call
-    // the same check (the Boards page's kinds of day, the Arena's result, the
-    // pause and its confirm at both text sizes).
+    // one place (Placement.Check says which). The Arena's walk is the one its
+    // words are checked on; Realms' follows it. The tests that walk one page's
+    // every state call the same check (the Boards page's kinds of day, the
+    // Arena's result, the pause and its confirm at both text sizes).
     public sealed partial class MoneyOverviewTests
     {
         private IEnumerator Held(Component source, string at)
@@ -25,8 +26,8 @@ namespace ZKube.Tests.MoneyOverview
             var leaving = (ICollection)typeof(PageShell).GetField("leaving", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(shell);
             for (float until = Time.realtimeSinceStartup + 5; leaving.Count != 0 && Time.realtimeSinceStartup < until;) yield return null;
             yield return null; Canvas.ForceUpdateCanvases();
-            Placement.Check(source.transform, shell.SafeArea, 1, at);
             yield return Captures.Snap(shell, "placement " + at);
+            Placement.Check(source.transform, shell.SafeArea, 1, at);
             // A page taller than its phone is checked again at its foot.
             if (shell.Scroll.content.rect.height > shell.Viewport.rect.height + .5f)
             {
@@ -43,20 +44,8 @@ namespace ZKube.Tests.MoneyOverview
             Lessons.Device = Lessons.Memory(taught: true);
             foreach (var (use, phone) in new (Action<PageShell>, string)[] { (shell => Phones.Seeker(shell), "Seeker"), (shell => Phones.Compact(shell), "360 x 640") })
             {
-                // The Arena.
-                yield return PrepareScenario("claim-score-sealed"); use(host.GetComponent<PageShell>());
-                yield return Wait(Adapter.RefreshOverview()); yield return Idle();
-                Click("Connect"); yield return Idle();
-                yield return Wait(Adapter.OpenRewards(environment.ClaimDay, "score")); yield return Idle();
-                yield return Held(host.transform, phone + " Arena boards with a reward to claim");
-                yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Idle();
-                yield return Held(host.transform, phone + " Arena boards on a day without a Daily");
-                host.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => ~0, _ => { });
-                yield return Wait(Adapter.OpenCampaign()); yield return Idle();
-                yield return Held(host.transform, phone + " Arena map");
-                Click("Settings"); yield return Idle();
-                yield return Held(host.transform, phone + " Arena settings");
-                yield return EndScenario();
+                // The Arena: every page in every state its scenarios reach.
+                yield return EveryArenaPage(use, 1, page => Held(host.transform, phone + " Arena " + page));
 
                 // Realms.
                 var local = new GameObject("Store page source");
@@ -73,7 +62,14 @@ namespace ZKube.Tests.MoneyOverview
                     var store = local.AddComponent<StoreAppAdapter>(); store.Initialize(product, runs, billing, board);
                     yield return Rendered(store, AppPage.Home);
                     use(store.GetComponent<PageShell>()); yield return null; yield return null;
+                    yield return Held(store, phone + " Realms Home");
+                    store.Navigate(AppPage.Profile); yield return Rendered(store, AppPage.Profile);
+                    yield return Held(store, phone + " Realms profile");
+                    // A realm's first visit is its guardian's greeting, a scene over the map.
+                    store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign); yield return new WaitForSecondsRealtime(.6f);
+                    yield return Held(store, phone + " Realms greeting");
                     store.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => ~0, _ => { });
+                    store.Navigate(AppPage.Home); yield return Rendered(store, AppPage.Home);
                     store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign);
                     yield return Held(store, phone + " Realms map");
                     store.Flow.Campaign.Preview(store.Flow.Campaign.Realm, 1); yield return Rendered(store, AppPage.Level);
@@ -86,6 +82,9 @@ namespace ZKube.Tests.MoneyOverview
                     yield return Held(store, phone + " Realms realm waiting for its purchase");
                     store.Navigate(AppPage.Settings); yield return Rendered(store, AppPage.Settings);
                     yield return Held(store, phone + " Realms settings");
+                    store.GetComponent<PageViews>().Teach(Lessons.HowToPlay(false), null); yield return new WaitForSecondsRealtime(.6f);
+                    yield return Held(store, phone + " Realms lesson");
+                    store.GetComponentsInChildren<UnityEngine.UI.Button>().First(button => button.name == "Skip lesson").onClick.Invoke(); yield return null;
                     store.Flow.PlayDaily(); yield return Rendered(store, AppPage.Result);
                     yield return Held(store, phone + " Realms Daily result");
                 }

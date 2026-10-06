@@ -21,18 +21,11 @@ namespace ZKube.Tests.MoneyOverview
         private MoneyAppAdapter Adapter => host.GetComponent<MoneyIdentity>().Controller;
         private IEnumerator Words(string page)
         {
-            yield return Idle();
             PageText.AssertPlayerWords(host.transform, page);
             PageText.AssertPillLabelsOnOneLine(host.transform, page);
             var art = host.GetComponent<PageShell>().Artwork;
             if (art != null) PageText.AssertRunningTextFigures(host.transform, page, art.Font(SkinUi.Type.Caption), art.Font(SkinUi.Type.Body));
-        }
-        // The walk is on a compact phone at larger text, where words are tightest.
-        private IEnumerator Compact(string scenario)
-        {
-            yield return PrepareScenario(scenario, 1.3f);
-            Phones.Compact(host.GetComponent<PageShell>());
-            yield return Wait(Adapter.RefreshOverview()); yield return Idle();
+            yield break;
         }
         private void Set(string field, object value) =>
             typeof(MoneyAppAdapter).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(Adapter, value);
@@ -40,86 +33,103 @@ namespace ZKube.Tests.MoneyOverview
         // result) are set as the adapter itself would set them.
         private void Redraw() => typeof(MoneyAppAdapter).GetMethod("Present", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(Adapter, null);
 
+        // The walk is on a compact phone at larger text, where words are tightest.
         [UnityTest] public IEnumerator EveryArenaPageSpeaksThePlayersWords()
+        { yield return EveryArenaPage(shell => Phones.Compact(shell), 1.3f, Words); }
+
+        // One walk of every Arena page, in every state the scenarios reach, on the
+        // phone and at the text size its caller names; at is run on each page as
+        // it stands. The words and the placement guard both take it.
+        private IEnumerator EveryArenaPage(System.Action<PageShell> phone, float scale, System.Func<string, IEnumerator> at)
         {
-            yield return Compact("public-disconnected"); yield return Words("Connect");
-            Refuse("Connect"); yield return Words("Connect refused");
+            IEnumerator Open(string scenario)
+            {
+                yield return PrepareScenario(scenario, scale);
+                phone(host.GetComponent<PageShell>());
+                yield return Wait(Adapter.RefreshOverview()); yield return Idle();
+            }
+            IEnumerator Page(string page) { yield return Idle(); yield return at(page); }
+            yield return Open("public-disconnected"); yield return Page("Connect");
+            Refuse("Connect"); yield return Page("Connect refused");
             yield return EndScenario();
 
-            yield return Compact("owner-overview"); Click("Connect"); yield return Words("Arena with a saved run");
-            Click("Settings"); yield return Words("Settings");
-            Click("Manage"); yield return Words("This device");
-            Click("Back"); yield return Idle(); Click("Last operation"); yield return Words("No operation yet");
-            yield return Wait(Adapter.OpenKredits()); yield return Words("Kredits");
-            yield return Wait(Adapter.OpenRewards()); yield return Words("Results pending");
-            yield return Wait(Adapter.OpenCampaign()); yield return Words("Campaign");
-            yield return Wait(Adapter.OpenProfile()); yield return Words("Profile");
-            Click("Your records"); yield return Words("Your records");
+            yield return Open("owner-overview"); Click("Connect"); yield return Page("Arena with a saved run");
+            Click("Settings"); yield return Page("Settings");
+            Click("Manage"); yield return Page("This device");
+            Click("Back"); yield return Idle(); Click("Last operation"); yield return Page("No operation yet");
+            Assert.That(Offers("Back to Arena"), Is.False, "Back is the one way back");
+            yield return Wait(Adapter.OpenKredits()); yield return Page("Kredits");
+            yield return Wait(Adapter.OpenRewards()); yield return Page("Results pending");
+            yield return Wait(Adapter.OpenCampaign()); yield return Page("Campaign");
+            yield return Wait(Adapter.OpenProfile()); yield return Page("Profile");
+            Click("Your records"); yield return Page("Your records");
             Assert.That(PageText.Visible(host.transform), Has.Some.Property("text").EqualTo("Objective boards"));
-            Click("Back to Profile"); yield return Idle(); Click("Choose a border"); yield return Words("Borders");
+            Assert.That(Offers("Back to Profile"), Is.False, "Back is the one way back");
+            Click("Back"); yield return Idle(); Click("Choose a border"); yield return Page("Borders");
             yield return Wait(Adapter.OpenDaily()); yield return Idle();
-            Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Words("No connection");
+            Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Page("No connection");
             yield return Wait(Adapter.OpenDaily()); yield return Idle();
             long now = environment.Clock(); environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(now)).FreezesAt - now); yield return null;
-            yield return Words("Entries closed");
+            yield return Page("Entries closed");
             yield return EndScenario();
 
-            yield return Compact("daily-playable"); Click("Connect"); yield return Words("Arena");
-            Click("Enter · 1 Kredit"); yield return Words("Entry confirmation");
+            yield return Open("daily-playable"); Click("Connect"); yield return Page("Arena");
+            Click("Enter · 1 Kredit"); yield return Page("Entry confirmation");
             Set("confirmingDaily", false);
             var lobby = ((MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead", BindingFlags.Instance | BindingFlags.NonPublic)
                 .GetValue(Adapter)).Value.Lobby;
             Set("lastResult", new ResultPageView { HasResult = true, ProductName = Application.productName, Mode = "Daily", PlayerName = environment.Owner,
                 Realm = lobby.Realm, Day = lobby.DayId, ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Score = 1840, ObjectiveTotal = 24, Streak = 7 });
-            Adapter.Navigate(AppPage.Result); yield return Words("Daily result");
+            Adapter.Navigate(AppPage.Result); yield return Page("Daily result");
             yield return EndScenario();
 
-            yield return Compact("kredit-pending-success"); Click("Connect"); yield return Idle();
+            yield return Open("kredit-pending-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
-            yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase in progress");
-            Adapter.Navigate(AppPage.Settings); yield return Idle(); Click("Last operation"); yield return Words("Transaction pending");
+            yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Page("Purchase in progress");
+            Adapter.Navigate(AppPage.Settings); yield return Idle(); Click("Last operation"); yield return Page("Transaction pending");
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
-            Refuse("Kredits"); yield return Words("Purchase refused");
+            Refuse("Kredits"); yield return Page("Purchase refused");
             yield return EndScenario();
 
-            yield return Compact("claim-theme-sealed"); Click("Connect"); yield return Idle();
-            yield return Wait(Adapter.OpenRewards(environment.ClaimDay, "theme")); yield return Words("Boards with a reward");
+            yield return Open("claim-theme-sealed"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay, "theme")); yield return Page("Boards with a reward");
             Assert.That(host.GetComponentsInChildren<UnityEngine.UI.Button>(), Has.Some.Property("name").EqualTo("Collect Objective"));
-            yield return Wait(Adapter.CollectReward("theme")); yield return Words("Objective reward claimed");
+            yield return Wait(Adapter.CollectReward("theme")); yield return Page("Objective reward claimed");
             StringAssert.Contains("Objective reward received", string.Join("\n", PageText.Visible(host.transform).Select(text => text.text)));
-            Click("Score board"); yield return Words("Score board");
-            yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Words("A day nobody played");
+            Click("Score board"); yield return Page("Score board");
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Page("A day nobody played");
             yield return EndScenario();
 
-            yield return Compact("claim-score-expired"); Click("Connect"); yield return Idle();
-            yield return Wait(Adapter.OpenRewards(environment.ClaimDay)); yield return Words("Reward expired");
+            yield return Open("claim-score-expired"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay)); yield return Page("Reward expired");
             yield return EndScenario();
 
-            yield return Compact("session-enable-success"); Click("Connect"); yield return Idle();
-            yield return Wait(Adapter.OpenSession()); yield return Words("Device setup");
-            yield return Wait(Adapter.EnsureDeviceSession()); yield return Words("Device active");
-            Click("Disable this device"); yield return Words("Revoke confirmation");
+            yield return Open("session-enable-success"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Page("Device setup");
+            yield return Wait(Adapter.EnsureDeviceSession()); yield return Page("Device active");
+            Click("Disable this device"); yield return Page("Revoke confirmation");
             yield return EndScenario();
 
-            yield return Compact("session-refill-success"); Click("Connect"); yield return Idle();
-            yield return Wait(Adapter.OpenSession()); yield return Words("Device fund");
+            yield return Open("session-refill-success"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Page("Device fund");
             yield return EndScenario();
 
-            yield return Compact("session-disable-zero"); Click("Connect"); yield return Idle();
+            yield return Open("session-disable-zero"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
-            yield return Wait(Adapter.DisableDeviceSession()); yield return Words("Device disabled");
+            yield return Wait(Adapter.DisableDeviceSession()); yield return Page("Device disabled");
             yield return EndScenario();
 
-            yield return Compact("kredit-buy-10"); Click("Connect"); yield return Idle();
+            yield return Open("kredit-buy-10"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             environment.FailFirstReadAfterJournalClear();
-            yield return Wait(Adapter.PurchaseKredits(10)); yield return Words("Balance unavailable");
+            yield return Wait(Adapter.PurchaseKredits(10)); yield return Page("Balance unavailable");
             yield return EndScenario();
 
-            yield return Compact("profile-success"); Click("Connect"); yield return Idle();
+            yield return Open("profile-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenProfile()); yield return Idle();
-            Click("Emblem 8"); yield return Words("Wear selection");
+            Click("Emblem 8"); yield return Page("Wear selection");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
+            yield return EndScenario();
         }
         private void Refuse(string family)
         { Set("refusal", "Not approved in your wallet."); Set("refusalFamily", family); Set("refusalRetry", (System.Action)(() => { })); Redraw(); }

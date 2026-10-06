@@ -25,28 +25,15 @@ namespace ZKube.Presentation
         private float K => Kit.K;
         private float U => Kit.U;
         private float Step(float seeker, float compact) => Kit.Step(seeker, compact);
-        private void Compose(params Piece[] pieces)
-        {
-            if (pageNotices.Length != 0)
-            {
-                var list = pieces.ToList();
-                list.Insert(list.FindLastIndex(piece => piece.Height < 0) + 1, Notices(Kit));
-                pieces = list.ToArray(); pageNotices = Array.Empty<string>();
-            }
-            var used = Kit.Compose(pieces);
-            column = new PageColumn(ui, shell.Page, actions, used.x, used.width, used.y);
-        }
-        private Piece Buttons(params (PageAction action, ScreenKit.Kind kind, string icon)[] items) => Buttons(Kit, items);
-        // The buttons across kit's column: the screen's, or a card's inside.
-        private Piece Buttons(ScreenKit kit, params (PageAction action, ScreenKit.Kind kind, string icon)[] items) => Buttons(kit, null, items);
-        // role names what the buttons are where a kit piece, not the composer, places them (a row's quiet pill).
-        private Piece Buttons(ScreenKit kit, ScreenKit.Role? role, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
+        // Buttons a kit piece places, not the composer (a card's own action, a row's quiet pill), across
+        // kit's column, in the role that piece gives them.
+        private Piece Buttons(ScreenKit kit, ScreenKit.Role role, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
         {
             items = items.Where(item => item.action != null).ToArray();
             return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Progress ?? item.action.Label, actions.Click(item.action), item.kind,
                     Mark(item.action, item.icon))).ToArray(), (i, button, text) => {
                     actions.Bind(button, items[i].action, relabel: items[i].action.Progress == null ? value => text.text = value : (Action<string>)null);
-                    if (role.HasValue) ScreenKit.As(button, role.Value);
+                    ScreenKit.As(button, role);
                     Loader(button, items[i].action);
                 }, shorter: items.Select(item => item.action.Short).ToArray());
         }
@@ -231,7 +218,7 @@ namespace ZKube.Presentation
             var group = finish.GetComponent<CanvasGroup>();
             sequence.Add(start + stars * apart + .2f, .2f, t => { group.alpha = t; group.interactable = group.blocksRaycasts = t >= 1; });
             var skip = ui.Rect<Image>("Skip", shell.ScreenArea, shell.Overlay); skip.color = Color.clear; skip.raycastTarget = true;
-            skip.gameObject.AddComponent<Button>().onClick.AddListener(sequence.Finish);
+            ScreenKit.As(skip.gameObject.AddComponent<Button>(), ScreenKit.Role.Anywhere).onClick.AddListener(sequence.Finish);
             sequence.Finished += () => { if (skip != null) { skip.gameObject.SetActive(false); Destroy(skip.gameObject); } };
         }
 

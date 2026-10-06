@@ -46,7 +46,8 @@ namespace ZKube.Presentation
         // What a control is on its page. A role has one place (the placement rule,
         // owner 2026-10-06): the kit names it on every control it places, and
         // EveryPagePlacesItsControlsByRole holds each to its band and its slot.
-        public enum Role { Back, Skip, Primary, Secondary, Tertiary, Destructive, Step, Tab, Setting, WayIn, CardAction, ViewSwitch, Choice, Status }
+        // Anywhere is a scene's tap on the whole screen (a talk's next line, a result's entrance).
+        public enum Role { Back, Skip, Primary, Secondary, Tertiary, Destructive, Step, Tab, Setting, WayIn, CardAction, ViewSwitch, Choice, Status, Anywhere }
         public static T As<T>(T control, Role role) where T : Component
         {
             var placed = control.GetComponent<Placed>(); if (placed == null) placed = control.gameObject.AddComponent<Placed>();
@@ -114,6 +115,9 @@ namespace ZKube.Presentation
         // or a header card. A column starts there, less what its first piece
         // draws above its box; Top is a titled column's.
         public const float TopClearDp = 8;
+        // A button's words stay on one line: they shrink toward this floor (the badge size
+        // in the type table, as drawn), and below it the action's shorter words are used.
+        public const float ButtonMinimumDp = 14;
         public float Edge => Safe.yMax - TopClearDp * Ui.Density;
         public float Top => Edge - PlateOutsetU * U;
         // A card's inside: the column less its 12u padding each side.
@@ -181,11 +185,12 @@ namespace ZKube.Presentation
             float top = Edge - pieces.Where(piece => piece.Height >= 0).Select(piece => piece.Above).FirstOrDefault();
             float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + gap * (pieces.Length - 1);
             int spacers = pieces.Count(piece => piece.Height < 0);
-            float leftOver = Mathf.Max(0, top - bottom - taken);
+            float room = top - bottom - taken, leftOver = Mathf.Max(0, room);
             var grown = new float[pieces.Length];
             for (int i = 0; i < pieces.Length; i++)
                 if (pieces[i].Height >= 0) { grown[i] = Mathf.Min(pieces[i].Stretch, leftOver); leftOver -= grown[i]; }
-            float spare = leftOver / Mathf.Max(1, spacers), y = top;
+            // A screen with nothing to spare closes its spacers: each gives up its own gap before anything overflows.
+            float spare = room < 0 ? Mathf.Max(-gap, room / Mathf.Max(1, spacers)) : leftOver / Mathf.Max(1, spacers), y = top;
             for (int i = 0; i < pieces.Length; i++)
             {
                 var piece = pieces[i];
@@ -771,7 +776,7 @@ namespace ZKube.Presentation
                 foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
             }
             text.textWrappingMode = TextWrappingModes.NoWrap;
-            float lead = item.icon == null ? 0 : 36 * u, room = at.width - 32 * u - lead, floor = PageColumn.ButtonMinimumDp / Ui.Scale;
+            float lead = item.icon == null ? 0 : 36 * u, room = at.width - 32 * u - lead, floor = ButtonMinimumDp / Ui.Scale;
             // Measured on the label itself, as it draws.
             var label = text;
             float Measure() => label.GetPreferredValues(label.text, float.PositiveInfinity, float.PositiveInfinity).x + Ui.Density;

@@ -18,27 +18,18 @@ namespace ZKube.Presentation
         // what is worn, or the ladder standing, a tap on which chooses the
         // border; the records on its right), the three stat tiles and the
         // guardian emblems in a card, a tap on an unlocked one wearing it. The
-        // identity's own lines and actions (borders, saving) follow.
+        // identity's notice stands over its own action, which is the foot row.
         private void Profile(ProfilePageView value)
         {
             var kit = Kit;
-            var pieces = new List<Piece> { kit.Title("Profile", null) };
-            pieces.Add(WearerCard(value, kit));
-            pieces.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
+            var body = new List<Piece> { WearerCard(value, kit) };
+            body.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
                 ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
                 ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
-            if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit, value.Tier == null));
-            foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
-            if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
-            // The identity's own actions (a device to manage, saving, restoring) are quiet buttons in one row.
-            var more = value.Actions.Concat(new[] { value.Save, value.Restore }).Where(action => action != null).ToArray();
-            if (more.Length != 0) pieces.Add(Buttons(kit, more.Select(action => (action, ScreenKit.Kind.Quiet, (string)null)).ToArray()));
-            pieces.Add(Piece.Grow);
-            Compose(pieces.ToArray());
-            if (value.Borders.Length != 0) column.Typed("Border heading", "BORDER", SkinUi.Type.Label, 12, SkinTokens.Accent, 10, TextAlignmentOptions.Left);
-            foreach (var choice in value.Borders)
-                Pill(column, new PageAction { Name = "Border " + choice.Id, Label = choice.Name + (choice.Detail == null ? "" : " · " + choice.Detail),
-                    Enabled = choice.Available, CanInvoke = choice.CanSelect, Invoke = choice.Select }, false, null, 12);
+            if (value.Emblems.Length != 0) body.Add(EmblemCard(value.Emblems, kit, value.Tier == null));
+            Place(kit, new ScreenKit.Slots { Title = kit.Title("Profile", null), Body = body,
+                Notices = string.IsNullOrEmpty(value.Notice) ? (Piece?)null : kit.Note(value.Notice),
+                Tertiary = Control(value.Tertiary) });
         }
         // One quiet button as a row's part, as wide as its words.
         private ScreenKit.Side Quiet(ScreenKit kit, PageAction action, string icon = null)
@@ -75,9 +66,7 @@ namespace ZKube.Presentation
                 if (value.ChooseBorder != null)
                 {
                     var hit = ui.Rect<Image>(value.ChooseBorder.Name ?? value.ChooseBorder.Label, rect, shell.Page);
-                    hit.color = Color.clear; hit.raycastTarget = true;
-                    var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-                    actions.Wire(button, value.ChooseBorder, fade: false);
+                    hit.color = Color.clear; Tap(hit, value.ChooseBorder, ScreenKit.Role.WayIn);
                 }
                 ui.Medallion("Worn emblem", new Rect(rect.x, rect.center.y - face / 2, face, face), EmblemArt(value.Emblem), shell.Page,
                     value.Tier.HasValue ? SkinSlots.LadderBorder(value.Tier.Value) : SkinSlots.GuardianFrame);
@@ -147,9 +136,7 @@ namespace ZKube.Presentation
                                     SkinTokens.TextMuted, shell.Page);
                                 continue;
                             }
-                            var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-                            hit.gameObject.AddComponent<PressSquash>();
-                            actions.Wire(button, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, fade: false);
+                            Tap(hit, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, ScreenKit.Role.Choice);
                         }
                         y -= cell + 2 * u + rows[row] + 8 * u;
                     }

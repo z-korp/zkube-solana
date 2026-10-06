@@ -37,7 +37,7 @@ namespace ZKube.Presentation
                 if (arcade.Detail != null) rows.Add(CardLine("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, inside));
             }
             var pieces = new List<Piece> { Lockup(kit, Step(90, 72)), DailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock, false, rows.ToArray(),
-                Buttons(inside, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
+                Buttons(inside, ScreenKit.Role.CardAction, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
                     i == 0 ? SkinSlots.IconPlay : (string)null)).ToArray())) };
             if (arcade.HasBoards)
             {
@@ -47,8 +47,7 @@ namespace ZKube.Presentation
                 while (shown > LandingRowsCompact && BoardsCard(kit, arcade, shown).Height > room) shown--;
                 pieces.Add(BoardsCard(kit, arcade, shown));
             }
-            pieces.Add(Piece.Grow);
-            Compose(pieces.ToArray());
+            Place(kit, new ScreenKit.Slots { Body = pieces });
             ShowPortraits();
         }
         // A centred line inside a card, in its own name and ink.
@@ -116,7 +115,7 @@ namespace ZKube.Presentation
             if (arcade.BoardsNotice != null)
             {
                 parts.Add(CardLine("Boards notice", arcade.BoardsNotice, SkinTokens.TextMuted, inside));
-                if (arcade.BoardsRetry != null) parts.Add(Buttons(inside, (arcade.BoardsRetry, ScreenKit.Kind.Quiet, SkinSlots.IconRetry)));
+                if (arcade.BoardsRetry != null) parts.Add(Buttons(inside, ScreenKit.Role.CardAction, (arcade.BoardsRetry, ScreenKit.Kind.Quiet, SkinSlots.IconRetry)));
             }
             else parts.Add(BoardColumns(inside, arcade.Boards, rows));
             return kit.Card(null, parts, "Boards card");

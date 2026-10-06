@@ -27,7 +27,8 @@ namespace ZKube.Presentation
         private Func<float> density;
         private PageActions actions;
         private SkinUi ui;
-        private PageColumn column;
+        // The bottom of what the page drew, which FinishPage scrolls to.
+        private float pageFoot;
         private BoardArt portraits;
         private long epoch;
         private CancellationTokenSource sharing = new CancellationTokenSource();
@@ -95,7 +96,7 @@ namespace ZKube.Presentation
             {
                 case AppPage.Home:
                     var daily = source.DailyPage();
-                    Frame(daily.NoTabs ? (AppPage?)null : AppPage.Home, null, null, null, null); Home(daily); break;
+                    Stage(daily.NoTabs ? (AppPage?)null : AppPage.Home, false); Home(daily); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
                     // Another realm is another page: it opens at its own start.
@@ -110,15 +111,15 @@ namespace ZKube.Presentation
                     LevelScreen(level); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(AppPage.Profile, null, null, null, null); Profile(profile); break;
+                    Stage(AppPage.Profile, false); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
                     Stage(AppPage.Settings, false);
                     Settings(settings); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
-                    if (result.HasResult && result.ShowStars) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; CampaignScreen(result); }
-                    else if (result.HasResult) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; DailyResultScreen(result); }
+                    if (result.HasResult && result.ShowStars) { Stage(null, true); back = result.Done; CampaignScreen(result); }
+                    else if (result.HasResult) { Stage(null, true); back = result.Done; DailyResultScreen(result); }
                     else throw new InvalidOperationException("There is no result to show");
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
@@ -133,7 +134,7 @@ namespace ZKube.Presentation
         private void FinishPage()
         {
             float bottom = SkinUi.ScreenRect(shell.Viewport).yMin;
-            shell.Finish(column.Top >= bottom - .5f ? Mathf.Max(column.Top, bottom) : column.Top - (16 + FadeDp) * ui.Density);
+            shell.Finish(pageFoot >= bottom - .5f ? Mathf.Max(pageFoot, bottom) : pageFoot - (16 + FadeDp) * ui.Density);
         }
 
         private string[] shownNotices;
@@ -200,7 +201,7 @@ namespace ZKube.Presentation
         }
         // The stage a page is drawn on: its body between the safe top and its tab
         // bar (or the whole screen for a page that runs under it), its painting
-        // and its column. It places no control.
+        // and nothing else. It places no control.
         private void Stage(AppPage? page, bool fullBleed)
         {
             var safe = shell.SafeArea; float d = ui.Density;
@@ -213,9 +214,7 @@ namespace ZKube.Presentation
             // Scrolling content fades out over its last 24 dp at the tab bar.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
-            var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
-            float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
-            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, Mathf.Min(body.yMax, kit.Edge) - 4 * d);
+            pageFoot = body.yMax;
             back = null;
         }
         // An action as a control of the composer: bound to its availability, its
@@ -254,50 +253,10 @@ namespace ZKube.Presentation
             }
             if (selectedTab >= 0) slots.Tabs = _ => TabBar(shell.SafeArea, selectedTab);
             back = backAction ?? back;
-            var used = kit.Page(slots);
-            column = new PageColumn(ui, shell.Page, actions, used.x, used.width, used.y);
+            pageFoot = kit.Page(slots).y;
         }
-        // Body frame, title and tab bar for one page. The tab bar sits inside the
-        // side gutters and above the bottom safe inset; the body scrolls between
-        // the safe top and the top of the tab bar. A titled page carries its title
-        // on the screens' title plate at the top of its body, with its left and
-        // right tablets beside it; they scroll with it. A full-bleed page (the map,
-        // the preview and the results) runs under the tab bar and draws its own.
-        private void Frame(AppPage? page, string title, string subtitle, PageAction left, PageAction right,
-            bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
-        {
-            Stage(page, fullBleed);
-            var safe = shell.SafeArea;
-            // Utility tablets (.x3) hang from the page's edge, 12u in from the
-            // sides. An action that cannot be taken is not drawn.
-            var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
-            float icon = kit.Touch(40), iconY = kit.Edge - icon;
-            back = left;
-            var parent = fullBleed ? shell.Overlay : shell.Page;
-            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + 12 * kit.U, iconY, icon, icon), leftIcon, false, parent);
-            if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - 12 * kit.U - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
-            if (selectedTab >= 0) TabBar(safe, selectedTab);
-            if ((title ?? subtitle) != null)
-            {
-                // The plate keeps clear of the tablets on both sides.
-                var plate = Kit.Title(title ?? subtitle, title == null ? null : subtitle, room: TitleRoom(kit));
-                plate.Draw(new Rect(column.Left, kit.Top - plate.Height, column.Width, plate.Height));
-                column.Top = kit.Top - plate.Height - 10 * kit.U;
-            }
-        }
-        // A title's room between the corner tablets.
+        // A title's room beside Back's tablet, kept clear on both sides so it stays centred.
         private float TitleRoom(ScreenKit kit) => shell.SafeArea.width - 2 * (12 * kit.U + kit.Touch(40) + 8 * ui.Density);
-        private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
-        {
-            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Overlay, false, out var glyph, out _);
-            if (mirrored)
-            {
-                var glyphRect = glyph.rectTransform;
-                glyphRect.pivot = new Vector2(.5f, .5f); glyphRect.anchoredPosition += glyphRect.sizeDelta / 2;
-                glyphRect.localScale = new Vector3(-1, 1, 1);
-            }
-            actions.Bind(button, action);
-        }
         // The kit tab bar; each tab is bound to its page action so it dims while
         // navigation is unavailable.
         private void TabBar(Rect safe, int selected)
@@ -324,7 +283,7 @@ namespace ZKube.Presentation
             bool used = value.NextOpensAt > 0 && value.Now != null;
             long? clock = used ? value.NextOpensAt - countdownSecond : value.ClosesAt > 0 && value.Now != null ? value.ClosesAt - countdownSecond : (long?)null;
             var pieces = new List<Piece> { Lockup(kit, 94), DailyCard(kit, value, realm.guardianName, clock, used, Array.Empty<Piece>(),
-                Buttons(kit.Inside(), value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
+                Buttons(kit.Inside(), ScreenKit.Role.CardAction, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
                     i == 0 ? SkinSlots.IconPlay : SkinSlots.IconTrophy)).ToArray())) };
             if (!string.IsNullOrEmpty(value.Status)) pieces.Add(kit.Note(value.Status));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
@@ -342,10 +301,9 @@ namespace ZKube.Presentation
                 var count = inside.Beside(10, inside.Icon("Campaign stars icon", SkinSlots.StarLit, 24), inside.Value("Campaign stars", stars));
                 pieces.Add(kit.Card("Campaign", new[] {
                     PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length, null, count),
-                    Buttons(inside, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
+                    Buttons(inside, ScreenKit.Role.CardAction, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
             }
-            pieces.Add(Piece.Grow);
-            Compose(pieces.ToArray());
+            Place(kit, new ScreenKit.Slots { Body = pieces });
             ShowPortraits();
         }
         // The cards' guardian portraits come from their own realms, loaded once for the page.
@@ -449,39 +407,7 @@ namespace ZKube.Presentation
             float size = kit.SubtitleDp, height = kit.Block(text, kit.Width, size, SkinUi.Type.Caption, ScreenKit.NoteLeading);
             return new Piece(height, rect => kit.Text(name, text, rect, size, token, SkinUi.Type.Caption, ScreenKit.NoteLeading));
         }
-        // A 52 dp ruled row: the label on the left and its number on the right, in
-        // the display face, as the screens' cards draw their rows.
-        private Image ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
-        {
-            float d = ui.Density;
-            float numberWidth = Mathf.Min(ui.TextWidth(number, 20, SkinUi.Type.Display), rows.Width / 2);
-            float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 44 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
-            var rect = rows.Take(height, gapDp);
-            var row = ui.Rect<Image>(name + " row", rect, rows.Parent); row.color = Color.clear; row.raycastTarget = false;
-            var rule = ui.Rect<Image>(name + " rule", new Rect(rect.x, rect.yMax, rect.width, Mathf.Max(1, d)), rows.Parent);
-            rule.color = new Color(35 / 255f, 57 / 255f, 74 / 255f, 1); rule.raycastTarget = false;
-            ui.Label(name + " label", label, new Rect(rect.x + 14 * d, rect.y, rect.width - 36 * d - numberWidth, rect.height), 15,
-                SkinTokens.Text, row.transform, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            NumberFit.Apply(ui, ui.Label(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 20, token, row.transform,
-                SkinUi.Type.Display, TextAlignmentOptions.Right), numberWidth, 20);
-            return row;
-        }
-        // A number drawn on one line, fitted to its rect.
-        private TMP_Text FittedNumber(string name, string number, Rect rect, float sizeDp, string token, Transform parent, TextAlignmentOptions alignment) =>
-            NumberFit.Apply(ui, ui.Label(name, number, rect, sizeDp, token, parent, SkinUi.Type.Number, alignment), rect.width, sizeDp);
-        // A kit pill. An icon leads the label; the screen's one primary action
-        // carries the breathing halo behind it.
-        private Button Pill(PageColumn card, PageAction action, bool primary, string icon, float gapDp)
-        {
-            var button = card.Button(action, primary, gapDp, action == null ? icon : Mark(action, icon));
-            if (button != null) Loader(button, action);
-            if (button == null || !primary) return button;
-            var rect = SkinUi.ScreenRect((RectTransform)button.transform);
-            var halo = ui.Glow(button.name + " halo", new Rect(rect.center.x - rect.width * .65f, rect.center.y - rect.height * .65f,
-                rect.width * 1.3f, rect.height * 1.3f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .4f), button.transform.parent, HaloSeconds);
-            halo.transform.SetSiblingIndex(button.transform.GetSiblingIndex());
-            return button;
-        }
+        // The breathing halo behind a page's one primary action.
         public const float HaloSeconds = 2.4f;
 
         // The kit's underpaint behind centred text over the painting, sized to its ink.

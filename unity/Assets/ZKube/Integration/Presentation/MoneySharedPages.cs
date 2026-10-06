@@ -23,8 +23,8 @@ namespace ZKube.Integration.Presentation
         private string pageNotice;
         public bool BrowsingOperation => browsingOperation;
 
-        private static PageAction PageAction(string text, Action invoke, Func<bool> available = null, string name = null) =>
-            new PageAction { Label = text, Name = name, Invoke = invoke, CanInvoke = available };
+        private static PageAction PageAction(string text, Action invoke, Func<bool> available = null, string name = null, string icon = null) =>
+            new PageAction { Label = text, Name = name, Invoke = invoke, CanInvoke = available, Icon = icon };
         private bool PageAvailable() => Flow != null && !detached && !paused && isActiveAndEnabled && !PlayingRun;
         // A tab is a way off the page: it waits for nothing the page is doing.
         public bool CanNavigate(AppPage page) => PageAvailable() && (page == AppPage.Settings || identity.Owner != null);
@@ -160,8 +160,8 @@ namespace ZKube.Integration.Presentation
                 default: throw new InvalidOperationException("Unknown page " + Family());
             }
         }
-        // While a wallet request is open, Disconnect stays within reach.
-        private PanelBlock DisconnectButton() => PanelBlock.Button(PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()), false);
+        // While a wallet request is open, Disconnect stays within reach, last in the foot row.
+        private PageAction Disconnecting() => PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable(), icon: SkinSlots.IconWallet);
         // A failure the page itself does not show goes on it as a notice; the
         // Connect, Device and Kredits pages show their refused action themselves.
         private string NoticeFor(string family) => family == "Connect" ? null :
@@ -174,15 +174,13 @@ namespace ZKube.Integration.Presentation
         {
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)
-                page.Blocks = new[] {
-                    PanelBlock.Title("Not loaded", centered: true),
-                    PanelBlock.Text("Page failure", failure, centered: true),
-                    PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
-                    PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
-            else
-                page.Blocks = sessionActionPending || economyActionPending ?
-                    new[] { PanelBlock.Button(Progressing(), true), DisconnectButton() } :
-                    new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
+            {
+                page.Blocks = new[] { PanelBlock.Title("Not loaded", centered: true), PanelBlock.Text("Page failure", failure, centered: true) };
+                page.Primary = PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
+                page.Secondary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null, icon: SkinSlots.IconPlay);
+            }
+            else if (sessionActionPending || economyActionPending) Requesting(page);
+            else page.Blocks = new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
             return page;
         }
         private void Notice(string message) { pageNotice = message; Present(); }
@@ -201,17 +199,17 @@ namespace ZKube.Integration.Presentation
         private PanelPageView OperationPage()
         {
             var back = PageAction("Back", ReturnFromOperation, PageAvailable);
-            var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back };
+            // A page that shows: it keeps its tab bar, Settings lit, and Back returns there. It has a
+            // button only where there is a step to take.
+            var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back, Tab = AppPage.Settings };
             var receipt = LastReceipt;
-            var arcade = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             if (receipt == null)
             {
                 page.Blocks = new[] {
                     PanelBlock.Card("Operation card", PanelBlock.Icon(SkinSlots.IconKredit, SkinTokens.TextMuted),
                         PanelBlock.Title("No operation yet", centered: true),
                         PanelBlock.Text("Transaction receipt", receiptNotice ?? "Your latest operation will appear here after a wallet or device action.")),
-                    PanelBlock.Text("Operation note", "You can play Campaign without a device session.", centered: false),
-                    PanelBlock.Button(arcade, true) };
+                    PanelBlock.Text("Operation note", "You can play Campaign without a device session.", centered: false) };
                 return page;
             }
             var lines = new List<PanelBlock> {
@@ -230,10 +228,9 @@ namespace ZKube.Integration.Presentation
             }
             var blocks = new List<PanelBlock> { PanelBlock.Card("Operation card", lines.ToArray()) };
             blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), centered: false));
-            if (receipt.Outcome == ExecutionOutcome.Pending) Refused("Operation", blocks, () => PageAvailable() && !Busy);
+            if (receipt.Outcome == ExecutionOutcome.Pending) Refused("Operation", page, () => PageAvailable() && !Busy);
             else if (receipt.Outcome == ExecutionOutcome.FeeShortage)
-                blocks.Add(PanelBlock.Button(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
-            else blocks.Add(PanelBlock.Button(arcade, true));
+                page.Primary = PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
             page.Blocks = blocks.ToArray();
             return page;
         }

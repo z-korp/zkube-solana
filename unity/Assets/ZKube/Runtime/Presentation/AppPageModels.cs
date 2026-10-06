@@ -189,11 +189,9 @@ namespace ZKube.Presentation
         public PageAction Records, ChooseBorder;
         public int Stars;
         public ulong Streak, BestDailyScore;
-        public string[] Facts = Array.Empty<string>();
         public ProfileChoiceView[] Emblems = Array.Empty<ProfileChoiceView>();
-        public ProfileChoiceView[] Borders = Array.Empty<ProfileChoiceView>();
-        public PageAction Save, Restore;
-        public PageAction[] Actions = Array.Empty<PageAction>();
+        // The identity's own action, for the foot row: what the notice asks for.
+        public PageAction Tertiary;
     }
 
     public sealed class SettingsPageView
@@ -266,17 +264,14 @@ namespace ZKube.Presentation
         public AppPage? Tab;
         // Without a title the header is the product mark over the subtitle.
         public string Title, Subtitle;
-        // The left tablet: Back, or on a tab page an action with its own icon.
-        public PageAction Back, Corner;
-        public string CornerIcon;
+        // Back, top left, on a page opened from another.
+        public PageAction Back;
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
         // The page's controls by role: the composer places them in the foot row and on the stepper bar.
         public PageAction Primary, Secondary, Tertiary, Destructive;
         public StepperView Stepper;
         // One line directly above the foot row: why its action waits, or what it did.
         public PanelBlock Reason;
-        // The page hands its controls over by role (every page will; the flag goes with the last one that does not).
-        public bool ByRole;
     }
 
     public enum PanelKind { Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Rows, Balance, Packs, Space }

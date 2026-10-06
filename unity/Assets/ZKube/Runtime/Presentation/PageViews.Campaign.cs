@@ -320,7 +320,7 @@ namespace ZKube.Presentation
                 // Skip (.x3 corner): a quiet pill hanging from the page's edge, 12u in from the right.
                 float h = kit.Touch(40), w = ui.TextWidth("Skip", 15, SkinUi.Type.Number) + 32 * u;
                 var rect = new Rect(safe.xMax - 12 * u - w, kit.Edge - h, w, h);
-                ui.TextButton("Skip lesson", rect, "Skip", Close, false, root, out _, sizeDp: 15);
+                ScreenKit.As(ui.TextButton("Skip lesson", rect, "Skip", Close, false, root, out _, sizeDp: 15), ScreenKit.Role.Skip);
                 top = rect.y - 8 * u;
             }
             if (pages.Any(page => page.Picture != null))
@@ -348,7 +348,7 @@ namespace ZKube.Presentation
                     sequence.Add(.1f, .3f, t => rect.anchoredPosition = at - new Vector2(0, 24 * d * (1 - PageSequence.EaseOut(t))));
                 }
             }
-            var tap = scrim.gameObject.AddComponent<Button>(); tap.transition = Selectable.Transition.None;
+            var tap = ScreenKit.As(scrim.gameObject.AddComponent<Button>(), ScreenKit.Role.Anywhere); tap.transition = Selectable.Transition.None;
             // A tap anywhere is a tap on the talk: it completes the line, turns the
             // page, and on the last page continues.
             tap.onClick.AddListener(() => talk.Tap());

@@ -167,43 +167,20 @@ namespace ZKube.Integration.Presentation
         // This page's refused action: its reason and its retry, in place of the action itself.
         private string RefusalOn(string family) => refusalFamily == family ? refusal : null;
         private static PanelBlock RefusalLine(string reason) => PanelBlock.Text("Action refused", reason, SkinTokens.Negative, true);
-        private PanelBlock Retry(Func<bool> available) => PanelBlock.Button(PageAction("Try again", refusalRetry, available), true, SkinSlots.IconRetry);
-        private bool Refused(string family, List<PanelBlock> blocks, Func<bool> available)
-        {
-            if (RefusalOn(family) == null) return false;
-            blocks.Add(RefusalLine(refusal)); blocks.Add(Retry(available));
-            return true;
-        }
-        // An action in progress: its button with the loader and the step, and the way out.
-        private void Requesting(List<PanelBlock> blocks)
-        {
-            if (slow) blocks.Add(PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true));
-            blocks.Add(PanelBlock.Button(Progressing(), true));
-            blocks.Add(DisconnectButton());
-        }
-        // A transaction this address still has unconfirmed, on the page that shows it: the
-        // same button, followed without a tap. A follow that failed says why with its retry.
-        private void Awaiting(string family, List<PanelBlock> blocks, Func<bool> available)
-        {
-            if (Refused(family, blocks, available)) return;
-            if (slow) blocks.Add(PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true));
-            blocks.Add(PanelBlock.Button(Progressing(), true));
-        }
-        // The same three states for a page that hands its controls over by role: the
-        // reason stands over the foot row, the action in its primary slot, and the
-        // way out of a wallet request last.
+        // A page hands these three states over by role: the reason stands over the foot
+        // row, the action in its primary slot, and the way out of a wallet request last.
         private bool Refused(string family, PanelPageView page, Func<bool> available)
         {
             if (RefusalOn(family) == null) return false;
             page.Reason = RefusalLine(refusal);
-            page.Primary = PageAction("Try again", refusalRetry, available); page.Primary.Icon = SkinSlots.IconRetry;
+            page.Primary = PageAction("Try again", refusalRetry, available, icon: SkinSlots.IconRetry);
             return true;
         }
         private void Requesting(PanelPageView page)
         {
             if (slow) page.Reason = PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true);
             page.Primary = Progressing();
-            page.Tertiary = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable());
+            page.Destructive = Disconnecting();
         }
         private void Awaiting(string family, PanelPageView page, Func<bool> available)
         {
@@ -212,9 +189,11 @@ namespace ZKube.Integration.Presentation
             page.Primary = Progressing();
         }
         // Until the Arena launches, its pages say so and lead to the Campaign.
-        private PanelBlock[] OpensSoon() => new[] {
-            PanelBlock.Title("Arena opens soon", centered: true),
-            PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", "Campaign", "Open", tagToken: SkinTokens.Positive)),
-            PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()), true, SkinSlots.IconPlay) };
+        private void OpensSoon(PanelPageView page)
+        {
+            page.Blocks = new[] { PanelBlock.Title("Arena opens soon", centered: true),
+                PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", "Campaign", "Open", tagToken: SkinTokens.Positive)) };
+            page.Primary = PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable(), icon: SkinSlots.IconPlay);
+        }
     }
 }

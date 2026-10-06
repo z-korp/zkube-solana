@@ -72,22 +72,23 @@ namespace ZKube.Integration.Presentation
         public ProfilePageView ProfilePage()
         {
             var state = profileRead.Value; var player = state.Profile; var worn = state.Identity; var fields = player.Fields;
-            var notices = new List<string>(); var actions = new List<PageAction>();
+            var notices = new List<string>(); PageAction action = null;
             if (!player.Exists) notices.Add("Set up this device to create your player profile.");
             if (!worn.ProgressAvailable) notices.Add("Campaign progress is unavailable, so earned emblems are not shown.");
             if (state.Pending != null)
             {
-                if (RefusalOn("Profile") != null) actions.Add(PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy));
-                else { if (slow) notices.Add(StillChecking); actions.Add(Progressing()); }
+                if (RefusalOn("Profile") != null) action = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy, icon: SkinSlots.IconRetry);
+                else { if (slow) notices.Add(StillChecking); action = Progressing(); }
             }
             else if (!state.Session.Current || state.Session.Funding != "ready")
             {
                 notices.Add("Set up this device to change your emblem or border.");
-                actions.Add(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy));
+                action = PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
             }
-            if (worn.StoredEmblem != 0 && state.Pending == null)
-                actions.Add(PageAction("Wear the automatic emblem", () => SelectProfileEmblem(0),
-                    () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0"));
+            // Back to the automatic emblem, where the device can make that change.
+            else if (worn.StoredEmblem != 0)
+                action = PageAction("Wear the automatic emblem", () => SelectProfileEmblem(0),
+                    () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0");
             return new ProfilePageView {
                 Name = SeekerName(player.Owner), Badge = VerifiedSeeker(player.Owner) ? VerifiedSeekerBadge : null, Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
                 LadderPoints = player.LadderPoints, LadderTier = player.CurrentTier,
@@ -95,7 +96,7 @@ namespace ZKube.Integration.Presentation
                 ChooseBorder = PageAction("Choose a border", () => ShowProfile(ProfileView.Borders), () => PageAvailable() && !Busy),
                 Stars = state.Campaign.TotalStars ?? 0,
                 Streak = (uint?)fields?["entry_streak_days"] ?? 0, BestDailyScore = (uint?)fields?["best_daily_score"] ?? 0,
-                Notice = notices.Count == 0 ? null : string.Join(" ", notices), Actions = actions.ToArray(),
+                Notice = notices.Count == 0 ? null : string.Join(" ", notices), Tertiary = action,
                 Emblems = worn.Emblems.Where(choice => choice.Definition.Id != 0).Select(choice => {
                     byte id = choice.Definition.Id;
                     return new ProfileChoiceView { Id = id, Realm = choice.Definition.Kind == ProfileEmblemKind.Guardian ? choice.Definition.Realm : (byte)0,
@@ -188,18 +189,20 @@ namespace ZKube.Integration.Presentation
                         PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
                         PanelBlock.Card("Selection card", PanelBlock.Title(name, centered: true, name: "Selection"),
                             PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.")) };
-                    if (economyActionPending || sessionActionPending) Requesting(blocks);
-                    else if (state.Pending != null) Awaiting("Profile", blocks, () => PageAvailable() && !Busy);
+                    // A page that asks for a decision: no tab bar. Back keeps the choice for more
+                    // changes; Keep current look puts it back.
+                    var page = new PanelPageView { Key = "Profile Selection", Title = "Wear selection", Back = back };
+                    if (economyActionPending || sessionActionPending) Requesting(page);
+                    else if (state.Pending != null) Awaiting("Profile", page, () => PageAvailable() && !Busy);
                     else if (!state.Session.Current || state.Session.Funding != "ready")
                     {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border."));
-                        blocks.Add(PanelBlock.Button(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
+                        page.Reason = PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border.");
+                        page.Primary = PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy, icon: SkinSlots.IconDevice);
                     }
-                    else blocks.Add(PanelBlock.Button(PageAction("Wear selection", () => _ = WearProfileSelection(),
-                        () => ProfileEditable() && ProfileSelectionChanged()), true));
-                    blocks.Add(PanelBlock.Button(PageAction("Keep current look", KeepProfileLook, () => PageAvailable() && !Busy), false));
-                    // Back keeps the choice for more changes; Keep current look puts it back.
-                    return new PanelPageView { Key = "Profile Selection", Title = "Wear selection", Back = back, Blocks = blocks.ToArray() };
+                    else page.Primary = PageAction("Wear selection", () => _ = WearProfileSelection(), () => ProfileEditable() && ProfileSelectionChanged(), icon: SkinSlots.Tick);
+                    page.Tertiary = PageAction("Keep current look", KeepProfileLook, () => PageAvailable() && !Busy, icon: SkinSlots.IconClose);
+                    page.Blocks = blocks.ToArray();
+                    return page;
                 }
             }
         }
@@ -226,8 +229,9 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank),
                     PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", SkinTokens.TextMuted)));
             }
-            blocks.Add(PanelBlock.Button(PageAction("Back to Profile", back.Invoke, back.CanInvoke), false));
-            return new PanelPageView { Key = "Profile Records", Title = "Your records", Subtitle = Short(player.Owner), Back = back, Blocks = blocks.ToArray() };
+            // A page that shows: Back is its one way back, and it keeps its tab bar, Profile lit.
+            return new PanelPageView { Key = "Profile Records", Title = "Your records", Subtitle = Short(player.Owner), Back = back, Tab = AppPage.Profile,
+                Blocks = blocks.ToArray() };
         }
     }
 }

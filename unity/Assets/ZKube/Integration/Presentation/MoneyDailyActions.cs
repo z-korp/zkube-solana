@@ -282,9 +282,10 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Card("Entry card",
                         PanelBlock.Row("Entry cost", "Entry", "1 Kredit", icon: SkinSlots.IconKredit),
                         PanelBlock.Row("Entry balance", "Confirmed balance", NumberFit.Figure(lobby.Profile.Kredits), icon: SkinSlots.IconKredit),
-                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the next paid Daily.", SkinTokens.TextMuted)),
-                    PanelBlock.Button(PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit"), true, SkinSlots.IconPlay),
-                    PanelBlock.Button(cancel, false) } };
+                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the next paid Daily.", SkinTokens.TextMuted)) },
+                // The entry is the primary, with Not now beside it on the one row: its words alone, since an icon there would stack the two.
+                Primary = PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit", SkinSlots.IconPlay),
+                Secondary = cancel };
         }
     }
 }

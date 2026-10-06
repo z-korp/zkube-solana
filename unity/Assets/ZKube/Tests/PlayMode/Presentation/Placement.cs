@@ -17,6 +17,8 @@ namespace ZKube.Tests.Presentation
     //                one primary a page, 48 dp tall or more
     //   Step         the two arrows of one bar, the lowest row, at its ends
     //   Tab          the bottom edge
+    //   Skip         a lesson's, top right, 48 dp tall
+    //   Anywhere     a scene's tap: the whole screen
     //   the rest     in the middle band, under the title row
     // A control without a role was placed by its page, which the rule forbids.
     public static class Placement
@@ -32,14 +34,18 @@ namespace ZKube.Tests.Presentation
             return new Rect(rect.x + past.x * scale, rect.y + past.y * scale, rect.width - (past.x + past.z) * scale, rect.height - (past.y + past.w) * scale);
         }
         // What scrolls (a page taller than its phone, a board's rows inside their card) shows
-        // its controls through its window: one whose middle is scrolled out of it is not on the
-        // page as it stands. A page that scrolls is checked at its top and at its foot.
+        // its controls through its window: one the window cuts or hides is not on the page as
+        // it stands. A page that scrolls is checked at its top and at its foot, so each of its
+        // controls is checked where it is whole.
         private static bool Hidden(Button button)
         {
-            Vector2 middle = SkinUi.ScreenRect((RectTransform)button.transform).center;
+            var rect = SkinUi.ScreenRect((RectTransform)button.transform);
             for (var window = button.GetComponentInParent<RectMask2D>(); window != null;
                 window = window.transform.parent == null ? null : window.transform.parent.GetComponentInParent<RectMask2D>())
-                if (!SkinUi.ScreenRect(window.rectTransform).Contains(middle)) return true;
+            {
+                var shown = SkinUi.ScreenRect(window.rectTransform);
+                if (rect.yMin < shown.yMin - .5f || rect.yMax > shown.yMax + .5f || rect.xMin < shown.xMin - .5f || rect.xMax > shown.xMax + .5f) return true;
+            }
             return false;
         }
 
@@ -51,6 +57,11 @@ namespace ZKube.Tests.Presentation
             var unplaced = controls.Where(control => control.placed == null).Select(control => control.button.name).ToArray();
             Assert.That(unplaced, Is.Empty, at + ": placed by the page itself, with no role");
             controls.RemoveAll(control => Hidden(control.button));
+            // A scene's tap takes the whole screen, under everything the scene shows.
+            foreach (var control in controls.Where(control => control.placed.Role == ScreenKit.Role.Anywhere))
+                Assert.That(control.rect.xMin <= safe.xMin + .5f && control.rect.xMax >= safe.xMax - .5f && control.rect.yMin <= safe.yMin + .5f && control.rect.yMax >= safe.yMax - .5f,
+                    Is.True, at + ": " + control.button.name + " " + control.rect + " takes the whole screen");
+            controls.RemoveAll(control => control.placed.Role == ScreenKit.Role.Anywhere);
             List<(Button button, Rect rect)> Of(params ScreenKit.Role[] roles) =>
                 controls.Where(control => roles.Contains(control.placed.Role)).Select(control => (control.button, control.rect)).ToList();
             float dp48 = 48 * density - .5f;
@@ -75,6 +86,14 @@ namespace ZKube.Tests.Presentation
             // (a chip's 48 dp reach may pass its card's edge; where the control stands is its middle).
             foreach (var control in controls.Where(control => control.placed.Role != ScreenKit.Role.Back && control.placed.Role != ScreenKit.Role.Skip))
                 Assert.That(control.rect.center.y, Is.LessThanOrEqualTo(titleRow + .5f), at + ": " + control.button.name + " " + control.rect + " is in the top band");
+
+            // Skip: a lesson's way out, top right, hanging from the page's edge like Back.
+            foreach (var skip in Of(ScreenKit.Role.Skip))
+            {
+                Assert.That(skip.rect.height, Is.GreaterThanOrEqualTo(dp48), at + ": " + Name(skip) + " is 48 dp tall");
+                Assert.That(skip.rect.xMin, Is.GreaterThan(safe.center.x + safe.width / 4), at + ": Skip is top right, " + skip.rect);
+                Assert.That(skip.rect.yMax, Is.InRange(safe.yMax - (ScreenKit.TopClearDp + 1) * density, safe.yMax + .5f), at + ": Skip hangs from the page's edge, " + skip.rect);
+            }
 
             // Tabs: on the bottom edge, under everything else.
             var tabs = Of(ScreenKit.Role.Tab);
