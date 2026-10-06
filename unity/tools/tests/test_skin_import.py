@@ -202,6 +202,36 @@ class KitArt(unittest.TestCase):
             with self.subTest(slot=entry['slot']):
                 self.assertEqual([], point_lights(ROOT / entry['image'].lstrip('/'))[:5])
 
+    def test_every_icon_keeps_its_meaning_on_a_lit_face(self):
+        """An icon on a lit face is its own picture: a dark body, and for an icon whose meaning is an
+        inner shape (a dial, a fold, a screen) that shape cut through to the face's light, at the
+        size it is authored and at 24 px. The codegen lists the icons and which carry such a shape."""
+        catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
+        for skin in catalog['skins']:
+            ui = {entry['slot']: ROOT / entry['image'].lstrip('/') for entry in skin['ui']}
+            suffix = skin['litSuffix']
+            icons = sorted(slot for slot in ui if slot.startswith('icon-') and not slot.endswith(suffix))
+            self.assertGreater(len(icons), 30)
+            self.assertTrue(set(skin['detailIcons']) <= set(icons))
+            for icon in icons:
+                with self.subTest(skin=skin['id'], icon=icon):
+                    plain = Image.open(ui[icon]).convert('RGBA'); lit = Image.open(ui[icon + suffix]).convert('RGBA')
+                    self.assertEqual(plain.size, lit.size)
+                    body = [pixel for pixel in lit.get_flattened_data() if pixel[3] >= 200]
+                    self.assertGreater(len(body), 1000, 'the lit picture has a body')
+                    light = sum(.299 * red + .587 * green + .114 * blue for red, green, blue, _ in body) / len(body)
+                    self.assertLess(light, 60, 'the body is dark, to read on the lit face')
+                    width, height = lit.size
+                    self.assertEqual(0, max(lit.getpixel(corner)[3] for corner in ((0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1))))
+                    if icon not in skin['detailIcons']:
+                        continue
+                    # Where the icon is solid and its lit picture is open, the face's light shows through.
+                    def windows(size, solid, clear):
+                        ink = plain.resize(size, Image.LANCZOS).get_flattened_data(); cut = lit.resize(size, Image.LANCZOS).get_flattened_data()
+                        return sum(1 for under, over in zip(ink, cut) if under[3] >= solid and over[3] <= clear)
+                    self.assertGreaterEqual(windows(plain.size, 200, 60), 200, 'its inner shape is cut through to the light')
+                    self.assertGreaterEqual(windows((24, 24), 160, 96), 2, 'and still is at 24 px')
+
     def test_the_detector_finds_a_painted_pin(self):
         with tempfile.TemporaryDirectory(dir=ROOT / 'build') as temporary:
             path = Path(temporary) / 'pinned.png'

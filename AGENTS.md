@@ -816,7 +816,13 @@ authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
 `paintings_are_jpeg_and_everything_with_alpha_is_png`,
 `EverySkinMustCoverEveryRealm`, `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders`,
 `the_cleared_tiers_are_three_pictures_in_every_realm` and `TheMapTellsItsNodesApartAndItsGuardianIsTheBoss` guard
-the contract. Kit art carries no seam or stray highlight;
+the contract. An icon on a lit face (the lit primary button, a selected
+tab) is a picture of its own, the icon's selected slot: a dark body with the shapes that carry its meaning cut
+through to the face's light, readable at 24 px, already coloured and never tinted. The codegen requires one for
+every icon and names the icons whose meaning is an inner shape; the kit alone picks the lit picture, in `OnFace`,
+and no page does. `every_icon_has_its_lit_picture_and_every_detail_icon_is_an_icon`,
+`test_every_icon_keeps_its_meaning_on_a_lit_face`, `PillsTakeALeadingIconAndTheButtonType` and
+`SelectedTabInkIsDarkOnTheChipAndTheOthersArePale` guard the set and its one owner. Kit art carries no seam or stray highlight;
 `NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 

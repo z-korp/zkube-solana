@@ -243,7 +243,12 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(dark, bar.Ink(0));
             Assert.AreEqual(.72f * art.Token(SkinTokens.Text).a, bar.Ink(1).a, 1e-4f);
             bar.Select(1);
-            Assert.AreEqual(dark, bar.Ink(1)); Assert.AreEqual(dark, Part(bar, "Tabs Daily icon").color);
+            Assert.AreEqual(dark, bar.Ink(1));
+            // On the chip the icon is its lit picture, untinted; off it, the plain icon in the pale ink.
+            Assert.AreEqual(Color.white, Part(bar, "Tabs Daily icon").color);
+            StringAssert.StartsWith(SkinSlots.OnLit(SkinSlots.IconClock), Part(bar, "Tabs Daily icon").sprite.name);
+            Assert.AreEqual(bar.Ink(0), Part(bar, "Tabs Campaign icon").color);
+            Assert.IsFalse(Part(bar, "Tabs Campaign icon").sprite.name.Contains("-selected"));
             var label = bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Tabs Daily label");
             // Four tabs carry their words as the composites set them: the caption face, in sentence case.
             Assert.AreEqual(art.Font(SkinUi.Type.Caption), label.font);
@@ -258,7 +263,12 @@ namespace ZKube.Presentation.Tests
             var icon = Part(button, "Play icon");
             var iconRect = SkinUi.ScreenRect(icon.rectTransform);
             Assert.AreEqual(24, iconRect.width, .01f); Assert.AreEqual(36, iconRect.x, .01f, "The icon sits 16 dp in");
-            Assert.AreEqual(art.Token(SkinTokens.TextOnPrimary), icon.color);
+            // On the lit face the kit draws the icon's lit picture, already coloured; a teal pill's icon takes its ink.
+            Assert.AreEqual(Color.white, icon.color);
+            StringAssert.StartsWith(SkinSlots.OnLit(SkinSlots.IconClock), icon.sprite.name);
+            ui.TextButton("Share", new Rect(20, 100, 240, 56), "Share", () => { }, false, root.transform, out _, SkinSlots.IconClock);
+            var teal = root.GetComponentsInChildren<Image>().Single(image => image.name == "Share icon");
+            Assert.AreEqual(art.Token(SkinTokens.TextOnSecondary), teal.color); Assert.IsFalse(teal.sprite.name.Contains("-selected"));
             Assert.AreEqual(140 + 18, SkinUi.ScreenRect(label.rectTransform).center.x, .01f, "The word starts 6 dp after the icon and centres in the rest");
             Assert.AreEqual(art.Font(SkinUi.Type.Number), label.font);
             Assert.AreEqual(SkinUi.ButtonDp, label.fontSize, .01f);

@@ -872,7 +872,23 @@
   "schema": 1,
   "skins": [
     {
+      "detailIcons": [
+        "icon-board-full",
+        "icon-campaign",
+        "icon-clock",
+        "icon-flag",
+        "icon-hourglass",
+        "icon-hourglass-empty",
+        "icon-map",
+        "icon-totem",
+        "icon-totem-empty",
+        "icon-wave",
+        "icon-wave-empty",
+        "icon-device",
+        "icon-wallet"
+      ],
       "id": "lumen",
+      "litSuffix": "-selected",
       "name": "Lumen",
       "realms": [
         {
@@ -3158,6 +3174,356 @@
           ],
           "image": "/assets/skins/lumen/ui/lesson-daily.png",
           "slot": "lesson-daily"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hammer-selected.png",
+          "slot": "icon-hammer-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-totem-selected.png",
+          "slot": "icon-totem-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wave-selected.png",
+          "slot": "icon-wave-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-reroll-selected.png",
+          "slot": "icon-reroll-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-pause-selected.png",
+          "slot": "icon-pause-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-back-selected.png",
+          "slot": "icon-back-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-settings-selected.png",
+          "slot": "icon-settings-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-close-selected.png",
+          "slot": "icon-close-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-kredit-selected.png",
+          "slot": "icon-kredit-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-home-selected.png",
+          "slot": "icon-home-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-campaign-selected.png",
+          "slot": "icon-campaign-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-profile-selected.png",
+          "slot": "icon-profile-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-share-selected.png",
+          "slot": "icon-share-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-music-selected.png",
+          "slot": "icon-music-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-sound-selected.png",
+          "slot": "icon-sound-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-lock-selected.png",
+          "slot": "icon-lock-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-trophy-selected.png",
+          "slot": "icon-trophy-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hammer-empty-selected.png",
+          "slot": "icon-hammer-empty-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-totem-empty-selected.png",
+          "slot": "icon-totem-empty-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wave-empty-selected.png",
+          "slot": "icon-wave-empty-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-reroll-empty-selected.png",
+          "slot": "icon-reroll-empty-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hourglass-selected.png",
+          "slot": "icon-hourglass-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-crown-selected.png",
+          "slot": "icon-crown-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-clock-selected.png",
+          "slot": "icon-clock-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-play-selected.png",
+          "slot": "icon-play-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-retry-selected.png",
+          "slot": "icon-retry-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-map-selected.png",
+          "slot": "icon-map-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hourglass-empty-selected.png",
+          "slot": "icon-hourglass-empty-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-board-full-selected.png",
+          "slot": "icon-board-full-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-flag-selected.png",
+          "slot": "icon-flag-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-plus-selected.png",
+          "slot": "icon-plus-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-live-selected.png",
+          "slot": "icon-live-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-device-selected.png",
+          "slot": "icon-device-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wallet-selected.png",
+          "slot": "icon-wallet-selected"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-key-selected.png",
+          "slot": "icon-key-selected"
         },
         {
           "border": [

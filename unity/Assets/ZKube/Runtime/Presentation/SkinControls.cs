@@ -220,15 +220,18 @@ namespace ZKube.Presentation
         private Image[] icons;
         private TMP_Text[] labels;
         private Color onChip, off;
+        private Sprite[] plain, lit;
 
-        internal void Bind(Rect[] tabRects, RectTransform plate, int index, Image[] tabIcons, TMP_Text[] tabLabels, Color selectedInk, Color ink)
+        internal void Bind(Rect[] tabRects, RectTransform plate, int index, Image[] tabIcons, TMP_Text[] tabLabels, Color selectedInk, Color ink,
+            Sprite[] icon, Sprite[] iconOnChip)
         {
-            tabs = tabRects; selected = plate; icons = tabIcons; labels = tabLabels; onChip = selectedInk; off = ink;
+            tabs = tabRects; selected = plate; icons = tabIcons; labels = tabLabels; onChip = selectedInk; off = ink; plain = icon; lit = iconOnChip;
             Select(index);
         }
 
-        // Moves the gold chip: the selected tab's icon and label turn dark on it,
-        // the others stay pale at 72%. The page decides what a tab shows.
+        // Moves the gold chip: the selected tab's label turns dark on it and its icon
+        // is its lit picture, already coloured; the others stay pale at 72%. The page
+        // decides what a tab shows.
         public void Select(int index)
         {
             if (index < 0 || index >= tabs.Length) throw new ArgumentOutOfRangeException(nameof(index));
@@ -237,7 +240,8 @@ namespace ZKube.Presentation
             for (int i = 0; i < tabs.Length; i++)
             {
                 var ink = i == index ? onChip : new Color(off.r, off.g, off.b, off.a * .72f);
-                icons[i].color = ink; labels[i].color = ink;
+                icons[i].sprite = i == index ? lit[i] : plain[i];
+                icons[i].color = i == index ? Color.white : ink; labels[i].color = ink;
             }
         }
         public Color Ink(int index) => labels[index].color;

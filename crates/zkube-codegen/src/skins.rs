@@ -177,15 +177,46 @@ pub fn ladder_tiers() -> u8 {
     zkube_core::ladder_tier_for_points(u64::MAX) + 1
 }
 
-/// Every UI slot: the stretched and fixed pieces, every goal pictogram, and
-/// for each ladder tier the border worn around the emblem (in place of the
-/// guardian ring) and its badge.
+/// An icon on a lit face (the lit primary button, a selected tab) is a picture
+/// of its own: a dark body with the shapes that carry its meaning cut through
+/// to the button's light, readable at 24 px. Every icon has one, and the kit
+/// alone picks it; no page does.
+pub const LIT_SUFFIX: &str = "-selected";
+pub fn lit_icons() -> Vec<String> {
+    UI_FIXED_SLOTS
+        .iter()
+        .filter(|slot| slot.starts_with("icon-"))
+        .map(|slot| format!("{slot}{LIT_SUFFIX}"))
+        .collect()
+}
+/// The icons whose meaning is an inner shape (a dial, a fold, a screen), which
+/// their lit picture must keep open to the light.
+pub const DETAIL_ICONS: [&str; 13] = [
+    "icon-board-full",
+    "icon-campaign",
+    "icon-clock",
+    "icon-flag",
+    "icon-hourglass",
+    "icon-hourglass-empty",
+    "icon-map",
+    "icon-totem",
+    "icon-totem-empty",
+    "icon-wave",
+    "icon-wave-empty",
+    "icon-device",
+    "icon-wallet",
+];
+
+/// Every UI slot: the stretched and fixed pieces, each icon's lit picture,
+/// every goal pictogram, and for each ladder tier the border worn around the
+/// emblem (in place of the guardian ring) and its badge.
 pub fn ui_slots() -> Vec<String> {
     let mut slots: Vec<String> = UI_STRETCH_SLOTS
         .iter()
         .chain(&UI_FIXED_SLOTS)
         .map(|s| (*s).to_owned())
         .collect();
+    slots.extend(lit_icons());
     slots.extend(super::pictograms::slots());
     for tier in 0..ladder_tiers() {
         slots.push(format!("ladder-border-{tier}"));
@@ -441,7 +472,8 @@ fn skin(root: &Path, id: &str, realm_count: usize) -> Result<Value, String> {
                 "border": source.borders.get(slot).copied().unwrap_or([0; 4])})
         })
         .collect();
-    Ok(json!({"id": id, "name": source.name, "tokens": tokens, "ui": ui_slots, "realms": realms}))
+    Ok(json!({"id": id, "name": source.name, "tokens": tokens, "ui": ui_slots, "realms": realms,
+        "litSuffix": LIT_SUFFIX, "detailIcons": DETAIL_ICONS}))
 }
 
 /// Renders every authored skin; the first listed skin is the default.
@@ -508,6 +540,7 @@ pub fn csharp() -> String {
         out,
         "        public const int BlockWidths = {BLOCK_WIDTHS};\n\
          \x20       public static string Block(int width) => \"block-\" + width;\n\
+         \x20       public static string OnLit(string icon) => icon + \"{LIT_SUFFIX}\";\n\
          \x20       public const int LadderTiers = {tiers};\n\
          \x20       public static string LadderBorder(int tier) => \"ladder-border-\" + tier;\n\
          \x20       public static string LadderBadge(int tier) => \"ladder-badge-\" + tier;\n    }}\n\n\
@@ -532,6 +565,17 @@ pub fn csharp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_icon_has_its_lit_picture_and_every_detail_icon_is_an_icon() {
+        let slots = ui_slots();
+        for icon in UI_FIXED_SLOTS.iter().filter(|slot| slot.starts_with("icon-")) {
+            assert!(slots.contains(&format!("{icon}{LIT_SUFFIX}")), "{icon}");
+        }
+        for icon in DETAIL_ICONS {
+            assert!(UI_FIXED_SLOTS.contains(&icon), "{icon}");
+        }
+    }
 
     fn fixture(name: &str) -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("zkube-skins-{name}-{}", std::process::id()));
@@ -594,6 +638,7 @@ mod tests {
             skins[0]["ui"].as_array().unwrap().len(),
             UI_STRETCH_SLOTS.len()
                 + UI_FIXED_SLOTS.len()
+                + lit_icons().len()
                 + super::super::pictograms::slots().len()
                 + 2 * usize::from(ladder_tiers())
         );

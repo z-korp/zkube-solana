@@ -89,7 +89,9 @@ namespace ZKube.Tests.MoneyOverview
                 var icon = SkinUi.ScreenRect(icons[tab].rectTransform);
                 bool onChip = chip.Contains(icon.min) && chip.Contains(icon.max - new Vector2(.01f, .01f));
                 Assert.That(onChip, Is.EqualTo(tab == selected), at + ": only the selected icon sits on the chip");
-                Assert.That(icons[tab].color, Is.EqualTo(bar.Ink(tab)), at + ": an icon wears its label's ink");
+                // On the chip the icon is its lit picture, already coloured; the others wear their label's pale ink.
+                Assert.That(icons[tab].color, Is.EqualTo(tab == selected ? Color.white : bar.Ink(tab)), at + ": only an icon off the chip wears its label's ink");
+                Assert.That(icons[tab].sprite.name.Replace("(Clone)", "").EndsWith("-selected"), Is.EqualTo(tab == selected), at + ": the lit picture is the selected tab's alone");
             }
             Assert.That(bar.Ink(selected), Is.Not.EqualTo(bar.Ink((selected + 1) % icons.Length)), at + ": the selected ink differs");
         }

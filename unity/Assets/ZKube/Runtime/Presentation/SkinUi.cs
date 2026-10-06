@@ -144,6 +144,11 @@ namespace ZKube.Presentation
             return patch;
         }
 
+        // An icon on a lit face (the lit primary, a selected tab) is a picture of its own: a dark
+        // body with what carries its meaning cut through to the face's light. This is the one
+        // place that picks it: no page and no other piece chooses.
+        public static string OnFace(string slot, bool lit) => lit && slot != null && slot.StartsWith("icon-") ? SkinSlots.OnLit(slot) : slot;
+
         // A pill: an action with a word, and optionally a leading 24 dp icon.
         // The screens around the board set their own type, size and icon size.
         public Button TextButton(string name, Rect rect, string label, Action action, bool primary, Transform parent, out TMP_Text text,
@@ -165,7 +170,9 @@ namespace ZKube.Presentation
             {
                 // The icon sits 16 dp in; its word starts 6 dp after it.
                 float size = iconDp * Density;
-                Piece(name + " icon", icon, new Rect(rect.x + 16 * Density, rect.center.y - size / 2, size, size), face.transform).color = Art.Token(ink);
+                // On the lit face the icon is its lit picture, already coloured; elsewhere it takes the face's ink.
+                var glyph = Piece(name + " icon", OnFace(icon, primary), new Rect(rect.x + 16 * Density, rect.center.y - size / 2, size, size), face.transform);
+                glyph.color = primary && icon.StartsWith("icon-") ? Color.white : Art.Token(ink);
                 lead = (iconDp + 12) * Density;
             }
             text = Label(name + " label", label, new Rect(rect.x + pad + lead, rect.y, rect.width - 2 * pad - lead, rect.height), sizeDp,
@@ -488,7 +495,8 @@ namespace ZKube.Presentation
                 labels[i].textWrappingMode = TextWrappingModes.NoWrap;
             }
             var tabBar = bar.gameObject.AddComponent<SkinTabBar>();
-            tabBar.Bind(cells, plate.rectTransform, selected, icons, labels, Art.Token(SkinTokens.TextOnPrimary), Art.Token(SkinTokens.Text));
+            tabBar.Bind(cells, plate.rectTransform, selected, icons, labels, Art.Token(SkinTokens.TextOnPrimary), Art.Token(SkinTokens.Text),
+                tabs.Select(tab => Art.SkinUi(tab.icon)).ToArray(), tabs.Select(tab => Art.SkinUi(OnFace(tab.icon, true))).ToArray());
             return tabBar;
         }
 
