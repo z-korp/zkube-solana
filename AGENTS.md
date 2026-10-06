@@ -822,9 +822,11 @@ the top of the board, behind the guardian's paws, with embers rising from it, st
 turns whiter and beats like a heart, a double beat quicker than a resting pulse, with more embers, and one soft
 heartbeat cue sounds a beat while the run is in play. No block moves and no light sits on the rim or the glass.
 The line follows the stack in the frame it changes; reduced motion holds it still, brighter when critical, without
-embers. `TheLimitLineShowsAtRowNineBeatsAtRowTenAndStopsTheFrameTheBoardRecovers`,
-`NoBlockMovesBecauseOfTheDangerState`, `TheHeartbeatIsADoubleBeatQuickerThanARestingPulse` and
-`TheHeartbeatSoundsOnceABeatWhileTheStackIsCriticalAndTheRunIsInPlay` guard it.
+embers. Reduced motion stills only what is seen: the heartbeat sounds all the same, and the Effects level alone
+governs it (owner, 2026-10-06). `TheLimitLineShowsAtRowNineBeatsAtRowTenAndStopsTheFrameTheBoardRecovers`,
+`NoBlockMovesBecauseOfTheDangerState`, `TheHeartbeatIsADoubleBeatQuickerThanARestingPulse`,
+`TheHeartbeatSoundsOnceABeatWhileTheStackIsCriticalAndTheRunIsInPlay` and
+`ReducedMotionStillsTheLineAndTheHeartbeatStillSoundsAtTheEffectsLevel` guard it.
 
 One factory makes every board sprite and gives it its material before its sprite: under the SRP Batcher a
 renderer handed a shared material afterwards draws with the texture of the sprite drawn before it.

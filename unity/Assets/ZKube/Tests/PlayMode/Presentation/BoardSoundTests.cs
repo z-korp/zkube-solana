@@ -128,6 +128,35 @@ namespace ZKube.Presentation.Tests
             Assert.IsEmpty(played, "A recovered board is silent");
         }
 
+        // Owner, 2026-10-06: reduced motion only stills the line. The heartbeat
+        // sounds once a beat all the same, through the board's effects source,
+        // and the Effects level alone says how loud: turning reduced motion on
+        // changes neither that level nor the mute.
+        [UnityTest] public IEnumerator ReducedMotionStillsTheLineAndTheHeartbeatStillSoundsAtTheEffectsLevel()
+        {
+            var grid = new byte[80]; for (int row = 0; row < 10; row++) grid[row * 8] = 1;
+            var source = root.GetComponents<AudioSource>().Single(value => !value.loop);
+            var line = board.View.GetComponentsInChildren<SpriteRenderer>(true).Single(sprite => sprite.name == "Danger line");
+            float level = source.volume; bool mute = source.mute;
+            Assert.AreEqual((float)board.EffectsVolume, level, "The cue's source plays at the Effects level");
+            board.SetReducedMotion(true); yield return null;
+            try
+            {
+                Assert.AreEqual(level, source.volume, "Reduced motion leaves the Effects level alone"); Assert.AreEqual(mute, source.mute);
+                played.Clear(); board.View.SetBoard(grid); yield return null;
+                float alpha = line.color.a, thickness = line.bounds.size.y;
+                for (float end = Time.unscaledTime + 2.5f * BoardView.BeatSeconds - Time.unscaledDeltaTime; Time.unscaledTime < end;)
+                {
+                    Assert.AreEqual(alpha, line.color.a, 1e-4f, "The line is still"); Assert.AreEqual(thickness, line.bounds.size.y, 1e-3f, "The line is still");
+                    yield return null;
+                }
+                Assert.AreEqual(3, Count(SoundCues.Heartbeat), "One sound a beat, as with motion");
+                CollectionAssert.AreEqual(new[] { SoundCues.Heartbeat }, played.Distinct().ToArray());
+                Assert.AreEqual(level, source.volume); Assert.AreEqual(mute, source.mute);
+            }
+            finally { board.SetReducedMotion(false); }
+        }
+
         // No stars is the loss, one or two a small win, three a big win; an ended
         // Campaign run keeps none. A Daily with no score is the loss.
         [UnityTest] public IEnumerator AResultSoundsByTheStarsItKept()

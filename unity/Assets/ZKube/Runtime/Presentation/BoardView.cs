@@ -825,7 +825,8 @@ namespace ZKube.Presentation
             if (Pressure == 0) return;
             if (critical && float.IsNaN(dangerSince)) { dangerSince = now; dangerBeat = -1; }
             float beat = !critical ? 0 : still ? StillBeat : Heartbeat(now - dangerSince);
-            // Each beat sounds once, as it starts, whether or not the line moves.
+            // Each beat sounds once, as it starts, whether or not the line moves: reduced motion
+            // stills the line only, and the Effects level governs the sound (owner, 2026-10-06).
             int count = critical ? Mathf.FloorToInt((now - dangerSince) / BeatSeconds) : dangerBeat;
             if (count != dangerBeat) { dangerBeat = count; owner.Heartbeat(); }
             var board = Layout.Board; float cell = Layout.Cell;
