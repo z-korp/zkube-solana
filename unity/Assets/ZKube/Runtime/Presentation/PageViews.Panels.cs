@@ -64,26 +64,14 @@ namespace ZKube.Presentation
         // words, Settings' device card).
         private Piece BlockPiece(string name, IEnumerable<PanelBlock> blocks, ScreenKit kit) => kit.Stack(10, BlockPieces(blocks.ToList(), kit, false).ToArray());
 
-        // Blocks top-down: a guardian's line leans on the card after it, and
-        // buttons side by side share a row.
+        // Blocks top-down; buttons side by side share a row. An identity page is a
+        // utility page and carries no guardian (owner, 2026-10-06): no block draws one.
         private List<Piece> BlockPieces(IReadOnlyList<PanelBlock> blocks, ScreenKit kit, bool inCard)
         {
             var pieces = new List<Piece>();
             for (int i = 0; i < blocks.Count; i++)
             {
                 var block = blocks[i];
-                if (block.Kind == PanelKind.Talk)
-                {
-                    string frame = block.Mood == "surprised" || block.Mood == "celebrate" ? "satisfied" : block.Mood;
-                    bool leans = i + 1 < blocks.Count && blocks[i + 1].Kind == PanelKind.Card;
-                    // Alone, the guardian holds its line on a card of its own.
-                    // An identity page follows its wireframe, which draws the card whole under a guardian of one size.
-                    var card = leans ? CardPiece(blocks[++i], kit)
-                        : kit.Card(null, new[] { TextPiece(new PanelBlock { Kind = PanelKind.Text, Name = block.Name, Copy = block.Copy, Token = SkinTokens.Text },
-                            kit.Inside(), true) }, block.Name + " card");
-                    pieces.Add(kit.GuardianCard(frame, leans ? block.Copy : null, Step(156, 112), _ => card));
-                    continue;
-                }
                 if (block.Kind == PanelKind.Button)
                 {
                     var run = blocks.Skip(i).TakeWhile(next => next.Kind == PanelKind.Button).ToArray();

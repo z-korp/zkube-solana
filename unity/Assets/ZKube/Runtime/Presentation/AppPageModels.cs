@@ -260,7 +260,7 @@ namespace ZKube.Presentation
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
     }
 
-    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows, Balance, Packs, Space }
+    public enum PanelKind { Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows, Balance, Packs, Space }
 
     // One Kredit pack on its card: its picture, its count and its price on the
     // card's button. Buy is the card's tap; in progress it is the loader, and a
@@ -279,7 +279,7 @@ namespace ZKube.Presentation
     {
         public PanelKind Kind;
         // Sprite, Badge and Pictogram are kit slots; a portrait shows Emblem in its Ring.
-        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Pictogram, Chip, Ring, Mood;
+        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Pictogram, Chip, Ring;
         public byte Emblem;
         public bool? Centered;
         public bool Dim, ChipAtEnd;
@@ -290,9 +290,6 @@ namespace ZKube.Presentation
         public BoardRowView[] Rows = Array.Empty<BoardRowView>();
         public PackView[] Packs = Array.Empty<PackView>();
 
-        // The page realm's guardian says a line, leaning on the card after it.
-        public static PanelBlock Talk(string line, string mood) =>
-            new PanelBlock { Kind = PanelKind.Talk, Name = "Talk", Copy = line, Mood = mood };
         // A title, with an optional tag on the right of its line; a card's first
         // title with a tag is its header.
         public static PanelBlock Title(string text, string token = SkinTokens.Text, bool? centered = null, string tag = null,
