@@ -138,7 +138,28 @@ namespace ZKube.Presentation.Tests
                 Assert.AreSame(expected, music.clip); Assert.IsTrue(music.mute); Assert.IsFalse(music.isPlaying);
                 Assert.AreEqual(board.State.BonusCharges.ToString(), board.View.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Guardian action label").text);
                 Assert.AreEqual(0, board.State.BonusCharges, "Realm art does not grant charges");
+                yield return HudEvidence(theme.realmId);
             }
+        }
+        // Evidence, where captures are asked for: this realm's guardian on the board's HUD, drawn for the Seeker.
+        private IEnumerator HudEvidence(byte realm)
+        {
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ZKUBE_CAPTURES"))) yield break;
+            var art = ZKube.Tests.Presentation.BoardTestState.Art(board);
+            var screen = ZKube.Tests.Presentation.Phones.SeekerScreen;
+            var safe = new Rect(0, 0, screen.width, screen.height - ZKube.Tests.Presentation.Phones.SeekerTopInsetDp);
+            var ui = new SkinUi(art, 1, 1);
+            board.View.gameObject.SetActive(false);
+            var child = new GameObject("Hud evidence"); child.transform.SetParent(root.transform);
+            try
+            {
+                var view = child.AddComponent<BoardView>(); view.Create(board, art, HudLayout.Build(ui, board.State, board.Session, safe, 1, screen), ui);
+                view.SetBoard(board.State.Grid); view.SetPreview(board.State.HasNextRow, board.State.NextRow);
+                view.Summary(board.State, board.Session, true);
+                yield return null; yield return null;
+                yield return ZKube.Tests.Presentation.Captures.Snap(screen, "hud seeker realm " + realm.ToString("00"));
+            }
+            finally { UnityEngine.Object.Destroy(child); board.View.gameObject.SetActive(true); }
         }
         // Guardian continuity: every frame of every guardian renders in the same
         // box as idle, because it is idle. The body is always the idle frame; a
