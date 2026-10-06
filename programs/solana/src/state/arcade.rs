@@ -993,10 +993,33 @@ pub fn maximum_board_rent_lamports() -> u64 {
     2 * Rent::default().minimum_balance(ArenaBoard::funded_space(u32::MAX))
 }
 
+/// What a cluster charges a device for a run. None of these three is ours:
+/// the rent rate is the cluster's Rent sysvar, the same on Devnet and mainnet,
+/// and the delegation program funds its record and metadata at the larger of
+/// that and its own older rate, then keeps its session fee out of them when
+/// the run undelegates. The program reads rent from the cluster and never
+/// names the fee; these figures size the client's device deposit.
+/// `first_entry_lamports_are_what_devnet_charged_a_real_run` holds them to
+/// recorded transactions.
+pub const CLUSTER_RENT_LAMPORTS_PER_BYTE: u64 = 5_080;
+pub const DELEGATION_FUNDING_LAMPORTS_PER_BYTE: u64 = 6_960;
+pub const DELEGATION_SESSION_FEE_LAMPORTS: u64 = 3_000_000;
+/// The bytes every account is charged for besides its data.
+const ACCOUNT_STORAGE_OVERHEAD: u64 = 128;
+/// How many more runs a device deposit pays for after a first entry of the
+/// day. The owner's choice: five runs in a day.
+pub const DEVICE_DEPOSIT_RUNS: u64 = 4;
+
+/// Rent of an account of `space` bytes at the cluster's rate; zero bytes is
+/// the floor of a device's own account.
+pub const fn cluster_rent(space: usize) -> u64 {
+    (space as u64 + ACCOUNT_STORAGE_OVERHEAD) * CLUSTER_RENT_LAMPORTS_PER_BYTE
+}
+
 /// Sizes of the accounts a device pays for when it sends a player's first
 /// entry of a Daily and delegates the run in the same transaction. The buffer
-/// exists only inside that transaction; the record and metadata are the
-/// pinned delegation program's, for this run's seeds.
+/// exists only inside that transaction and holds no lamports; the record and
+/// metadata are the pinned delegation program's, for this run's seeds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FirstEntryAccounts {
     pub arena_player: usize,
@@ -1035,21 +1058,27 @@ impl FirstEntryAccounts {
 
     /// Rent for the daily player account, returned when it closes.
     pub fn arena_player_rent(self) -> u64 {
-        Rent::default().minimum_balance(self.arena_player)
+        cluster_rent(self.arena_player)
     }
 
-    /// The most rent the entry transaction holds at once.
+    /// Rent for the run, returned when it is consumed.
+    pub fn active_run_rent(self) -> u64 {
+        cluster_rent(self.active_run)
+    }
+
+    /// What delegating puts into the record and metadata. The session fee
+    /// stays there when the run undelegates and the rest returns.
+    pub fn delegation_funding(self) -> u64 {
+        let rate = CLUSTER_RENT_LAMPORTS_PER_BYTE.max(DELEGATION_FUNDING_LAMPORTS_PER_BYTE);
+        [self.delegation_record, self.delegation_metadata]
+            .into_iter()
+            .map(|space| (space as u64 + ACCOUNT_STORAGE_OVERHEAD) * rate)
+            .sum()
+    }
+
+    /// The most the entry transaction takes from the device besides its fee.
     pub fn peak_rent(self) -> u64 {
-        [
-            self.arena_player,
-            self.active_run,
-            self.delegation_buffer,
-            self.delegation_record,
-            self.delegation_metadata,
-        ]
-        .into_iter()
-        .map(|space| Rent::default().minimum_balance(space))
-        .sum()
+        self.arena_player_rent() + self.active_run_rent() + self.delegation_funding()
     }
 }
 
@@ -1071,8 +1100,36 @@ mod tests {
                 delegation_metadata: 118,
             }
         );
-        assert_eq!(accounts.arena_player_rent(), 2_463_840);
-        assert_eq!(accounts.peak_rent(), 12_193_920);
+    }
+
+    /// Devnet, device wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk, 2026-10-06,
+    /// after the delegation program's upgrade at slot 508073380. Each figure
+    /// is what the named transaction moved.
+    #[test]
+    fn first_entry_lamports_are_what_devnet_charged_a_real_run() {
+        let accounts = FirstEntryAccounts::sizes();
+        // The Rent sysvar: lamportsPerByte 5080, on Devnet and mainnet.
+        assert_eq!(cluster_rent(0), 650_240);
+        // 3J3ffhUE... (slot 508022304), a first entry of the day: the daily
+        // player, 226 bytes.
+        assert_eq!(accounts.arena_player_rent(), 1_798_320);
+        // 4dffGv7j... (slot 508201888), a later entry: the run, 336 bytes; the
+        // buffer, 336 bytes with no lamports; the record, 96 bytes, and the
+        // metadata, 118 bytes; a 5,400 fee. The device paid 5,633,720.
+        assert_eq!(accounts.active_run_rent(), 2_357_120);
+        assert_eq!(accounts.delegation_funding(), 1_559_040 + 1_712_160);
+        assert_eq!(
+            accounts.active_run_rent() + accounts.delegation_funding() + 5_400,
+            5_633_720
+        );
+        assert_eq!(accounts.peak_rent(), 7_426_640);
+        // 43LM3nEw... (slot 508202626), its undelegation: 2,700,000 to the
+        // validator's fees vault, 300,000 to the protocol's, 271,200 back.
+        assert_eq!(DELEGATION_SESSION_FEE_LAMPORTS, 2_700_000 + 300_000);
+        assert_eq!(
+            accounts.delegation_funding() - DELEGATION_SESSION_FEE_LAMPORTS,
+            271_200
+        );
     }
 
     #[test]

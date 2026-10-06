@@ -972,17 +972,17 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         assert_eq!(resulting_account(&refused, key), original);
     }
     // The client's device funding is generated from these sizes: the entry
-    // really costs what the quote says, and what is left covers delegation.
+    // really creates accounts of the sizes the quote names, at the rent of
+    // the runtime it runs on, which here is the test runtime's.
     let quoted = FirstEntryAccounts::sizes();
     let rent = anchor_lang::prelude::Rent::default();
-    assert_eq!(arena_player_rent, quoted.arena_player_rent());
-    assert_eq!(active_run_rent, rent.minimum_balance(quoted.active_run));
-    assert_eq!(
-        quoted.peak_rent() - arena_player_rent - active_run_rent,
-        rent.minimum_balance(quoted.delegation_buffer)
-            + rent.minimum_balance(quoted.delegation_record)
-            + rent.minimum_balance(quoted.delegation_metadata)
-    );
+    for (account, lamports, size) in [
+        (arena_player, arena_player_rent, quoted.arena_player),
+        (active_run, active_run_rent, quoted.active_run),
+    ] {
+        assert_eq!(resulting_account(&result, &account).data.len(), size);
+        assert_eq!(lamports, rent.minimum_balance(size));
+    }
 
     // A last-second run with one accepted action scores its partial state.
     let mut partial: ActiveRun = decode(resulting_account(&result, &active_run));

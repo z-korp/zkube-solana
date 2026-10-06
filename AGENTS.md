@@ -747,13 +747,23 @@ until acknowledgement, including after failure. `OneInstallKeyIsReusedAcrossWall
 persistence.
 
 What the owner's wallet puts on a device has one owner. The program states the accounts a first entry of the
-day pays for, including the pinned delegation program's record, metadata and buffer; the codegen turns them
-into rents; the client's DeviceFunding adds its own fees and the delegation charge. The deposit is one
-first entry plus the run costs of the largest Kredit pack, and a device is ready to enter only when it holds
-the cost of that entry. `first_entry_accounts_are_the_real_account_and_delegation_sizes`,
+day pays for, including the pinned delegation program's record, metadata and buffer, and what a cluster charges
+for them; the codegen emits those figures; the client's DeviceFunding adds its own fees. The deposit pays
+for five runs in a day: a first entry of the day plus the run costs of `DEVICE_DEPOSIT_RUNS` more, four, the
+owner's decision of 2026-10-06 and one line to change. A device is ready to enter only when it holds its rent
+floor, what that entry takes and its fee. `first_entry_accounts_are_the_real_account_and_delegation_sizes`,
 `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
 `ADeviceThatCannotPayItsFirstEntryIsAskedToRefillBeforeEntering` guard the sizes, the real entry cost and
-the gate. The delegation charge is MagicBlock's published figure; a Devnet trial confirms it.
+the gate. Three of those figures are not ours and are copies of what Devnet charged on 2026-10-06: the cluster's
+rent rate (5,080 lamports a byte, on mainnet too), and the delegation program's funding of its two accounts at
+its own rate (6,960 a byte, the buffer holding nothing) and its session fee (3,000,000 lamports, kept from those
+accounts when the run undelegates; one further million for each commit after the first, and a run commits once).
+Both of the delegation program's are constants compiled into it, changed by its upgrade without notice, and
+mainnet still charges the older 300,000. `first_entry_lamports_are_what_devnet_charged_a_real_run` holds every
+figure to the recorded transactions, and the operator's run cost check measures them again from the cluster
+before a release. The program itself reads rent from the cluster and never names the fee, so a change there
+needs no redeploy; an entry is simulated before it is sent, so a stale figure costs a late top-up prompt and
+wrong words, never money.
 
 Each run and ArenaPlayer returns rent to its stored payer, even from another device. An ArenaPlayer closes
 once its Daily is finalized: the boards were complete at that point and never read it again, and no entry or
@@ -1182,6 +1192,14 @@ keeper authority. The approval boundary above applies to every execution.
   `a_release_importing_a_gated_syscall_is_refused_in_every_symbol_encoding_before_it_is_recorded` guard it.
   Execute still simulates the final deploy transaction, like every other, before relaying it and stops on a
   failure.
+- **Run costs:** NO_DNA=1 pnpm chain check-run-costs reads public state only: the cluster's rent, the
+  delegation program's deploy slot and the latest settled run's entry, undelegation and consume. It fails naming
+  every stated figure the cluster no longer charges, and when no run has settled since the delegation program
+  was last deployed. Run it before every tester or store release; a failure is corrected at the figures' one
+  owner, programs/solana/src/state/arcade.rs, and regenerated.
+  `every_stated_run_cost_figure_is_what_devnet_charged_a_recorded_run`,
+  `a_run_cost_figure_the_cluster_no_longer_charges_fails_the_check_by_name` and
+  `a_run_from_before_the_delegation_programs_last_upgrade_proves_nothing` guard the measurement.
 - **Launch plan:** plan launch binds deployed program, keeper, day and cutoff. ZKUBE_LAUNCH_DAY_ID is the core's
   day, which opens at 07:00 UTC, and the cutoff must fall inside that day's entry window; it quotes paused
   protocol/vault initialization signed by the upgrade authority, cadence funding, and one atomic transaction that

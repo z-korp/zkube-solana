@@ -120,9 +120,8 @@ namespace ZKube.Tests.MoneyOverview
                 .Where(text => text.ToLowerInvariant().Contains("fee") || text.ToLowerInvariant().Contains("allowance")), Is.Empty, page);
             yield return FirstRun("session-enable-success", null); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
-            Assert.That(deposit, Is.EqualTo("0.021" + CurrencyMark.Tag));
             Assert.That(Text("Deposit"), Is.EqualTo(deposit));
-            Assert.That(Text("Device guide"), Is.EqualTo("About 0.0003 SOL per run. The rest returns when you disable this device."));
+            Assert.That(Text("Device guide"), Is.EqualTo("About 0.003 SOL per run. The rest returns when you disable this device."));
             NoFee("setup");
             yield return Wait(Adapter.EnsureDeviceSession()); yield return Idle();
             Assert.That(Text("Deposit"), Is.EqualTo(deposit), "A device in use shows the deposit it has left");

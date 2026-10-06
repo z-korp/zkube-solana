@@ -51,13 +51,24 @@ namespace ZKube.Integration.Client.Runs.Tests
 
         [Test] public async Task ADeviceThatCannotPayItsFirstEntryIsAskedToRefillBeforeEntering()
         {
+            // Devnet's figures on 2026-10-06, as the program's recorded run states them: a first entry of the
+            // day took 7,432,040 from the device, a later one 5,633,720, and a run cost 3,010,800 once settled.
             ulong needed = DeviceFunding.EntryBalanceLamports(false);
-            Assert.That(needed, Is.EqualTo(Protocol.SystemAccountRentLamports + Protocol.FirstEntryPeakRentLamports +
-                2 * DeviceFunding.TransactionFeeLamports + DeviceFunding.DelegationChargeLamports));
-            // The funded target pays a first entry and then the largest pack's other runs.
-            ulong pack = needed + (SessionViewPolicy.KreditPacks.Max() - 1UL) * DeviceFunding.RunCostLamports;
+            Assert.That(needed, Is.EqualTo(Protocol.SystemAccountRentLamports + 7432040UL));
+            Assert.That(DeviceFunding.EntryBalanceLamports(true), Is.EqualTo(Protocol.SystemAccountRentLamports + 5633720UL));
+            Assert.That(DeviceFunding.RunCostLamports, Is.EqualTo(3010800UL));
+            Assert.That(DeviceFunding.RunCostShownLamports, Is.EqualTo(3000000UL));
+            // The charge comes out of what the entry already put into the delegation accounts.
+            Assert.That(DeviceFunding.DelegationChargeLamports, Is.LessThan(Protocol.FirstEntryPeakRentLamports));
+            // The deposit pays a first entry of the day and then the further runs the owner chose.
+            ulong pack = needed + Protocol.DeviceDepositRuns * DeviceFunding.RunCostLamports;
             Assert.That(DeviceFunding.DepositLamports, Is.InRange(pack, pack + Protocol.PayoutUnitLamports - 1));
             Assert.That(DeviceFunding.DepositLamports % Protocol.PayoutUnitLamports, Is.Zero);
+            // Played out over one day, it pays for exactly that many runs before the device needs a top-up.
+            ulong left = DeviceFunding.DepositLamports, runs = 0;
+            while (left >= DeviceFunding.EntryBalanceLamports(runs > 0))
+            { left -= (runs == 0 ? Protocol.ArenaPlayerRentLamports : 0UL) + DeviceFunding.RunCostLamports; runs++; }
+            Assert.That(runs, Is.EqualTo(Protocol.DeviceDepositRuns + 1UL));
             // Later the same day the daily player exists and its rent is not paid again.
             Assert.That(needed - DeviceFunding.EntryBalanceLamports(true), Is.EqualTo(Protocol.ArenaPlayerRentLamports));
             foreach (bool funded in new[] { false, true })

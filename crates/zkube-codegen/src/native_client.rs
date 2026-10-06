@@ -261,9 +261,11 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS,
         ),
         ("TransactionComputeUnits", zkube_core::TRANSACTION_COMPUTE_UNITS),
-        // What a device holds at once to enter and delegate a first run of
-        // the day, the part that returns when the daily player closes, and
-        // the floor of the device's own account.
+        // What entering and delegating a first run of the day takes from a
+        // device, the part that returns when the daily player closes, the
+        // delegation program's fee for the session, how many more runs a
+        // deposit pays for, and the floor of the device's own account: the
+        // cluster's figures and the owner's choice, stated by the program.
         (
             "FirstEntryPeakRentLamports",
             zkube_program::state::FirstEntryAccounts::sizes().peak_rent(),
@@ -272,10 +274,15 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "ArenaPlayerRentLamports",
             zkube_program::state::FirstEntryAccounts::sizes().arena_player_rent(),
         ),
+        (
+            "DelegationChargeLamports",
+            zkube_program::state::DELEGATION_SESSION_FEE_LAMPORTS,
+        ),
+        ("DeviceDepositRuns", zkube_program::state::DEVICE_DEPOSIT_RUNS),
         ("PayoutUnitLamports", zkube_core::SOL_PAYOUT_UNIT_LAMPORTS),
         (
             "SystemAccountRentLamports",
-            anchor_lang::prelude::Rent::default().minimum_balance(0),
+            zkube_program::state::cluster_rent(0),
         ),
     ] {
         writeln!(output, "        public const ulong {name} = {value}UL;").unwrap();
