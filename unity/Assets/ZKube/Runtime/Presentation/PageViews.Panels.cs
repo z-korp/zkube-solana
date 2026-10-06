@@ -32,15 +32,37 @@ namespace ZKube.Presentation
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
             pageNotices = messages;
-            Frame(page.Tab, null, null, page.Back ?? page.Corner, null,
-                leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
-            var kit = Kit; var pieces = new List<Piece>();
-            if ((page.Title ?? page.Subtitle) != null) pieces.Add(kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)));
-            PanelBody(page.Blocks, pieces, page.Tab.HasValue);
+            if (page.ByRole) Composed(page);
+            else
+            {
+                Frame(page.Tab, null, null, page.Back ?? page.Corner, null,
+                    leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
+                var kit = Kit; var pieces = new List<Piece>();
+                if ((page.Title ?? page.Subtitle) != null) pieces.Add(kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)));
+                PanelBody(page.Blocks, pieces, page.Tab.HasValue);
+            }
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);
             Music(true); Drawn();
+        }
+
+        // An identity page through the composer: Back beside its title, its blocks
+        // in the middle (centred on a page without tabs), its reason over the
+        // foot row, its buttons by role, its stepper and its tab bar.
+        private void Composed(PanelPageView page)
+        {
+            Stage(page.Tab, false);
+            var kit = Kit; var body = new List<Piece>();
+            if (!page.Tab.HasValue) body.Add(Piece.Grow);
+            body.AddRange(BlockPieces(page.Blocks, kit, false));
+            body.Add(Piece.Grow);
+            var slots = new ScreenKit.Slots { Back = Control(page.Back), Body = body,
+                Title = (page.Title ?? page.Subtitle) == null ? (Piece?)null : kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)),
+                Notices = page.Reason == null ? (Piece?)null : BlockPieces(new[] { page.Reason }, kit, false)[0],
+                Primary = Control(page.Primary), Secondary = Control(page.Secondary), Tertiary = Control(page.Tertiary), Destructive = Control(page.Destructive),
+                Stepper = page.Stepper == null ? (Piece?)null : StepperPiece(page.Stepper, kit) };
+            Place(kit, slots, page.Back);
         }
 
         // A page's blocks under its title: a page without tabs centres them
@@ -172,7 +194,6 @@ namespace ZKube.Presentation
                     });
                 }
                 case PanelKind.Card: return CardPiece(block, kit);
-                case PanelKind.Stepper: return StepperPiece(block, kit);
                 case PanelKind.Rows: return RowsPiece(block, kit);
                 case PanelKind.Balance: return BalancePiece(block, kit);
                 case PanelKind.Packs: return PacksPiece(block, kit);
@@ -228,7 +249,7 @@ namespace ZKube.Presentation
                 var face = ui.Rect<Image>(block.Name, rect, shell.Page); face.color = Color.clear; face.raycastTarget = false;
                 if (block.Dim) face.gameObject.AddComponent<CanvasGroup>().alpha = .35f;
                 row.Draw(rect);
-                if (tapped) Tap(face, block.Action);
+                if (tapped) Tap(face, block.Action, ScreenKit.Role.WayIn);
             });
         }
         // A value on a row's right, set smaller to fit its share of the row.
@@ -257,11 +278,12 @@ namespace ZKube.Presentation
             tag.Value.Draw(new Rect(x, rect.center.y - tag.Value.Height / 2, tag.Value.Width, tag.Value.Height));
         }
 
-        // Makes a drawn row one button bound to its action.
-        private void Tap(Image row, PageAction action)
+        // Makes a drawn row one button bound to its action, in the role its piece gives it.
+        private void Tap(Image row, PageAction action, ScreenKit.Role role)
         {
             row.raycastTarget = true; row.name = action.Name ?? action.Label;
             var button = row.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = row;
+            ScreenKit.As(button, role);
             row.gameObject.AddComponent<PressSquash>();
             actions.Wire(button, action, fade: false);
         }

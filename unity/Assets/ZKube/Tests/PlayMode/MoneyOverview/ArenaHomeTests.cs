@@ -137,6 +137,9 @@ namespace ZKube.Tests.MoneyOverview
                 yield return ArenaScreen(phone, "boards " + name);
                 var shell = host.GetComponent<PageShell>();
                 Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + .5f), phone + " " + name + ": only the rows list scrolls");
+                // Back top left, the one button on the stepper, the stepper on the tab bar, in every kind of day.
+                Placement.Check(host.transform, shell.SafeArea, 1, phone + " boards " + name);
+                Assert.That(host.GetComponentsInChildren<Button>().Count(button => button.GetComponent<Placed>()?.Role == ScreenKit.Role.Step), Is.EqualTo(2), phone + " " + name + ": the stepper is drawn");
             }
             foreach (string phone in new[] { "Seeker", "360 x 640" })
                 foreach (var (variant, name) in new[] { ("sealed", "reward to claim"), ("claimed", "reward claimed"), ("expired", "claim window closed"),

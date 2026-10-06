@@ -183,10 +183,11 @@ deployment or spending approval.
   sent, nothing ends, and an action still being confirmed finishes first. A Campaign run and the Realms Daily stay
   saved, and their level or Home resumes them; the Arena Daily stays in flight on the rollup and the landing
   page's one action is Resume run. A Daily in the last hour before its day closes says when, in one line over the
-  band. End run stays, behind its confirm. The pause's actions are one band at its foot (owner, 2026-10-05):
-  Resume across the column, then Home and End run side by side at equal widths, each an icon and a word, the
-  destructive one last; nothing in a top corner takes a tap. A phone with no height to spare gives up the pause's
-  spacers, then tightens its two cards evenly, and keeps the band's two rows.
+  band. End run stays, behind its confirm. The pause's actions are its foot row (owner, 2026-10-05, and the
+  placement rule of 2026-10-06): Resume, then Home, and End run last, each an icon and a word; nothing in a top
+  corner takes a tap. Where the three fit one row they share it; where they do not, Resume spans the column over
+  Home and End run side by side at equal widths. A phone with no height to spare gives up the spacer over the
+  pause's cards, then tightens its two cards evenly, and last sets the three in one row.
   `HomeLeavesTheBoardWithItsRunAndWaitsForAnActionBeingConfirmed`,
   `ADailysPauseSaysWhenItClosesOnlyInItsLastHour`, `HomeFromThePauseLeavesTheRunSavedAndItIsResumedInBothModes`,
   `HomeFromThePauseLeavesTheDailyInFlightAndResumeRunReturnsToIt`,
@@ -757,6 +758,20 @@ not known keeps the one on screen; no default stands in. A frame slower than the
 tabs and the fade. A page is laid out for one display: when the screen or its safe area changes, `PageViews`
 draws the shown page again by itself, for both identities;
 `AChangedDisplayDrawsThePageAgainUnderBothIdentityImplementations` guards it.
+
+Every control has a role, and a role has one place (the placement rule, owner 2026-10-06). A page is three bands:
+the top says where you are, the middle shows, the bottom does. One composer, in `ScreenKit`, places them: Back
+top left beside the title, in a row as tall as its 48 dp tablet; the page's reason or notice directly over its
+foot row; the foot row (the primary, the secondary, the tertiary, the destructive one last, each an icon and a
+word; three that do not fit one row are the primary across the column over the other two, never three rows); a
+stepper as the lowest row, its two arrows at the ends of one bar that never changes shape; and the tab bar on the
+bottom edge. A page hands its controls over by role and places none itself; an action carries its own icon. The
+kit names each control's role where it places it, and `Placement` holds every control of a drawn page to its band
+and slot. Pages move onto the composer family by family: `EveryPagePlacesItsControlsByRole` walks those that have
+at both phones (the Boards page, both products' Daily result), and the walks of their every state make the same
+check (`TheBoardsPageFitsBothPhonesOnEveryKindOfDay`, `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones`,
+`DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce`). The device and the wallet have no icon of
+their own yet: `StandInIcons` names the kit icons that stand in for them until the art is drawn.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration
 path owns both products, and money-only schemas stay out of store packages.

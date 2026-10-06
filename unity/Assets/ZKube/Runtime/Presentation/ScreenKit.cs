@@ -43,17 +43,56 @@ namespace ZKube.Presentation
         // A button: its words and icon, what it does and its kind: the lit
         // primary, the teal secondary or the quiet dark pill.
         public enum Kind { Primary, Secondary, Quiet }
+        // What a control is on its page. A role has one place (the placement rule,
+        // owner 2026-10-06): the kit names it on every control it places, and
+        // EveryPagePlacesItsControlsByRole holds each to its band and its slot.
+        public enum Role { Back, Skip, Primary, Secondary, Tertiary, Destructive, Step, Tab, Setting, WayIn, CardAction, ViewSwitch, Choice, Status }
+        public static T As<T>(T control, Role role) where T : Component
+        {
+            var placed = control.GetComponent<Placed>(); if (placed == null) placed = control.gameObject.AddComponent<Placed>();
+            placed.Role = role; return control;
+        }
+        // One control of a slot: its name, its words and icon, what it does, and
+        // what its page does with the button once it is drawn (bind it, mark its progress).
+        public sealed class Control
+        {
+            public string Name, Label, Icon, Shorter;
+            public Action Click;
+            public Action<Button, TMP_Text> Made;
+        }
+        // A page, as it hands itself to the composer: what it shows, and its
+        // controls by role. The page places none of them.
+        public sealed class Slots
+        {
+            // Top left, beside the title; drawn in Chrome where the body runs under the whole screen.
+            public Control Back;
+            public string BackIcon = SkinSlots.IconBack;
+            public Transform Chrome;
+            // The title row's piece: a title plate, or a page's own header.
+            public Piece? Title;
+            // The middle band, with the page's own spacers.
+            public IEnumerable<Piece> Body = Array.Empty<Piece>();
+            // Directly above the foot row.
+            public Piece? Notices;
+            // The foot row, in its reading order.
+            public Control Primary, Secondary, Tertiary, Destructive;
+            // The lowest row, on the tab bar.
+            public Piece? Stepper;
+            // Draws the tab bar into its rect, on a page that has one.
+            public Action<Rect> Tabs;
+        }
 
         public readonly SkinUi Ui;
         public readonly Transform Parent;
         public readonly Rect Safe;
         public readonly float K, U;
         private readonly float width, bottom;
+        private readonly Rect screen;
         // bottom is the column's foot over the safe area's (the tab bar's top for a
         // tab page); width narrows the column (a card's inside).
         public ScreenKit(SkinUi ui, Transform parent, Rect screen, Rect safe, float? bottom = null, float? width = null)
         {
-            Ui = ui; Parent = parent; Safe = safe;
+            Ui = ui; Parent = parent; Safe = safe; this.screen = screen;
             K = Mathf.Clamp(.8f + (screen.height / ui.Density - 640) * .0012f, .8f, 1.1f);
             U = K * ui.Density;
             this.width = width ?? Mathf.Min(safe.width - 24 * U, PageViews.ColumnDp * ui.Density);
@@ -61,7 +100,7 @@ namespace ZKube.Presentation
         }
         private ScreenKit(ScreenKit kit, float width)
         {
-            Ui = kit.Ui; Parent = kit.Parent; Safe = kit.Safe; K = kit.K; U = kit.U; this.width = width; bottom = kit.bottom;
+            Ui = kit.Ui; Parent = kit.Parent; Safe = kit.Safe; K = kit.K; U = kit.U; this.width = width; bottom = kit.bottom; screen = kit.screen;
         }
         // The wireframes draw some sizes in two steps: the Seeker's and the compact phone's.
         public float Step(float seeker, float compact) => K > .95f ? seeker : compact;
@@ -154,6 +193,106 @@ namespace ZKube.Presentation
             }
             return new Rect(left, y + gap, width, top - y - gap);
         }
+        // The one composer (the placement rule, owner 2026-10-06). A page is three
+        // bands: the top says where you are, the middle shows, the bottom does.
+        // From the top: Back beside the title, in a row as tall as its tablet;
+        // the page's body; its notices, directly over the foot; the foot row;
+        // the stepper, the lowest row; and the tab bar on the bottom edge. What
+        // the screen has left goes above the foot, so the bottom band never
+        // moves with the content. A page hands its controls over by role and
+        // places none itself.
+        private Piece[] Pieces(Slots slots, bool oneRow)
+        {
+            var pieces = new List<Piece>();
+            if (slots.Back != null || slots.Title.HasValue) pieces.Add(TitleRow(slots));
+            pieces.AddRange(slots.Body);
+            if (pieces.Count == 0 || pieces[pieces.Count - 1].Height >= 0) pieces.Add(Piece.Grow);
+            if (slots.Notices.HasValue) pieces.Add(slots.Notices.Value);
+            var foot = Foot(slots.Primary, slots.Secondary, slots.Tertiary, slots.Destructive, oneRow);
+            if (foot.HasValue) pieces.Add(foot.Value);
+            if (slots.Stepper.HasValue) pieces.Add(slots.Stepper.Value);
+            return pieces.ToArray();
+        }
+        // Whether the page fits its screen with its foot in two rows, where it takes two.
+        public bool Fits(Slots slots) => Fits(Pieces(slots, false));
+        public Rect Page(Slots slots)
+        {
+            // Three buttons that need two rows the page has no room for share one row.
+            var pieces = Pieces(slots, false);
+            if (!Fits(pieces)) pieces = Pieces(slots, true);
+            var used = Compose(pieces);
+            slots.Tabs?.Invoke(TabRect(Ui, screen, Safe));
+            return used;
+        }
+        // Back's tablet: 48 dp at least, 12u in from the side, its top on the page's edge.
+        public float BackSize => Touch(40);
+        private Piece TitleRow(Slots slots)
+        {
+            if (slots.Back == null) return slots.Title.Value;
+            float tablet = BackSize, above = slots.Title?.Above ?? 0, words = slots.Title?.Height ?? 0;
+            // The row is as tall as the tablet, so the next piece never touches it;
+            // a shorter title stands level with the tablet's middle.
+            return new Piece(Mathf.Max(words, tablet - 2 * above), rect => {
+                var back = slots.Back;
+                var button = Ui.IconButton(back.Name ?? back.Label, new Rect(Safe.x + 12 * U, rect.yMax + above - tablet, tablet, tablet), slots.BackIcon, back.Click,
+                    slots.Chrome ?? Parent, false, out _, out _);
+                As(button, Role.Back); back.Made?.Invoke(button, null);
+                slots.Title?.Draw(new Rect(rect.x, rect.center.y - words / 2, rect.width, words));
+            }, above);
+        }
+        // The foot row: the primary, then the secondary, the tertiary and the
+        // destructive one last, each an icon and a word. The tertiary and the
+        // destructive one are the outline pill.
+        public Piece? Foot(Control primary, Control secondary, Control tertiary, Control destructive, bool oneRow = false)
+        {
+            var slots = new[] { (control: primary, role: Role.Primary, kind: Kind.Primary), (control: secondary, role: Role.Secondary, kind: Kind.Secondary),
+                (control: tertiary, role: Role.Tertiary, kind: Kind.Quiet), (control: destructive, role: Role.Destructive, kind: Kind.Quiet) }
+                .Where(slot => slot.control != null).ToArray();
+            if (slots.Length == 0) return null;
+            return Buttons(slots.Select(slot => (slot.control.Name ?? slot.control.Label, slot.control.Label, slot.control.Click, slot.kind, slot.control.Icon)).ToArray(),
+                (i, button, text) => { As(button, slots[i].role); slots[i].control.Made?.Invoke(button, text); },
+                shorter: slots.Select(slot => slot.control.Shorter).ToArray(), oneRow: oneRow);
+        }
+        // A stepper (the Boards page's days, the map's realms): one bar holding
+        // the previous step's arrow, what it steps over that step's state, and
+        // the next step's arrow, 48 dp each at the bar's two ends. The bar never
+        // changes shape: an arrow that cannot step is dimmed and takes no tap.
+        public Piece Stepper(string name, string labelName, string label, Side? state, Side? mark, Control previous, Control next)
+        {
+            float u = U, arrow = Touch(48), labelDp = 17 * K, glyph = 18 * u;
+            float labelHeight = labelDp * Ui.Scale * Ui.Density * DisplayNormal;
+            float words = labelHeight + (state.HasValue ? 2 * u + state.Value.Height : 0);
+            return new Piece(Mathf.Max(arrow, words + 12 * u), rect => {
+                Ui.Pill(name, rect, Parent, new Color(15 / 255f, 42 / 255f, 56 / 255f, .94f));
+                for (int side = 0; side < 2; side++)
+                {
+                    // An arrow with nothing to do has no click.
+                    var control = side == 0 ? previous : next; bool steps = control.Click != null;
+                    var at = new Rect(side == 0 ? rect.x : rect.xMax - arrow, rect.center.y - arrow / 2, arrow, arrow);
+                    var face = Ui.Rect<Image>(control.Name, at, Parent); face.color = Color.clear;
+                    var chevron = Ui.Piece(control.Name + " chevron", SkinSlots.IconBack, new Rect(at.center.x - glyph / 2, at.center.y - glyph / 2, glyph, glyph), face.transform);
+                    chevron.color = SkinUi.WithAlpha(Ui.Art.Token(SkinTokens.Text), steps ? 1 : .28f); chevron.raycastTarget = false;
+                    if (side == 1)
+                    {
+                        var turned = chevron.rectTransform; turned.pivot = new Vector2(.5f, .5f); turned.anchoredPosition += turned.sizeDelta / 2;
+                        turned.localScale = new Vector3(-1, 1, 1);
+                    }
+                    var button = face.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = face;
+                    face.raycastTarget = true; face.gameObject.AddComponent<PressSquash>();
+                    As(button, Role.Step);
+                    if (!steps) { button.interactable = false; continue; }
+                    button.onClick.AddListener(() => control.Click()); control.Made?.Invoke(button, null);
+                }
+                float top = rect.center.y + words / 2;
+                Text(labelName, label, new Rect(rect.x + arrow, top - labelHeight, rect.width - 2 * arrow, labelHeight), labelDp, SkinTokens.Text, SkinUi.Type.Display,
+                    DisplayNormal).textWrappingMode = TextWrappingModes.NoWrap;
+                if (!state.HasValue) return;
+                float markWide = mark.HasValue ? mark.Value.Width + 4 * u : 0, left = rect.center.x - (state.Value.Width + markWide) / 2;
+                if (mark.HasValue) mark.Value.Draw(new Rect(left, top - words + state.Value.Height / 2 - mark.Value.Height / 2, mark.Value.Width, mark.Value.Height));
+                state.Value.Draw(new Rect(left + markWide, top - words, state.Value.Width, state.Value.Height));
+            });
+        }
+
         // Pieces stacked with gapU between them, as one piece (a card's inside).
         public Piece Stack(float gapU, params Piece[] pieces)
         {
@@ -511,15 +650,20 @@ namespace ZKube.Presentation
 
         // A screen's buttons in one row (.btns): the primary fills up to 300u,
         // the others hug their words, 10u apart and centred; each leads with its
-        // icon. A row too wide for the column first sets its words a step smaller,
-        // then stacks, the primary on top. made receives each button and its
-        // label, by its index.
+        // icon. Two buttons too wide for the column first set their words a step
+        // smaller, then stack, the primary on top. Three buttons that do not fit
+        // one row are a band and never three rows: the primary across the column,
+        // 56u tall, over the other two side by side at equal widths and the touch
+        // height. Where the page has no room for the band's two rows (oneRow),
+        // the three share one row, their words as small as it takes. Either way
+        // they read in their order, the destructive one last. made receives each
+        // button and its label, by its index.
         // A small row (a pack's price on its row) keeps every button at the quiet
         // height, its lit words at 18u.
         // A button's words shrink toward 14 dp to fit it and, past that, take
         // their shorter form (shorter, by index) where there is one.
         public Piece Buttons((string name, string label, Action click, Kind kind, string icon)[] items, Action<int, Button, TMP_Text> made = null, bool small = false,
-            string[] shorter = null)
+            string[] shorter = null, bool oneRow = false)
         {
             float u = U, gap = 10 * u, column = width;
             float primaryDp = small ? 18 * K : 24 * K, secondaryDp = small ? 18 * K : 20 * K;
@@ -530,20 +674,36 @@ namespace ZKube.Presentation
             float Wide((string name, string label, Action click, Kind kind, string icon) item) =>
                 TextWidth(item.label, Size(item), Face(item)) + (item.icon == null ? 0 : 28 * u + 8 * u) + 32 * u;
             float Row() => items.Sum(Wide) + gap * (items.Length - 1);
+            bool three = items.Length == 3 && items.Count(item => item.kind == Kind.Primary) == 1 && items[0].kind == Kind.Primary;
+            if (three && !oneRow && Row() > column)
+            {
+                float tall = Touch(56), low = QuietHeight;
+                return new Piece(tall + gap + low, rect => {
+                    float half = (rect.width - gap) / 2;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var at = i == 0 ? new Rect(rect.x, rect.yMax - tall, rect.width, tall) : new Rect(i == 1 ? rect.x : rect.xMax - half, rect.y, half, low);
+                        var button = ButtonIn(items[i], at, i == 0 ? 24 * K : items[i].kind == Kind.Quiet ? QuietDp : 18 * K, shorter?[i], out var text);
+                        made?.Invoke(i, button, text);
+                    }
+                });
+            }
             if (!small && Row() > column) { primaryDp = 20 * K; secondaryDp = 18 * K; }
-            bool stacked = Row() > column;
+            bool stacked = Row() > column && !oneRow;
             var order = Enumerable.Range(0, items.Length).OrderBy(i => stacked && items[i].kind != Kind.Primary).ToArray();
             float rowHeight = items.Length == 0 ? 0 : items.Max(Tall);
             float height = stacked ? items.Sum(Tall) + gap * (items.Length - 1) : rowHeight;
             return new Piece(height, rect => {
-                float others = items.Where(item => item.kind != Kind.Primary).Sum(Wide) + gap * (items.Length - 1);
+                // A row forced into the column gives each button its share of it.
+                float squeeze = !stacked && Row() > rect.width ? (rect.width - gap * (items.Length - 1)) / items.Sum(Wide) : 1;
+                float others = items.Where(item => item.kind != Kind.Primary).Sum(item => Wide(item) * squeeze) + gap * (items.Length - 1);
                 float primary = items.Any(item => item.kind == Kind.Primary)
-                    ? Mathf.Clamp(rect.width - others, Wide(items.First(item => item.kind == Kind.Primary)), 300 * u) : 0;
+                    ? Mathf.Clamp(rect.width - others, Wide(items.First(item => item.kind == Kind.Primary)) * squeeze, 300 * u) : 0;
                 float x = rect.center.x - (primary + others) / 2, y = rect.yMax;
                 foreach (int i in order)
                 {
                     var item = items[i];
-                    float w = stacked ? Mathf.Min(column, Mathf.Max(primary, Wide(item))) : item.kind == Kind.Primary ? primary : Wide(item), h = Tall(item);
+                    float w = stacked ? Mathf.Min(column, Mathf.Max(primary, Wide(item))) : item.kind == Kind.Primary ? primary : Wide(item) * squeeze, h = Tall(item);
                     var at = stacked ? new Rect(rect.center.x - w / 2, y - h, w, h) : new Rect(x, rect.yMax - rowHeight / 2 - h / 2, w, h);
                     var button = ButtonIn(item, at, Size(item), shorter?[i], out var text);
                     made?.Invoke(i, button, text);
@@ -590,22 +750,6 @@ namespace ZKube.Presentation
             }
             return button;
         }
-        // An action band (the pause's): its one primary across the column, 56u
-        // tall, over two more side by side at equal widths and the touch height.
-        // It reads top to bottom, left to right: the primary, then the others in
-        // their order, the destructive one last.
-        public Piece ActionBand((string name, string label, Action click, Kind kind, string icon) primary,
-            (string name, string label, Action click, Kind kind, string icon) left, (string name, string label, Action click, Kind kind, string icon) right)
-        {
-            float gap = 10 * U, tall = Touch(56), low = QuietHeight;
-            float Size((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? QuietDp : 18 * K;
-            return new Piece(tall + gap + low, rect => {
-                ButtonIn(primary, new Rect(rect.x, rect.yMax - tall, rect.width, tall), 24 * K, null, out _);
-                float half = (rect.width - gap) / 2;
-                ButtonIn(left, new Rect(rect.x, rect.y, half, low), Size(left), null, out _);
-                ButtonIn(right, new Rect(rect.xMax - half, rect.y, half, low), Size(right), null, out _);
-            });
-        }
         // A quiet button (.b3.q): the dark pill with its words in the caption face, padded 16u.
         public Button QuietButton(string name, Rect rect, string label, Action click, string icon, out TMP_Text text)
         {
@@ -635,4 +779,7 @@ namespace ZKube.Presentation
             return new Rect(safe.center.x - kit.Width / 2, kit.bottom, kit.Width, height);
         }
     }
+
+    // A control's role, set by the kit where it places the control (ScreenKit.As).
+    public sealed class Placed : MonoBehaviour { public ScreenKit.Role Role; }
 }

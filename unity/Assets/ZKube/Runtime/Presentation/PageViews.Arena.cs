@@ -99,7 +99,7 @@ namespace ZKube.Presentation
                 // The whole figure is the way to Kredits, at a finger's height.
                 float touch = Mathf.Max(rect.height, inside.Touch(44));
                 var hit = ui.Rect<Image>("Kredit figure tap", new Rect(rect.x, rect.center.y - touch / 2, rect.width, touch), shell.Page);
-                hit.color = Color.clear; Tap(hit, arcade.OpenKredits);
+                hit.color = Color.clear; Tap(hit, arcade.OpenKredits, ScreenKit.Role.Status);
             });
         }
 
@@ -142,7 +142,7 @@ namespace ZKube.Presentation
                 chip.Draw(rect);
                 float touch = Mathf.Max(rect.height, inside.Touch(44));
                 var hit = ui.Rect<Image>("Rewards badge tap", new Rect(rect.x, rect.center.y - touch / 2, rect.width, touch), shell.Page);
-                hit.color = Color.clear; Tap(hit, claims);
+                hit.color = Color.clear; Tap(hit, claims, ScreenKit.Role.Status);
             });
         }
 
@@ -193,7 +193,7 @@ namespace ZKube.Presentation
                         else if (board.Rows.Length > 0 && pinned != null) BoardRow(inside, name + " yours", pinned, own, shell.Page);
                     }
                     if (board?.Open == null) continue;
-                    var hit = ui.Rect<Image>(name + " tap", column, shell.Page); hit.color = Color.clear; Tap(hit, board.Open);
+                    var hit = ui.Rect<Image>(name + " tap", column, shell.Page); hit.color = Color.clear; Tap(hit, board.Open, ScreenKit.Role.Choice);
                 }
             });
         }
@@ -256,46 +256,16 @@ namespace ZKube.Presentation
             player.textWrappingMode = TextWrappingModes.NoWrap; player.overflowMode = TextOverflowModes.Ellipsis;
         }
 
-        // The day stepper, the Boards page's foot: one band holding the previous
-        // day's chevron, the date over the day's state, and the next day's
-        // chevron. It is a piece of its own, unlike Back, which stays a tablet
-        // alone at the top. A chevron whose step cannot be taken is dimmed and
-        // takes no tap.
-        private Piece StepperPiece(PanelBlock block, ScreenKit kit)
+        // A page's stepper, on the kit's one stepper piece: its state is a tag, a
+        // live step's lit dot before it.
+        private Piece StepperPiece(StepperView view, ScreenKit kit)
         {
-            float u = kit.U, arrow = kit.Touch(48), dateDp = 17 * kit.K, glyph = 18 * u;
-            ScreenKit.Side? state = block.Tag == null ? (ScreenKit.Side?)null : Tag(kit, block.Tag, block.TagToken, "Day state");
-            // A live day's lit dot stands left of its state.
-            float dot = block.Sprite == null ? 0 : 12 * u;
-            float dateHeight = dateDp * ui.Scale * ui.Density * ScreenKit.DisplayNormal;
-            float block2 = dateHeight + (state.HasValue ? 2 * u + state.Value.Height : 0);
-            return new Piece(Mathf.Max(arrow, block2 + 12 * u), rect => {
-                ui.Pill("Day stepper", rect, shell.Page, new Color(15 / 255f, 42 / 255f, 56 / 255f, .94f));
-                for (int side = 0; side < 2; side++)
-                {
-                    var action = block.Actions[side] ?? new PageAction { Label = side == 0 ? "Previous day" : "Next day", Enabled = false };
-                    var at = new Rect(side == 0 ? rect.x : rect.xMax - arrow, rect.center.y - arrow / 2, arrow, arrow);
-                    var face = ui.Rect<Image>(action.Name ?? action.Label, at, shell.Page); face.color = Color.clear;
-                    var chevron = Tinted((action.Name ?? action.Label) + " chevron", SkinSlots.IconBack,
-                        new Rect(at.center.x - glyph / 2, at.center.y - glyph / 2, glyph, glyph), SkinTokens.Text, face.transform);
-                    chevron.raycastTarget = false;
-                    if (side == 1)
-                    {
-                        var turned = chevron.rectTransform; turned.pivot = new Vector2(.5f, .5f); turned.anchoredPosition += turned.sizeDelta / 2;
-                        turned.localScale = new Vector3(-1, 1, 1);
-                    }
-                    if (block.Actions[side] == null) chevron.color = SkinUi.WithAlpha(chevron.color, .28f);
-                    Tap(face, action);
-                }
-                float top = rect.center.y + block2 / 2;
-                kit.Text("Day", block.Copy, new Rect(rect.x + arrow, top - dateHeight, rect.width - 2 * arrow, dateHeight), dateDp, SkinTokens.Text, SkinUi.Type.Display,
-                    ScreenKit.DisplayNormal).textWrappingMode = TextWrappingModes.NoWrap;
-                if (!state.HasValue) return;
-                float left = rect.center.x - (state.Value.Width + (dot > 0 ? dot + 4 * u : 0)) / 2;
-                if (dot > 0)
-                { ui.Piece("Day state mark", block.Sprite, new Rect(left, top - block2 + state.Value.Height / 2 - dot / 2, dot, dot), shell.Page); left += dot + 4 * u; }
-                state.Value.Draw(new Rect(left, top - block2, state.Value.Width, state.Value.Height));
-            });
+            float dot = 12 * kit.U;
+            ScreenKit.Side? state = view.State == null ? (ScreenKit.Side?)null : Tag(kit, view.State, view.StateToken, "Day state");
+            ScreenKit.Side? mark = view.Mark == null || !state.HasValue ? (ScreenKit.Side?)null
+                : new ScreenKit.Side(dot, dot, rect => ui.Piece("Day state mark", view.Mark, rect, shell.Page));
+            ScreenKit.Control Arrow(PageAction action, string name) => action == null ? new ScreenKit.Control { Name = name } : Control(action);
+            return kit.Stepper("Day stepper", "Day", view.Label, state, mark, Arrow(view.Previous, "Previous day"), Arrow(view.Next, "Next day"));
         }
 
         // The Kredits page's hero: the coin beside the confirmed balance, the
@@ -403,8 +373,8 @@ namespace ZKube.Presentation
                     priceWords.textWrappingMode = TextWrappingModes.NoWrap; priceWords.overflowMode = TextOverflowModes.Ellipsis;
                     if (pack.Buy == null) continue;
                     // The whole card is the tap; in progress its button is the action's own and takes none.
-                    if (busy) { Tap(pill, pack.Buy); continue; }
-                    var hit = ui.Rect<Image>(pack.Name + " tap", at, parent); hit.color = Color.clear; Tap(hit, pack.Buy);
+                    if (busy) { Tap(pill, pack.Buy, ScreenKit.Role.Choice); continue; }
+                    var hit = ui.Rect<Image>(pack.Name + " tap", at, parent); hit.color = Color.clear; Tap(hit, pack.Buy, ScreenKit.Role.Choice);
                 }
                 if (block.Caption != null)
                     kit.Text(block.Dim ? "Action slow" : "Action refused", block.Caption, new Rect(rect.x, rect.y, rect.width, reasonHeight - 8 * u), kit.SmallDp, block.Dim ? SkinTokens.TextMuted : SkinTokens.Negative,
@@ -442,7 +412,9 @@ namespace ZKube.Presentation
                     if (!shown) face.color = Color.clear;
                     kit.Text((action.Name ?? action.Label) + " label", words, at, kit.CaptionDp, shown ? SkinTokens.TextOnPrimary : SkinTokens.Text, SkinUi.Type.Caption,
                         ScreenKit.CaptionLeading).textWrappingMode = TextWrappingModes.NoWrap;
-                    Tap(face, action);
+                    // The tap takes the bar's whole height, 48 dp, round the segment's face.
+                    face.raycastPadding = new Vector4(0, -inset, 0, -inset);
+                    Tap(face, action, ScreenKit.Role.ViewSwitch);
                 }
             });
         }
@@ -488,7 +460,7 @@ namespace ZKube.Presentation
                     face.color = Color.clear;
                     inside.Text(block.Name + " more", block.Action.Label, SkinUi.ScreenRect(face.rectTransform), inside.SmallDp, SkinTokens.Accent, SkinUi.Type.Caption,
                         ScreenKit.CaptionLeading, TextAlignmentOptions.Center, rows);
-                    Tap(face, block.Action);
+                    Tap(face, block.Action, ScreenKit.Role.WayIn);
                 }
                 var scroll = view.gameObject.AddComponent<ScrollRect>(); scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped;
                 scroll.viewport = (RectTransform)view.transform; scroll.content = rows; scroll.scrollSensitivity = 24;

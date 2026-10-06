@@ -57,25 +57,26 @@ namespace ZKube.Presentation
         private const float TightPadU = 5;
         public static PauseDialog Pause(BoardView view, BoardArt art, RunSummary state, BoardSession session, Action resume, Row[] rows, Action home, Action end) =>
             Open(view, art, "Pause dialog", (dialog, kit) => {
-                var band = kit.ActionBand(("Dialog Resume", "Resume", resume, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
-                    (Home, "Home", home, ScreenKit.Kind.Secondary, SkinSlots.IconHome),
-                    ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Quiet, SkinSlots.IconFlag));
-                // A phone with no height to spare first gives up the two spacers'
-                // gaps, then tightens both cards' padding evenly; the band keeps its two rows.
-                Piece[] Pieces(bool spaced, float padU)
+                // The pause hands its three actions over by role: Resume, then Home,
+                // and End run last, which asks first. The foot row is theirs: Resume
+                // across the column over the other two where the page has room for two
+                // rows, one row where it has not. A phone with no height to spare first
+                // gives up the spacer over the cards, then tightens both cards evenly.
+                ScreenKit.Slots Slots(bool spaced, float padU)
                 {
-                    var pieces = new List<Piece> { kit.Title("Paused", Subtitle(session)) };
-                    if (spaced) pieces.Add(Piece.Grow);
-                    pieces.Add(GoalCard(kit, state, session, padU)); pieces.Add(SettingsCard(kit, rows, padU));
-                    if (spaced) pieces.Add(Piece.Grow);
-                    if (Closes(session) is string closes) pieces.Add(ClosesLine(kit, closes));
-                    pieces.Add(band);
-                    return pieces.ToArray();
+                    var body = new List<Piece>();
+                    if (spaced) body.Add(Piece.Grow);
+                    body.Add(GoalCard(kit, state, session, padU)); body.Add(SettingsCard(kit, rows, padU));
+                    return new ScreenKit.Slots { Title = kit.Title("Paused", Subtitle(session)), Body = body,
+                        Notices = Closes(session) is string closes ? ClosesLine(kit, closes) : (Piece?)null,
+                        Primary = new ScreenKit.Control { Name = "Dialog Resume", Label = "Resume", Click = resume, Icon = SkinSlots.IconPlay },
+                        Secondary = new ScreenKit.Control { Name = Home, Label = "Home", Click = home, Icon = SkinSlots.IconHome },
+                        Destructive = new ScreenKit.Control { Name = "Dialog " + BoardController.EndRun, Label = BoardController.EndRun, Click = end, Icon = SkinSlots.IconFlag } };
                 }
-                var composed = Pieces(true, ScreenKit.CardPadU);
-                if (!kit.Fits(composed)) composed = Pieces(false, ScreenKit.CardPadU);
-                if (!kit.Fits(composed)) composed = Pieces(false, TightPadU);
-                kit.Compose(composed);
+                var slots = Slots(true, ScreenKit.CardPadU);
+                if (!kit.Fits(slots)) slots = Slots(false, ScreenKit.CardPadU);
+                if (!kit.Fits(slots)) slots = Slots(false, TightPadU);
+                kit.Page(slots);
             });
 
         // The question, and its cost with what stays, centred on the card.
@@ -84,7 +85,8 @@ namespace ZKube.Presentation
                 var inside = kit.Inside();
                 float costHeight = inside.Block(cost, inside.Width, inside.CaptionDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                 float detailHeight = inside.Block(detail, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
-                kit.Compose(Piece.Grow, kit.Title("End this run?", null),
+                // The confirm's two verbs: the safe choice first, End run beside it.
+                kit.Page(new ScreenKit.Slots { Body = new[] { Piece.Grow, kit.Title("End this run?", null),
                     kit.Card(null, new Piece(costHeight + detailHeight, rect => {
                         inside.Text("Dialog cost", cost, new Rect(rect.x, rect.yMax - costHeight, rect.width, costHeight), inside.CaptionDp, SkinTokens.Text,
                             SkinUi.Type.Caption, ScreenKit.CaptionLeading);
@@ -92,9 +94,9 @@ namespace ZKube.Presentation
                             inside.Text("Dialog cost detail", detail, new Rect(rect.x, rect.y, rect.width, detailHeight), inside.SmallDp, SkinTokens.TextMuted,
                                 SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                     })),
-                    Piece.Grow,
-                    kit.Buttons(new[] { ("Dialog Keep playing", "Keep playing", keep, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
-                        ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) }));
+                    Piece.Grow },
+                    Primary = new ScreenKit.Control { Name = "Dialog Keep playing", Label = "Keep playing", Click = keep, Icon = SkinSlots.IconPlay },
+                    Secondary = new ScreenKit.Control { Name = "Dialog " + BoardController.EndRun, Label = BoardController.EndRun, Click = end, Icon = SkinSlots.IconFlag } });
             });
 
         // "Level 14 · Tiki", or "Daily · Tiki".
@@ -170,7 +172,7 @@ namespace ZKube.Presentation
                 return new Piece(line.Height, rect => {
                     var face = kit.Ui.Rect<Image>("Dialog " + row.Name, rect, kit.Parent); face.color = Color.clear; face.raycastTarget = true;
                     var button = face.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = face;
-                    button.onClick.AddListener(() => row.Invoke());
+                    button.onClick.AddListener(() => row.Invoke()); ScreenKit.As(button, ScreenKit.Role.Setting);
                     line.Draw(rect);
                 });
             }), padU: padU);

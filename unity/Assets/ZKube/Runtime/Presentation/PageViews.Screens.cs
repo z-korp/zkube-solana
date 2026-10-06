@@ -313,10 +313,16 @@ namespace ZKube.Presentation
             if (value.Share != null)
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
                     objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak), "Share");
-            pieces.Add(Buttons(kit, (value.Done, ScreenKit.Kind.Primary, SkinSlots.IconPlay), (share, ScreenKit.Kind.Secondary, SkinSlots.IconShare),
-                (value.Leaderboard, ScreenKit.Kind.Quiet, SkinSlots.IconTrophy)));
-            Compose(HeroTitled(pieces, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName,
-                room: room, sizeDp: kit.HeroTitleDp), Step(156, 112)));
+            // The result hands its buttons over by role: the way on, Share, then the boards.
+            var slots = new ScreenKit.Slots { Primary = Control(value.Done, SkinSlots.IconPlay), Secondary = Control(share, SkinSlots.IconShare),
+                Tertiary = Control(value.Leaderboard, SkinSlots.IconTrophy) };
+            // The guardian and its title are sized against the page with its foot.
+            if (kit.Foot(slots.Primary, slots.Secondary, slots.Tertiary, null) is Piece foot) pieces.Add(new Piece(foot.Height, null));
+            var body = HeroTitled(pieces, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName,
+                room: room, sizeDp: kit.HeroTitleDp), Step(156, 112)).ToList();
+            body.RemoveAt(body.Count - 1);
+            slots.Body = body;
+            Place(kit, slots);
         }
         private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";
     }

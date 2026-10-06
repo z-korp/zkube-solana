@@ -189,6 +189,28 @@ namespace ZKube.Integration.Presentation
             if (slow) blocks.Add(PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true));
             blocks.Add(PanelBlock.Button(Progressing(), true));
         }
+        // The same three states for a page that hands its controls over by role: the
+        // reason stands over the foot row, the action in its primary slot, and the
+        // way out of a wallet request last.
+        private bool Refused(string family, PanelPageView page, Func<bool> available)
+        {
+            if (RefusalOn(family) == null) return false;
+            page.Reason = RefusalLine(refusal);
+            page.Primary = PageAction("Try again", refusalRetry, available); page.Primary.Icon = SkinSlots.IconRetry;
+            return true;
+        }
+        private void Requesting(PanelPageView page)
+        {
+            if (slow) page.Reason = PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true);
+            page.Primary = Progressing();
+            page.Tertiary = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable());
+        }
+        private void Awaiting(string family, PanelPageView page, Func<bool> available)
+        {
+            if (Refused(family, page, available)) return;
+            if (slow) page.Reason = PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true);
+            page.Primary = Progressing();
+        }
         // Until the Arena launches, its pages say so and lead to the Campaign.
         private PanelBlock[] OpensSoon() => new[] {
             PanelBlock.Title("Arena opens soon", centered: true),

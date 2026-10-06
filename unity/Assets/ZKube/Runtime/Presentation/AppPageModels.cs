@@ -18,6 +18,8 @@ namespace ZKube.Presentation
         // The step of an action in progress, one word: its button shows the loader and
         // this word in place of its own, and takes no tap, until the outcome.
         public string Progress;
+        // Its icon, a skin slot, set where the action is made: it travels with the action to wherever it is placed.
+        public string Icon;
         public bool Enabled = true;
         public Func<bool> CanInvoke;
         public Action Invoke;
@@ -247,6 +249,21 @@ namespace ZKube.Presentation
     // An identity's own page, drawn from the kit by the shared page views: the
     // header, then blocks top-down. A page keeps its key while it redraws in
     // place; a new key is a new page and enters with the page motion.
+    // The two icons the placement rule asks of the art (a device, a wallet) are not
+    // drawn yet: until they are, these kit icons stand in for them, from this one place.
+    public static class StandInIcons
+    {
+        public const string Device = SkinSlots.IconSettings, Wallet = SkinSlots.IconKey;
+    }
+
+    // A stepper: what it steps and that step's state, between its two arrows. An arrow
+    // that cannot step is absent here and drawn dimmed, so the bar never changes shape.
+    public sealed class StepperView
+    {
+        public string Label, State, StateToken, Mark;
+        public PageAction Previous, Next;
+    }
+
     public sealed class PanelPageView
     {
         public string Key;
@@ -258,9 +275,16 @@ namespace ZKube.Presentation
         public PageAction Back, Corner;
         public string CornerIcon;
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
+        // The page's controls by role: the composer places them in the foot row and on the stepper bar.
+        public PageAction Primary, Secondary, Tertiary, Destructive;
+        public StepperView Stepper;
+        // One line directly above the foot row: why its action waits, or what it did.
+        public PanelBlock Reason;
+        // The page hands its controls over by role (every page will; the flag goes with the last one that does not).
+        public bool ByRole;
     }
 
-    public enum PanelKind { Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows, Balance, Packs, Space }
+    public enum PanelKind { Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Rows, Balance, Packs, Space }
 
     // One Kredit pack on its card: its picture, its count and its price on the
     // card's button. Buy is the card's tap; in progress it is the loader, and a
@@ -349,11 +373,6 @@ namespace ZKube.Presentation
         // whose Kredits just arrived, or -1.
         public static PanelBlock PackRow(PackView[] packs, string reason = null, bool calm = false, int from = -1) =>
             new PanelBlock { Kind = PanelKind.Packs, Name = "Packs", Packs = packs, Caption = reason, Dim = calm, Primary = from };
-        // A day stepper: previous, the date over the day's state (with its mark,
-        // when it has one), next. A step that cannot be taken (past today, before
-        // the first day) is passed as null and its arrow is drawn dimmed.
-        public static PanelBlock Stepper(string date, string state, string stateToken, PageAction previous, PageAction next, string mark = null) =>
-            new PanelBlock { Kind = PanelKind.Stepper, Name = "Day stepper", Copy = date, Tag = state, TagToken = stateToken, Sprite = mark, Actions = new[] { previous, next } };
         // A board's rows in a list that takes the page's spare height and scrolls
         // inside it. divider stands before the first unofficial row; more, when
         // set, is the list's last row; empty says why there are no rows.

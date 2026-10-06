@@ -160,16 +160,25 @@ namespace ZKube.Presentation.Tests
                                 Assert.AreEqual(confirm ? 2 : 7, buttons.Length, at + ": " + string.Join(", ", buttons.Select(button => button.name)));
                                 if (!confirm)
                                 {
-                                    // The action band: Resume across the column, then Home and End run side by
-                                    // side under it at equal widths. It reads Resume, Home, End run.
+                                    // The foot row reads Resume, Home, End run. Where the three fit one row
+                                    // they share it; where they do not, Resume spans the column over Home and
+                                    // End run side by side at equal widths; never three rows.
                                     Rect Of(string name) => WorldRect((RectTransform)buttons.Single(button => button.name == name).transform);
                                     string Face(string name) => buttons.Single(button => button.name == name).GetComponent<Image>().sprite?.name ?? "";
                                     string Icon(string name) => images.Single(image => image.name == name + " icon").sprite.name.Replace("(Clone)", "");
                                     Rect resume = Of("Dialog Resume"), home = Of(PauseDialog.Home), end = Of("Dialog End run");
-                                    Assert.GreaterOrEqual(resume.yMin, home.yMax, at + ": Resume stands over the other two");
-                                    Assert.AreEqual(home.yMin, end.yMin, .5f, at + ": Home and End run share a row"); Assert.Less(home.xMax, end.xMin, at + ": Home comes before End run");
-                                    Assert.AreEqual(home.width, end.width, .5f, at + ": equal widths");
-                                    Assert.AreEqual(resume.xMin, home.xMin, .5f, at); Assert.AreEqual(resume.xMax, end.xMax, .5f, at + ": Resume spans the band");
+                                    Assert.AreEqual(home.center.y, end.center.y, .5f, at + ": Home and End run share a row"); Assert.Less(home.xMax, end.xMin, at + ": Home comes before End run");
+                                    if (Mathf.Abs(resume.center.y - home.center.y) < .5f)
+                                    {
+                                        Assert.Less(resume.xMax, home.xMin, at + ": one row reads Resume, Home, End run");
+                                        Assert.GreaterOrEqual(resume.xMin, safe.xMin - .5f, at); Assert.LessOrEqual(end.xMax, safe.xMax + .5f, at + ": the row stays in the column");
+                                    }
+                                    else
+                                    {
+                                        Assert.GreaterOrEqual(resume.yMin, home.yMax, at + ": Resume stands over the other two");
+                                        Assert.AreEqual(home.width, end.width, .5f, at + ": equal widths");
+                                        Assert.AreEqual(resume.xMin, home.xMin, .5f, at); Assert.AreEqual(resume.xMax, end.xMax, .5f, at + ": Resume spans the band");
+                                    }
                                     Assert.GreaterOrEqual(resume.height / density, 48 - .01f, at); Assert.Greater(resume.height, home.height - .5f, at + ": Resume is the tallest");
                                     StringAssert.StartsWith(SkinSlots.ButtonPrimary, Face("Dialog Resume"), at); StringAssert.StartsWith(SkinSlots.ButtonSecondary, Face(PauseDialog.Home), at);
                                     Assert.IsFalse(Face("Dialog End run").StartsWith(SkinSlots.ButtonPrimary) || Face("Dialog End run").StartsWith(SkinSlots.ButtonSecondary), at + ": End run is the quiet one");
@@ -178,6 +187,8 @@ namespace ZKube.Presentation.Tests
                                     float title = WorldRect(images.Single(image => image.name == "Screen title plate").rectTransform).yMin;
                                     foreach (var button in buttons) Assert.LessOrEqual(WorldRect((RectTransform)button.transform).yMax, title + .5f, at + ": " + button.name + " lies under the title");
                                 }
+                                // Every control stands where its role puts it.
+                                ZKube.Tests.Presentation.Placement.Check(dialog.transform, safe, density, at);
                                 foreach (var button in buttons)
                                 {
                                     var rect = WorldRect((RectTransform)button.transform);

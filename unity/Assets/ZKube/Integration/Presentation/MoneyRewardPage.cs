@@ -100,8 +100,8 @@ namespace ZKube.Integration.Presentation
         private static string BoardDay(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime.ToString("ddd d MMM", CultureInfo.InvariantCulture);
         // The arrows stop only at the stepper's real limits, the launch day and today; a read in progress does not hold them.
         private PageAction StepDay(string name, int step) => PageAction(name, () => _ = OpenRewards((uint)(rewardDay + step), boardKind), PageAvailable);
-        private PanelBlock Stepper(string state, string token, string mark = null) => PanelBlock.Stepper(BoardDay(rewardDay), state, token,
-            rewardDay > Math.Max(firstBoardDay, 1U) ? StepDay("Previous day", -1) : null, rewardDay < Today ? StepDay("Next day", 1) : null, mark);
+        private StepperView Stepper(string state, string token, string mark = null) => new StepperView { Label = BoardDay(rewardDay), State = state, StateToken = token,
+            Mark = mark, Previous = rewardDay > Math.Max(firstBoardDay, 1U) ? StepDay("Previous day", -1) : null, Next = rewardDay < Today ? StepDay("Next day", 1) : null };
         private void ShowBoard(string kind)
         {
             if (kind == boardKind) return;
@@ -116,7 +116,11 @@ namespace ZKube.Integration.Presentation
         {
             // Back is a way off the page: never held.
             var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
-            var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home };
+            // The page hands its controls over by role: one action at most in the foot
+            // row, and the day stepper, the lowest row, in every state.
+            var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home, ByRole = true };
+            PageAction Act(string label, Action invoke, Func<bool> available, string icon, string name = null)
+            { var action = PageAction(label, invoke, available, name); action.Icon = icon; return action; }
             var blocks = new List<PanelBlock>();
             if (NativeEngine.Daily(rewardDay).Kind == 0) boardKind = "score";
             if (rewardRead == null || !rewardRead.TryValue(out var state))
@@ -126,9 +130,9 @@ namespace ZKube.Integration.Presentation
                 if (BoardPair() is PanelBlock tabs) blocks.Add(tabs);
                 bool failed = failure != null && !Busy;
                 blocks.Add(PanelBlock.List("Board rows", new BoardRowView[0], empty: failed ? "Boards not loaded." : "Checking…"));
-                if (failed) blocks.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
-                else if (sessionActionPending || economyActionPending) Requesting(blocks);
-                blocks.Add(Stepper(null, null));
+                if (failed) page.Primary = Act("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, SkinSlots.IconRetry);
+                else if (sessionActionPending || economyActionPending) Requesting(page);
+                page.Stepper = Stepper(null, null);
                 page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -136,8 +140,8 @@ namespace ZKube.Integration.Presentation
             bool missing = boards.DailyStatus == "missing", live = !missing && board.Live && !boards.Finalizable, pending = !missing && board.Live && boards.Finalizable;
             // A board whose account is absent or could not be verified is not called sealed.
             bool unread = !missing && board.Account == null;
-            // The stepper is the page's foot (owner, 2026-10-05): under the rows and the one button.
-            var stepper = missing ? Stepper("No Daily this day", SkinTokens.TextMuted)
+            // The stepper is the page's lowest row (owner, 2026-10-05): under the rows and the one button.
+            page.Stepper = missing ? Stepper("No Daily this day", SkinTokens.TextMuted)
                 : unread ? Stepper("Board not available", SkinTokens.TextMuted)
                 : live ? Stepper("Live", SkinTokens.Positive, SkinSlots.IconLive)
                 : pending ? Stepper("Results pending", SkinTokens.Accent)
@@ -157,31 +161,25 @@ namespace ZKube.Integration.Presentation
                 missing ? "Nobody entered this day." : unread ? "This board could not be read." : live ? "No runs yet" : "No qualifying runs");
             list.Primary = boardRowsFrom;
             blocks.Add(list);
-            // One button at most, at the page's foot.
-            if (economyActionPending || sessionActionPending) Requesting(blocks);
-            else if (state.Pending != null)
-            {
-                Awaiting("Rewards", blocks, () => PageAvailable() && !Busy);
-            }
-            else if (RefusalOn("Rewards") != null) { blocks.Add(RefusalLine(refusal)); blocks.Add(Retry(() => PageAvailable() && !Busy)); }
+            // One button at most, in the foot row, on the stepper.
+            if (economyActionPending || sessionActionPending) Requesting(page);
+            else if (state.Pending != null) Awaiting("Rewards", page, () => PageAvailable() && !Busy);
+            else if (Refused("Rewards", page, () => PageAvailable() && !Busy)) { }
             else if (pending || board.ClaimStatus == "claimable")
             {
                 // Sealing a day and claiming a reward are this device's own transactions.
-                if (!state.Session.Current)
-                    blocks.Add(PanelBlock.Button(PageAction("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
-                else if (state.Session.Funding != "ready")
-                    blocks.Add(PanelBlock.Button(PageAction("Top up deposit", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
-                else if (pending) blocks.Add(PanelBlock.Button(PageAction("Seal results", () => _ = SealResults(), CanSealResults), true));
-                else blocks.Add(PanelBlock.Button(PageAction("Claim " + Sol(board.Yours.PayoutLamports), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind),
-                    "Collect " + MoneyText.Board(board.Kind, catalog)), true));
+                if (!state.Session.Current) page.Primary = Act("Set up device", () => _ = OpenSession(), () => PageAvailable() && !Busy, StandInIcons.Device);
+                else if (state.Session.Funding != "ready") page.Primary = Act("Top up deposit", () => _ = OpenSession(), () => PageAvailable() && !Busy, SkinSlots.IconPlus);
+                else if (pending) page.Primary = Act("Seal results", () => _ = SealResults(), CanSealResults, SkinSlots.IconLock);
+                else page.Primary = Act("Claim " + Sol(board.Yours.PayoutLamports), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind), SkinSlots.IconTrophy,
+                    "Collect " + MoneyText.Board(board.Kind, catalog));
             }
             else if (NextReward(board).HasValue)
             {
                 var next = NextReward(board).Value;
-                blocks.Add(PanelBlock.Button(PageAction(next.Day == rewardDay ? "Next reward · " + MoneyText.Board(next.Kind, catalog) : "Next reward · " + BoardDay(next.Day),
-                    () => { if (next.Day == rewardDay) ShowBoard(next.Kind); else _ = OpenRewards(next.Day, next.Kind); }, () => PageAvailable() && !Busy, "Next reward"), true));
+                page.Primary = Act(next.Day == rewardDay ? "Next reward · " + MoneyText.Board(next.Kind, catalog) : "Next reward · " + BoardDay(next.Day),
+                    () => { if (next.Day == rewardDay) ShowBoard(next.Kind); else _ = OpenRewards(next.Day, next.Kind); }, () => PageAvailable() && !Busy, SkinSlots.IconTrophy, "Next reward");
             }
-            blocks.Add(stepper);
             page.Blocks = blocks.ToArray();
             return page;
         }

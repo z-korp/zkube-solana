@@ -119,6 +119,7 @@ namespace ZKube.Tests.MoneyOverview
                     controller.Navigate(AppPage.Result); yield return Idle();
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " arcade result");
+                    ZKube.Tests.Presentation.Placement.Check(host.transform, shell.SafeArea, 1, name + " arcade result");
                     var bubble = host.GetComponentsInChildren<UnityEngine.UI.Image>().Single(image => image.name == "Guardian bubble");
                     var card = host.GetComponentsInChildren<UnityEngine.UI.Image>().Single(image => image.name == "Screen card");
                     Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f),

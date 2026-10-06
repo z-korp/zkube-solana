@@ -194,6 +194,52 @@ namespace ZKube.Presentation
             var inside = kit.Inside();
             return kit.Card(null, pageNotices.Select(notice => inside.Note(notice, "Notice", SkinTokens.Text)), "Notice card");
         }
+        // The stage a page is drawn on: its body between the safe top and its tab
+        // bar (or the whole screen for a page that runs under it), its painting
+        // and its column. It places no control.
+        private void Stage(AppPage? page, bool fullBleed)
+        {
+            var safe = shell.SafeArea; float d = ui.Density;
+            int tab = page.HasValue ? Array.IndexOf(tabs, page.Value) : -1;
+            selectedTab = tab;
+            tabBar = ScreenKit.TabRect(ui, shell.ScreenArea, safe);
+            float bottom = tab >= 0 ? tabBar.yMax : safe.y;
+            var screen = shell.ScreenArea;
+            var body = fullBleed ? screen : new Rect(safe.x, bottom, safe.width, safe.yMax - bottom);
+            // Scrolling content fades out over its last 24 dp at the tab bar.
+            shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
+            var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
+            float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
+            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, Mathf.Min(body.yMax, kit.Edge) - 4 * d);
+            back = null;
+        }
+        // An action as a control of the composer: bound to its availability, its
+        // progress on its own button. One that cannot be taken at all is not drawn.
+        private ScreenKit.Control Control(PageAction action, string icon = null) => action == null || !action.Enabled ? null : new ScreenKit.Control {
+            Name = action.Name ?? action.Label, Label = action.Progress ?? action.Label, Icon = Mark(action, icon ?? action.Icon), Shorter = action.Short,
+            Click = actions.Click(action),
+            Made = (button, text) => {
+                if (text == null) { actions.Bind(button, action, fade: button.GetComponent<Placed>().Role != ScreenKit.Role.Step); return; }
+                actions.Bind(button, action, relabel: action.Progress == null ? value => text.text = value : (Action<string>)null);
+                Loader(button, action);
+            } };
+        // A page, laid out by the kit's composer from its controls by role: the
+        // page's notices stand over its foot, its tab bar on the bottom edge, and
+        // the Android back key takes its Back.
+        private void Place(ScreenKit kit, ScreenKit.Slots slots, PageAction backAction = null)
+        {
+            if (pageNotices.Length != 0)
+            {
+                var notices = Notices(kit);
+                slots.Notices = slots.Notices.HasValue ? kit.Stack(10, slots.Notices.Value, notices) : notices;
+                pageNotices = Array.Empty<string>();
+            }
+            if (selectedTab >= 0) slots.Tabs = _ => TabBar(shell.SafeArea, selectedTab);
+            back = backAction ?? back;
+            var used = kit.Page(slots);
+            column = new PageColumn(ui, shell.Page, actions, used.x, used.width, used.y);
+        }
         // Body frame, title and tab bar for one page. The tab bar sits inside the
         // side gutters and above the bottom safe inset; the body scrolls between
         // the safe top and the top of the tab bar. A titled page carries its title
@@ -203,29 +249,17 @@ namespace ZKube.Presentation
         private void Frame(AppPage? page, string title, string subtitle, PageAction left, PageAction right,
             bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
-            var safe = shell.SafeArea; float d = ui.Density;
-            int tab = page.HasValue ? Array.IndexOf(tabs, page.Value) : -1;
-            selectedTab = tab;
-            float icon = IconDp * d;
-            tabBar = ScreenKit.TabRect(ui, shell.ScreenArea, safe);
-            float bottom = tab >= 0 ? tabBar.yMax : safe.y;
-            var screen = shell.ScreenArea;
-            var body = fullBleed ? screen : new Rect(safe.x, bottom, safe.width, safe.yMax - bottom);
-            // Scrolling content fades out over its last 24 dp at the tab bar.
-            shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
-            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
+            Stage(page, fullBleed);
+            var safe = shell.SafeArea;
             // Utility tablets (.x3) hang from the page's edge, 12u in from the
             // sides. An action that cannot be taken is not drawn.
             var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
-            icon = kit.Touch(40);
-            float iconY = kit.Edge - icon;
+            float icon = kit.Touch(40), iconY = kit.Edge - icon;
             back = left;
             var parent = fullBleed ? shell.Overlay : shell.Page;
             if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + 12 * kit.U, iconY, icon, icon), leftIcon, false, parent);
             if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - 12 * kit.U - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
-            if (tab >= 0) TabBar(safe, tab);
-            float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
-            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, Mathf.Min(body.yMax, kit.Edge) - 4 * d);
+            if (selectedTab >= 0) TabBar(safe, selectedTab);
             if ((title ?? subtitle) != null)
             {
                 // The plate keeps clear of the tablets on both sides.
@@ -256,7 +290,7 @@ namespace ZKube.Presentation
                 Name = target == AppPage.Home ? homeTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
             var bar = ui.TabBar("Tab bar", tabBar, new ScreenKit(ui, null, shell.ScreenArea, safe).U, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);
             var buttons = bar.GetComponentsInChildren<Button>();
-            for (int i = 0; i < buttons.Length; i++) actions.Bind(buttons[i], bound[i], fade: false);
+            for (int i = 0; i < buttons.Length; i++) { actions.Bind(buttons[i], bound[i], fade: false); ScreenKit.As(buttons[i], ScreenKit.Role.Tab); }
         }
         // Home, as the wireframe draws it: the product's painted lockup over the
         // painting, today's Daily card right under it with Play today inside it,
