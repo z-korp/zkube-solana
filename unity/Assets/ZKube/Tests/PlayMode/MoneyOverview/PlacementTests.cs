@@ -31,6 +31,8 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator EveryPagePlacesItsControlsByRole()
         {
+            // Every lesson is taught: a page is walked without a lesson over it.
+            Lessons.Device = Lessons.Memory(taught: true);
             foreach (var (use, phone) in new (Action<PageShell>, string)[] { (shell => Phones.Seeker(shell), "Seeker"), (shell => Phones.Compact(shell), "360 x 640") })
             {
                 // The Arena.
@@ -41,6 +43,9 @@ namespace ZKube.Tests.MoneyOverview
                 yield return Held(host.transform, phone + " Arena boards with a reward to claim");
                 yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Idle();
                 yield return Held(host.transform, phone + " Arena boards on a day without a Daily");
+                host.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => ~0, _ => { });
+                yield return Wait(Adapter.OpenCampaign()); yield return Idle();
+                yield return Held(host.transform, phone + " Arena map");
                 yield return EndScenario();
 
                 // Realms.
@@ -58,6 +63,17 @@ namespace ZKube.Tests.MoneyOverview
                     var store = local.AddComponent<StoreAppAdapter>(); store.Initialize(product, runs, billing, board);
                     yield return Rendered(store, AppPage.Home);
                     use(store.GetComponent<PageShell>()); yield return null; yield return null;
+                    store.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => ~0, _ => { });
+                    store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign);
+                    yield return Held(store, phone + " Realms map");
+                    store.Flow.Campaign.Preview(store.Flow.Campaign.Realm, 1); yield return Rendered(store, AppPage.Level);
+                    yield return Held(store, phone + " Realms preview");
+                    store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign);
+                    store.Flow.Campaign.SelectRealm(2); yield return Rendered(store, AppPage.Campaign); yield return new WaitForSecondsRealtime(.6f);
+                    yield return Held(store, phone + " Realms realm waiting for stars");
+                    product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 1; state.Stars[29] = 1; return state; });
+                    store.Flow.Campaign.SelectRealm(4); yield return Rendered(store, AppPage.Campaign); yield return new WaitForSecondsRealtime(.6f);
+                    yield return Held(store, phone + " Realms realm waiting for its purchase");
                     store.Flow.PlayDaily(); yield return Rendered(store, AppPage.Result);
                     yield return Held(store, phone + " Realms Daily result");
                 }

@@ -113,18 +113,14 @@ namespace ZKube.Presentation
             if (value.Level == Protocol.CampaignTargets.Length && value.Realm < Protocol.Realms.Length)
                 pieces.Add(Opens(kit, catalog.Realm((byte)(value.Realm + 1)).realmName));
             pieces.Add(Piece.Grow);
-            pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
-            Compose(HeroTitled(pieces, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp),
-                Step(170, 118)));
+            // The way back is Back, top left, as on every page opened from another; Play is the foot's.
+            var slots = new ScreenKit.Slots { Back = Back(value.Back), Chrome = shell.Overlay, Primary = Control(value.Play, SkinSlots.IconPlay) };
+            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName,
+                room: room, sizeDp: kit.HeroTitleDp), Step(170, 118));
+            Place(kit, slots, value.Back);
             // The first preview of the first level teaches its stars once.
             if (value.Realm == 1 && value.Level == 1 && !Lessons.Device.Taught(Lesson.Stars))
                 Teach(Lessons.Stars, () => Lessons.Device.Teach(Lesson.Stars));
-            // The close (.x3): 40u (48 dp at least), 12u in from the right, hanging from the page's edge.
-            if (value.Back != null)
-            {
-                float size = kit.Touch(40);
-                HeaderButton(value.Back, new Rect(shell.SafeArea.xMax - 12 * u - size, kit.Edge - size, size, size), SkinSlots.IconClose, false);
-            }
         }
 
         // The "Opens" chip (.tag): the key and the realm's name in the caption face
@@ -198,15 +194,17 @@ namespace ZKube.Presentation
                 rows.Add(new Piece(26 * u, rect => best.Draw(new Rect(rect.center.x - best.Width / 2, rect.y + (24 * u - best.Height) / 2, best.Width, best.Height))));
             }
             var first = stars > 0 ? value.Done : value.Retry; var second = stars == 3 ? null : stars > 0 ? value.Retry : value.Done;
-            var buttons = Buttons(kit, (first, ScreenKit.Kind.Primary, stars > 0 ? SkinSlots.IconPlay : SkinSlots.IconRetry),
-                (second, ScreenKit.Kind.Secondary, second == value.Retry ? SkinSlots.IconRetry : SkinSlots.IconMap));
+            // The result's buttons by outcome, in the foot row; they arrive together, last.
             RectTransform finish = null;
-            Compose(HeroTitled(new List<Piece> { Piece.Grow, default,
+            var slots = new ScreenKit.Slots { Primary = Control(first, stars > 0 ? SkinSlots.IconPlay : SkinSlots.IconRetry),
+                Secondary = Control(second, second == value.Retry ? SkinSlots.IconRetry : SkinSlots.IconMap),
+                FootAs = foot => new Piece(foot.Height, rect => finish = Group("Result actions", shell.Page, () => foot.Draw(rect))) };
+            slots.Body = HeroBody(kit, new List<Piece> { Piece.Grow, default,
                 kit.Crown(lit, Step(54, 40), sockets),
                 kit.GuardianCard(frame, talk.Line, Step(156, 112), ledge => kit.Card(null, rows, ledge: ledge), HeroGuardianU),
-                Piece.Grow,
-                new Piece(buttons.Height, rect => finish = Group("Result actions", shell.Page, () => buttons.Draw(rect))) },
-                room => kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon, room, kit.HeroTitleDp), Step(156, 112)));
+                Piece.Grow }, slots,
+                room => kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon, room, kit.HeroTitleDp), Step(156, 112));
+            Place(kit, slots);
             if (!reducedMotion) Fill(stars, sockets, finish);
         }
 
@@ -316,12 +314,8 @@ namespace ZKube.Presentation
             // The result hands its buttons over by role: the way on, Share, then the boards.
             var slots = new ScreenKit.Slots { Primary = Control(value.Done, SkinSlots.IconPlay), Secondary = Control(share, SkinSlots.IconShare),
                 Tertiary = Control(value.Leaderboard, SkinSlots.IconTrophy) };
-            // The guardian and its title are sized against the page with its foot.
-            if (kit.Foot(slots.Primary, slots.Secondary, slots.Tertiary, null) is Piece foot) pieces.Add(new Piece(foot.Height, null));
-            var body = HeroTitled(pieces, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName,
-                room: room, sizeDp: kit.HeroTitleDp), Step(156, 112)).ToList();
-            body.RemoveAt(body.Count - 1);
-            slots.Body = body;
+            slots.Body = HeroBody(kit, pieces, slots, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete",
+                DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp), Step(156, 112));
             Place(kit, slots);
         }
         private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";

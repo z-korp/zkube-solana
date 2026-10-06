@@ -80,6 +80,8 @@ namespace ZKube.Presentation
             public Piece? Stepper;
             // Draws the tab bar into its rect, on a page that has one.
             public Action<Rect> Tabs;
+            // Wraps the foot row's drawing, for a page that brings its buttons in as one (a result's entrance).
+            public Func<Piece, Piece> FootAs;
         }
 
         public readonly SkinUi Ui;
@@ -204,12 +206,12 @@ namespace ZKube.Presentation
         private Piece[] Pieces(Slots slots, bool oneRow)
         {
             var pieces = new List<Piece>();
-            if (slots.Back != null || slots.Title.HasValue) pieces.Add(TitleRow(slots));
+            if (slots.Title.HasValue) pieces.Add(TitleRow(slots));
             pieces.AddRange(slots.Body);
             if (pieces.Count == 0 || pieces[pieces.Count - 1].Height >= 0) pieces.Add(Piece.Grow);
             if (slots.Notices.HasValue) pieces.Add(slots.Notices.Value);
             var foot = Foot(slots.Primary, slots.Secondary, slots.Tertiary, slots.Destructive, oneRow);
-            if (foot.HasValue) pieces.Add(foot.Value);
+            if (foot.HasValue) pieces.Add(slots.FootAs?.Invoke(foot.Value) ?? foot.Value);
             if (slots.Stepper.HasValue) pieces.Add(slots.Stepper.Value);
             return pieces.ToArray();
         }
@@ -221,8 +223,18 @@ namespace ZKube.Presentation
             var pieces = Pieces(slots, false);
             if (!Fits(pieces)) pieces = Pieces(slots, true);
             var used = Compose(pieces);
+            // A page with no title at its top (a preview, whose title stands with its hero)
+            // hangs Back alone in the corner, over the room its body leaves there.
+            if (slots.Back != null && !slots.Title.HasValue) BackAt(slots, Edge);
             slots.Tabs?.Invoke(TabRect(Ui, screen, Safe));
             return used;
+        }
+        private void BackAt(Slots slots, float top)
+        {
+            var back = slots.Back; float tablet = BackSize;
+            var button = Ui.IconButton(back.Name ?? back.Label, new Rect(Safe.x + 12 * U, top - tablet, tablet, tablet), slots.BackIcon, back.Click,
+                slots.Chrome ?? Parent, false, out _, out _);
+            As(button, Role.Back); back.Made?.Invoke(button, null);
         }
         // Back's tablet: 48 dp at least, 12u in from the side, its top on the page's edge.
         public float BackSize => Touch(40);
@@ -233,10 +245,7 @@ namespace ZKube.Presentation
             // The row is as tall as the tablet, so the next piece never touches it;
             // a shorter title stands level with the tablet's middle.
             return new Piece(Mathf.Max(words, tablet - 2 * above), rect => {
-                var back = slots.Back;
-                var button = Ui.IconButton(back.Name ?? back.Label, new Rect(Safe.x + 12 * U, rect.yMax + above - tablet, tablet, tablet), slots.BackIcon, back.Click,
-                    slots.Chrome ?? Parent, false, out _, out _);
-                As(button, Role.Back); back.Made?.Invoke(button, null);
+                BackAt(slots, rect.yMax + above);
                 slots.Title?.Draw(new Rect(rect.x, rect.center.y - words / 2, rect.width, words));
             }, above);
         }
@@ -290,6 +299,35 @@ namespace ZKube.Presentation
                 float markWide = mark.HasValue ? mark.Value.Width + 4 * u : 0, left = rect.center.x - (state.Value.Width + markWide) / 2;
                 if (mark.HasValue) mark.Value.Draw(new Rect(left, top - words + state.Value.Height / 2 - mark.Value.Height / 2, mark.Value.Width, mark.Value.Height));
                 state.Value.Draw(new Rect(left + markWide, top - words, state.Value.Width, state.Value.Height));
+            });
+        }
+
+        // A stepper round the foot row, for a page that has no room for the bar (the
+        // Campaign map, whose path needs the height): the same two arrows, 48 dp
+        // tablets at the two ends of the lowest row, with the page's foot between
+        // them and what they step named in the page's header. An arrow that cannot
+        // step is dimmed and takes no tap, so the row never changes shape.
+        public Piece StepperRow(Control previous, Control next, Piece? foot)
+        {
+            float u = U, arrow = Touch(48), gap = 10 * u;
+            return new Piece(Mathf.Max(arrow, foot?.Height ?? 0), rect => {
+                // The arrows stand level with the foot's first row.
+                float middle = rect.yMax - Mathf.Min(rect.height, Mathf.Max(arrow, 62 * u)) / 2;
+                for (int side = 0; side < 2; side++)
+                {
+                    var control = side == 0 ? previous : next; bool steps = control.Click != null;
+                    var at = new Rect(side == 0 ? rect.x : rect.xMax - arrow, middle - arrow / 2, arrow, arrow);
+                    var button = Ui.IconButton(control.Name, at, SkinSlots.IconBack, steps ? control.Click : () => { }, Parent, false, out var glyph, out _);
+                    if (side == 1)
+                    {
+                        var turned = glyph.rectTransform; turned.pivot = new Vector2(.5f, .5f); turned.anchoredPosition += turned.sizeDelta / 2;
+                        turned.localScale = new Vector3(-1, 1, 1);
+                    }
+                    As(button, Role.Step);
+                    if (!steps) { button.interactable = false; button.gameObject.AddComponent<CanvasGroup>().alpha = .35f; continue; }
+                    control.Made?.Invoke(button, null);
+                }
+                foot?.Draw(new Rect(rect.x + arrow + gap, rect.y, rect.width - 2 * (arrow + gap), rect.height));
             });
         }
 

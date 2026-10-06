@@ -88,9 +88,15 @@ namespace ZKube.Tests.Presentation
                 foreach (var step in steps) Assert.That(step.rect.width >= dp48 && step.rect.height >= dp48, Is.True, at + ": " + Name(step) + " reaches 48 dp");
                 Assert.That(steps[0].rect.xMax, Is.LessThan(safe.center.x - safe.width / 4), at + ": the first arrow is at the bar's left end");
                 Assert.That(steps[1].rect.xMin, Is.GreaterThan(safe.center.x + safe.width / 4), at + ": the second arrow is at the bar's right end");
-                stepperTop = steps.Max(step => step.rect.yMax);
+                // Nothing stands under the stepper's row. The foot may share it, between the arrows
+                // (the map, whose path needs a bar's height); everything else is over it.
+                stepperTop = steps.Max(step => step.rect.yMax); float stepperFoot = steps.Min(step => step.rect.yMin);
                 foreach (var control in controls.Where(control => control.placed.Role != ScreenKit.Role.Tab && control.placed.Role != ScreenKit.Role.Step))
-                    Assert.That(control.rect.yMin, Is.GreaterThanOrEqualTo(stepperTop - .5f), at + ": " + control.button.name + " " + control.rect + " is under the stepper, the lowest row");
+                {
+                    bool between = Foot.Contains(control.placed.Role) && control.rect.xMin >= steps[0].rect.xMax - .5f && control.rect.xMax <= steps[1].rect.xMin + .5f;
+                    Assert.That(control.rect.yMin, Is.GreaterThanOrEqualTo((between ? stepperFoot - (control.rect.height - steps[0].rect.height) : stepperTop) - .5f),
+                        at + ": " + control.button.name + " " + control.rect + " is under the stepper, the lowest row");
+                }
             }
 
             // The foot row: one primary, under all the page shows, read in its order, never three rows.

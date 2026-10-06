@@ -57,7 +57,7 @@ namespace ZKube.Presentation
             if (!page.Tab.HasValue) body.Add(Piece.Grow);
             body.AddRange(BlockPieces(page.Blocks, kit, false));
             body.Add(Piece.Grow);
-            var slots = new ScreenKit.Slots { Back = Control(page.Back), Body = body,
+            var slots = new ScreenKit.Slots { Back = Back(page.Back), Body = body,
                 Title = (page.Title ?? page.Subtitle) == null ? (Piece?)null : kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)),
                 Notices = page.Reason == null ? (Piece?)null : BlockPieces(new[] { page.Reason }, kit, false)[0],
                 Primary = Control(page.Primary), Secondary = Control(page.Secondary), Tertiary = Control(page.Tertiary), Destructive = Control(page.Destructive),

@@ -264,7 +264,6 @@ namespace ZKube.Presentation
             ScreenKit.Side? state = view.State == null ? (ScreenKit.Side?)null : Tag(kit, view.State, view.StateToken, "Day state");
             ScreenKit.Side? mark = view.Mark == null || !state.HasValue ? (ScreenKit.Side?)null
                 : new ScreenKit.Side(dot, dot, rect => ui.Piece("Day state mark", view.Mark, rect, shell.Page));
-            ScreenKit.Control Arrow(PageAction action, string name) => action == null ? new ScreenKit.Control { Name = name } : Control(action);
             return kit.Stepper("Day stepper", "Day", view.Label, state, mark, Arrow(view.Previous, "Previous day"), Arrow(view.Next, "Next day"));
         }
 

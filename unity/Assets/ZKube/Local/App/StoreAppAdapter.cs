@@ -125,6 +125,7 @@ namespace ZKube.Local.App
         private PageAction Store(string label, bool purchase = false)
         {
             var action = Action(label, () => _ = Flow.RefreshBilling(purchase), !Flow.Billing.Busy);
+            action.Icon = purchase ? SkinSlots.IconKey : SkinSlots.IconRetry;
             if (Flow.Billing.Busy && Flow.Billing.Purchasing == purchase) action.Progress = purchase ? "Purchasing" : "Checking";
             return action;
         }

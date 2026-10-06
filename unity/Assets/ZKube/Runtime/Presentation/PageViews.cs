@@ -76,6 +76,9 @@ namespace ZKube.Presentation
 
         public void Render(AppPage page, IEnumerable<string> notices = null)
         {
+            // A result page shows a result: with none to show, the page is Home, and nothing is drawn here.
+            if (page == AppPage.Result && !source.ResultPage().HasResult)
+            { Shown = null; shownPanel = null; unavailable = null; source.Navigate(AppPage.Home); return; }
             shownNotices = notices?.ToArray();
             if (shell.Artwork == null) throw new InvalidOperationException("Load the page realm before drawing it");
             Retire();
@@ -98,13 +101,12 @@ namespace ZKube.Presentation
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    if (campaign.Locked != null) Frame(AppPage.Campaign, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null);
-                    else Frame(AppPage.Campaign, null, null, null, null, fullBleed: true);
+                    // The open map runs under the whole screen; a realm that is not open is a page of words.
+                    Stage(AppPage.Campaign, campaign.Locked == null);
                     Campaign(campaign); break;
                 case AppPage.Level:
                     var level = source.LevelPage();
-                    Frame(null, null, null, null, null, fullBleed: true);
-                    back = level.Back;
+                    Stage(null, true);
                     LevelScreen(level); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
@@ -117,7 +119,7 @@ namespace ZKube.Presentation
                     var result = source.ResultPage();
                     if (result.HasResult && result.ShowStars) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; CampaignScreen(result); }
                     else if (result.HasResult) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; DailyResultScreen(result); }
-                    else { Frame(AppPage.Home, result.Mode, null, null, null); NoResult(result); }
+                    else throw new InvalidOperationException("There is no result to show");
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
@@ -138,6 +140,8 @@ namespace ZKube.Presentation
         // Draws the shown page again in place, for a change only the page holds.
         private void Redraw()
         {
+            // A result that is gone is not drawn again; its owner draws the page it is on now.
+            if (Shown == AppPage.Result && !source.ResultPage().HasResult) { Shown = null; return; }
             if (Shown.HasValue) Render(Shown.Value, shownNotices);
             else if (shownPanel != null) RenderPanel(shownPanel, shownNotices);
             else unavailable?.Invoke();
@@ -215,8 +219,8 @@ namespace ZKube.Presentation
             back = null;
         }
         // An action as a control of the composer: bound to its availability, its
-        // progress on its own button. One that cannot be taken at all is not drawn.
-        private ScreenKit.Control Control(PageAction action, string icon = null) => action == null || !action.Enabled ? null : new ScreenKit.Control {
+        // progress on its own button.
+        private ScreenKit.Control Control(PageAction action, string icon = null) => action == null ? null : new ScreenKit.Control {
             Name = action.Name ?? action.Label, Label = action.Progress ?? action.Label, Icon = Mark(action, icon ?? action.Icon), Shorter = action.Short,
             Click = actions.Click(action),
             Made = (button, text) => {
@@ -224,6 +228,19 @@ namespace ZKube.Presentation
                 actions.Bind(button, action, relabel: action.Progress == null ? value => text.text = value : (Action<string>)null);
                 Loader(button, action);
             } };
+        // Back is drawn only where it can be taken at all.
+        private ScreenKit.Control Back(PageAction action) => action != null && action.Enabled ? Control(action) : null;
+        // A stepper's arrow: one that cannot step is still drawn, dimmed, under its own name.
+        private ScreenKit.Control Arrow(PageAction action, string name) => action == null || !action.Enabled ? new ScreenKit.Control { Name = name } : Control(action);
+        // A hero page's pieces (a preview, a result), its guardian and title sized against the page with its foot.
+        private List<Piece> HeroBody(ScreenKit kit, List<Piece> pieces, ScreenKit.Slots slots, Func<float?, Piece> title, float guardianU)
+        {
+            if (kit.Foot(slots.Primary, slots.Secondary, slots.Tertiary, slots.Destructive) is Piece foot) pieces.Add(new Piece(foot.Height, null));
+            else pieces.Add(new Piece(0, null));
+            var body = HeroTitled(pieces, title, guardianU).ToList();
+            body.RemoveAt(body.Count - 1);
+            return body;
+        }
         // A page, laid out by the kit's composer from its controls by role: the
         // page's notices stand over its foot, its tab bar on the bottom edge, and
         // the Android back key takes its Back.

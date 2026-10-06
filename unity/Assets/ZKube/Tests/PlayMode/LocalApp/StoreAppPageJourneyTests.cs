@@ -694,7 +694,9 @@ namespace ZKube.Tests
             Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(2));
             Assert.That(Nodes(), Is.Empty);
             Assert.That(Texts(), Does.Contain("The path is waiting").And.Contain("Clear Mako’s final trial in Tiki to open Egypt."));
-            Click(app, "Return to Tiki"); yield return Page(StorePage.Campaign);
+            // No button leads back: the realm stepper's arrow does, where it is on every map.
+            Assert.That(Buttons().Any(button => button.name == "Return"), Is.False);
+            Click(app, "Previous"); yield return Page(StorePage.Campaign);
             Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(1));
             product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 1; state.Stars[29] = 1; return state; });
             app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);

@@ -17,72 +17,59 @@ namespace ZKube.Presentation
     {
         public GuardianGreetings Greetings { get; set; } = GuardianGreetings.Device();
 
-        // The map, as the wireframe draws it: the realm's painting behind the
-        // header card (Previous, the realm, "Realm N of 10" and its stars), the
-        // authored path fitted into the room between the header and Play with
-        // S-curve edges, the glowstone medallions and the guardian 1.6 times
-        // their size, each finished node's stars under it, the current node
-        // breathing, and "Play level N" above the tabs.
+        // The map: the realm's painting behind the header card (the realm, "Realm
+        // N of 10" and its stars), the authored path fitted into the room between
+        // the header and Play with S-curve edges, the glowstone medallions and the
+        // guardian 1.6 times their size, each finished node's stars under it, the
+        // current node breathing, and the lowest row on the tabs: "Play level N"
+        // between the realm stepper's two arrows. The path needs the height a
+        // stepper bar would take (the compact phone's did not fit under one), so
+        // the arrows flank Play and the header names what they step.
         private void Campaign(CampaignPageView value)
         {
             var realm = catalog.Realm(value.Realm);
-            // The map's notices float over Play with its own lines.
-            var notices = pageNotices; pageNotices = Array.Empty<string>();
-            if (value.Locked != null) { Waiting(value, realm, notices); return; }
-            var kit = Kit; float d = ui.Density;
+            if (value.Locked != null) { Waiting(value); return; }
+            var kit = Kit;
             var trial = value.Trials[Focus(value.Trials, 0)];
             var play = new PageAction { Name = "Play level", Label = (trial.Playing ? "Resume level " : "Play level ") + Number(value.Realm, trial.Level),
-                Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open };
-            var buttons = Buttons(kit, (play, ScreenKit.Kind.Primary, SkinSlots.IconPlay));
-            var header = MapHeader(value, kit);
-            Rect headerRect = default, room = default, playRect = default;
-            Compose(new Piece(header.Height, rect => headerRect = rect), new Piece(-1, rect => room = rect), new Piece(buttons.Height, rect => playRect = rect));
-            // The path's room runs from the header's foot to Play's top, the gaps between them included.
-            room = Rect.MinMaxRect(room.x, playRect.yMax, room.xMax, headerRect.yMin);
-            // The header is drawn over the map, so the guardian's glow passes under it.
+                Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open, Icon = SkinSlots.IconPlay };
+            var header = MapHeader(value, kit, true);
+            Rect headerRect = default, room = default;
+            // The header and the path's room are measured by the composer and drawn after it:
+            // the header over the map, so the guardian's glow passes under it.
+            Place(kit, new ScreenKit.Slots { Title = new Piece(header.Height, rect => headerRect = rect), Body = new[] { new Piece(-1, rect => room = rect) },
+                Stepper = kit.StepperRow(Arrow(value.Previous, "Previous realm"), Arrow(value.Next, "Next realm"), kit.Foot(Control(play), null, null, null)) });
+            // The path's room runs from the header's foot to what stands under it, the gaps between them included.
+            room = Rect.MinMaxRect(room.x, room.yMin - 10 * kit.U, room.xMax, headerRect.yMin);
             Map(value, room);
             header.Draw(headerRect);
-            buttons.Draw(playRect);
-            var lines = notices.Where(text => !string.IsNullOrEmpty(text)).ToArray();
-            if (lines.Length != 0)
-                Float("Campaign notice", playRect.yMax + 12 * d, card => {
-                    foreach (var line in lines) card.Typed("Campaign notice text", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8);
-                });
             if (!Greetings.Greeted(value.Realm)) Greeting(value.Realm, realm);
         }
-        // The fixed Play button of a waiting realm and the panels: 320 dp wide, 20 dp above the tab bar.
-        private Rect PlayRect()
-        {
-            float d = ui.Density; var safe = shell.SafeArea;
-            float width = Mathf.Min(320 * d, safe.width - 2 * (GutterDp + 24) * d);
-            return new Rect(safe.center.x - width / 2, ScreenKit.TabRect(ui, shell.ScreenArea, safe).yMax + 20 * d, width, PageColumn.ButtonDp * d);
-        }
+        // The realm stepper of a realm that is not open, whose page has the room: one bar on the tabs.
+        private Piece RealmStepper(CampaignPageView value, ScreenKit kit) =>
+            kit.Stepper("Realm stepper", "Map place", "Realm " + value.Realm + " of " + Protocol.Realms.Length, null, null,
+                Arrow(value.Previous, "Previous realm"), Arrow(value.Next, "Next realm"));
 
-        // The header card: Previous (a 38u button), the realm's title and place
-        // left-aligned, its stars, and Next where it can be taken.
-        private Piece MapHeader(CampaignPageView value, ScreenKit kit)
+        // The header card: the realm's name, left-aligned, and its stars; the open
+        // map's also says "Realm N of 10", which a waiting realm's stepper bar says.
+        // It is status only.
+        private Piece MapHeader(CampaignPageView value, ScreenKit kit, bool placed)
         {
-            float u = kit.U, back = kit.Touch(38); var inside = kit.Inside();
+            float u = kit.U; var inside = kit.Inside();
             string name = catalog.Realm(value.Realm).realmName, place = "Realm " + value.Realm + " of " + Protocol.Realms.Length;
             string total = "/" + Protocol.CampaignTargets.Length * 3;
             var stars = inside.Beside(10, inside.Icon("Map stars icon", SkinSlots.StarLit, 28),
                 inside.Value("Map stars", value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>"));
-            bool previous = value.Previous != null && value.Previous.Enabled, next = value.Next != null && value.Next.Enabled;
-            float text = inside.Width - (previous ? back + 10 * u : 0) - stars.Width - 10 * u - (next ? back + 10 * u : 0);
+            float text = inside.Width - stars.Width - 10 * u;
             float titleDp = inside.TitleFit(name, text - 1);
             float titleHeight = inside.Block(name, text, titleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
-            float placeHeight = inside.Block(place, text, inside.SubtitleDp, SkinUi.Type.Caption, ScreenKit.NoteLeading);
-            float block = titleHeight + 2 * u + placeHeight;
-            // The back button's 48 dp reach may spill into the card's padding; the row keeps the wireframe's 38u.
-            return kit.Card(null, new[] { new Piece(Mathf.Max(38 * u, block), rect => {
-                float left = rect.x, right = rect.xMax;
-                if (previous) { HeaderButton(value.Previous, new Rect(left, rect.center.y - back / 2, back, back), SkinSlots.IconBack, false); left += back + 10 * u; }
-                if (next) { HeaderButton(value.Next, new Rect(right - back, rect.center.y - back / 2, back, back), SkinSlots.IconBack, true); right -= back + 10 * u; }
-                stars.Draw(new Rect(right - stars.Width, rect.center.y - stars.Height / 2, stars.Width, stars.Height));
-                float top = rect.center.y + block / 2;
-                inside.Text("Map title", name, new Rect(left, top - titleHeight, text, titleHeight), titleDp, SkinTokens.Text, SkinUi.Type.Display,
+            float placeHeight = placed ? inside.Block(place, text, inside.SubtitleDp, SkinUi.Type.Caption, ScreenKit.NoteLeading) : 0;
+            float block = titleHeight + (placed ? 2 * u + placeHeight : 0);
+            return kit.Card(null, new[] { new Piece(block, rect => {
+                stars.Draw(new Rect(rect.xMax - stars.Width, rect.center.y - stars.Height / 2, stars.Width, stars.Height));
+                inside.Text("Map title", name, new Rect(rect.x, rect.yMax - titleHeight, text, titleHeight), titleDp, SkinTokens.Text, SkinUi.Type.Display,
                     ScreenKit.TitleLeading, TextAlignmentOptions.Left);
-                inside.Text("Map place", place, new Rect(left, top - block, text, placeHeight), inside.SubtitleDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
+                if (placed) inside.Text("Map place", place, new Rect(rect.x, rect.y, text, placeHeight), inside.SubtitleDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
                     ScreenKit.NoteLeading, TextAlignmentOptions.Left);
             }) }, "Map header");
         }
@@ -199,6 +186,7 @@ namespace ZKube.Presentation
             var hit = ui.Rect<Image>(name, hitRect, shell.Page);
             hit.color = Color.clear; hit.raycastTarget = true;
             var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
+            ScreenKit.As(button, ScreenKit.Role.Choice);
             hit.gameObject.AddComponent<PressSquash>();
             if (lit) ui.Glow(name + " glow", Scaled(rect, 1.7f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .55f), hit.transform, reducedMotion ? 0 : HaloSeconds);
             if (guardian)
@@ -254,46 +242,32 @@ namespace ZKube.Presentation
         private static Rect Scaled(Rect rect, float scale) =>
             new Rect(rect.center.x - rect.width * scale / 2, rect.center.y - rect.height * scale / 2, rect.width * scale, rect.height * scale);
 
-        // A realm that is not open yet: its guardian, why the path is waiting and
-        // the way forward (back to the realm before, or the store's purchase).
-        private void Waiting(CampaignPageView value, PageCatalog.RealmPage realm, string[] notices)
+        // A realm that is not open yet, under the map's own header and stepper: its
+        // guardian, why the path is waiting and, where the store's purchase closes
+        // it, the purchase and restore in the foot row. A realm waiting for stars
+        // has no button: its reason says what to clear, and the stepper leads back.
+        private void Waiting(CampaignPageView value)
         {
-            float d = ui.Density;
-            // Below 780 dp of safe height (the spec's compact phones) the guardian
-            // and the spacing shrink so the way forward stays on screen.
-            bool compact = shell.SafeArea.height / d < 780;
-            column.Gap(compact ? 8 : 37);
-            column.Medallion("Waiting guardian", ui.Art.Sprite("boss__portrait"), compact ? 112 : 158, compact ? 16 : 41);
-            // The panel is at least 255 dp tall, as drawn, except on a compact phone.
-            float panelTop = compact ? float.PositiveInfinity : column.Top;
-            var card = column.Card("Waiting card", null, 24, 24, 24);
-            var lockRect = card.Take(48 * d, 15);
-            Tinted("Waiting lock", SkinSlots.IconLock, new Rect(lockRect.center.x - 24 * d, lockRect.y, 48 * d, 48 * d), SkinTokens.TextMuted, card.Parent);
-            card.Typed("Waiting title", "The path is waiting", SkinUi.Type.Title, 26, SkinTokens.Text, 20);
-            card.Typed("Waiting reason", value.Locked, SkinUi.Type.Caption, 17, SkinTokens.Text, 0, TextAlignmentOptions.Left);
-            card.Top = Mathf.Min(card.Top, panelTop - (255 - 24) * d);
-            column = card.End(compact ? 16 : value.StoreProblem != null ? 24 : value.Purchase != null ? 28 : 58);
+            var kit = Kit; float u = kit.U; var inside = kit.Inside();
+            float medal = Step(144, 112) * u, mark = 44 * u;
+            float titleDp = 24 * kit.K, reasonDp = kit.CaptionDp;
+            float titleHeight = inside.Block("The path is waiting", inside.Width, titleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
+            float reasonHeight = inside.Block(value.Locked, inside.Width, reasonDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+            var body = new List<Piece> { Piece.Grow,
+                new Piece(medal, rect => ui.Medallion("Waiting guardian", new Rect(rect.center.x - medal / 2, rect.y, medal, medal), ui.Art.Sprite("boss__portrait"), shell.Page)),
+                kit.Card(null, new[] {
+                    new Piece(mark, rect => Tinted("Waiting lock", SkinSlots.IconLock, new Rect(rect.center.x - mark / 2, rect.y, mark, mark), SkinTokens.TextMuted, shell.Page)),
+                    new Piece(titleHeight, rect => inside.Text("Waiting title", "The path is waiting", rect, titleDp, SkinTokens.Text, SkinUi.Type.Display, ScreenKit.TitleLeading)),
+                    new Piece(reasonHeight, rect => inside.Text("Waiting reason", value.Locked, rect, reasonDp, SkinTokens.Text, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
+                        TextAlignmentOptions.Left)) }, "Waiting card") };
             if (value.StoreProblem != null)
             {
-                column.Typed("Store problem", value.StoreProblem, SkinUi.Type.Caption, 18, SkinTokens.Negative, 8);
-                column.Typed("Store problem help", "Check your connection and try again.", SkinUi.Type.Caption, 14, SkinTokens.TextMuted, compact ? 16 : 24);
+                body.Add(kit.Note(value.StoreProblem, "Store problem", SkinTokens.Negative));
+                body.Add(kit.Note("Check your connection and try again.", "Store problem help", SkinTokens.TextMuted));
             }
-            var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
-            if (value.Purchase != null)
-            {
-                Pill(buttons, value.Purchase, true, null, value.Restore == null ? 0 : 20);
-                Pill(buttons, value.Restore, false, null, 0);
-            }
-            else if (value.Previous != null && value.Previous.Enabled)
-            {
-                var before = catalog.Realm((byte)(value.Realm - 1));
-                Pill(buttons, new PageAction { Name = "Return", Label = "Return to " + before.realmName, CanInvoke = () => value.Previous.Available,
-                    Invoke = value.Previous.Invoke }, true, null, 0);
-            }
-            column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, buttons.Top);
-            if (notices.Length != 0)
-                Float("Campaign notice", PlayRect().yMax + 12 * d + (value.Purchase != null && value.Restore != null ? PageColumn.ButtonDp * d + 20 * d : 0),
-                    card => { foreach (var line in notices) card.Typed("Notice", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8); });
+            body.Add(Piece.Grow);
+            Place(kit, new ScreenKit.Slots { Title = MapHeader(value, kit, false), Body = body, Primary = Control(value.Purchase), Tertiary = Control(value.Restore),
+                Stepper = RealmStepper(value, kit) });
         }
 
         // The first visit to a realm: over the dimmed map the guardian greets the
@@ -415,18 +389,5 @@ namespace ZKube.Presentation
         // bonus does: it removes blocks without scoring.
         private static Image Guardian(Transform parent) =>
             parent.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name.EndsWith(" guardian"));
-
-        // A card in the overlay just above a height, for notices on the map.
-        private void Float(string name, float bottom, Action<PageColumn> fill)
-        {
-            float d = ui.Density; var safe = shell.SafeArea;
-            var holder = Holder(name, shell.ScreenArea, shell.Overlay);
-            float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d), left = safe.center.x - width / 2;
-            var outer = new PageColumn(ui, holder, actions, left, width, shell.ScreenArea.height);
-            var card = outer.Card(name + " card");
-            fill(card);
-            card.End(0);
-            holder.anchoredPosition += new Vector2(0, bottom - outer.Top);
-        }
     }
 }

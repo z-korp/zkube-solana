@@ -45,7 +45,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(money.OpenDaily()); yield return Rendered(money, AppPage.Home);
             yield return Wait(money.OpenProfile()); yield return Rendered(money, AppPage.Profile);
             money.Navigate(AppPage.Settings); yield return Rendered(money, AppPage.Settings);
-            money.Navigate(AppPage.Result); yield return Rendered(money, AppPage.Result);
+            // A result page shows a result: with none, it is Home.
+            money.Navigate(AppPage.Result); yield return Rendered(money, AppPage.Home);
             Assert.That(environment.SentSignature, Is.Null);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
 
