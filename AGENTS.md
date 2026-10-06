@@ -649,7 +649,11 @@ Each attempt draws and persists fresh platform randomness before its first actio
 seed and accepted log through Rust on that device; only lifetime stars cross devices. Lost devices replay
 the level. `campaign_seed_is_fresh_per_attempt_and_replays_on_resume`,
 `local_campaign_run_survives_process_death` and `campaign_action_is_accepted_only_after_durable_write` guard
-both identities and acceptance after persistence. Tests may inject seeds.
+both identities and acceptance after persistence. Tests may inject seeds. A saved run records the rules it was
+started under and resumes only as that run: one saved under other rules than its level has now (a level's goals
+can change with the app), one saved before runs recorded their rules, one of another catalogue, and one whose log
+does not replay to a run still in play are let go at start. Nothing throws, the level opens fresh and no star
+moves. `a_saved_campaign_run_that_is_no_longer_the_same_run_is_let_go_at_start` guards it.
 
 Three independent sources—score, cumulative Shape and moment Blow—latch in any order, with one action able
 to latch all three. Absent constraints earn no source; complete means all authored sources latched, while
