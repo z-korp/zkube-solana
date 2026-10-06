@@ -42,10 +42,23 @@ namespace ZKube.Integration.Transport
             catch (OperationCanceledException) when (!caller.IsCancellationRequested)
             { throw new TimeoutException("No answer within " + (int)requestTimeout.TotalSeconds + " s"); }
         }
+        // The start of what a refusing endpoint said, for the log; never more than a few hundred bytes, and never a failure of its own.
+        private static async Task<string> Said(HttpResponseMessage response, CancellationToken cancellation)
+        {
+            try
+            {
+                if (response.Content == null) return null;
+                using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                var buffer = new byte[HttpStatusException.BodyBytes]; int filled = 0, count;
+                while (filled < buffer.Length && (count = await input.ReadAsync(buffer, filled, buffer.Length - filled, cancellation).ConfigureAwait(false)) > 0) filled += count;
+                return new UTF8Encoding(false, false).GetString(buffer, 0, filled);
+            }
+            catch (Exception error) when (!(error is OperationCanceledException)) { return null; }
+        }
         private async Task<string> Receive(HttpRequestMessage request, int maximumResponseBytes, CancellationToken cancellation)
         {
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) throw new HttpStatusException((int)response.StatusCode);
+            if (!response.IsSuccessStatusCode) throw new HttpStatusException((int)response.StatusCode, await Said(response, cancellation).ConfigureAwait(false));
             if (response.Content.Headers.ContentLength > maximumResponseBytes) throw new FormatException("RPC response exceeds its bound");
             using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             using var output = new MemoryStream();

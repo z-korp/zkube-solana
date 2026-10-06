@@ -416,9 +416,12 @@ deployment or spending approval.
   network could not be reached. Every failed wallet, device or read request, the optional ones a page carries
   on without included, writes one line to the device log: the action, the host, the call, the status and the
   exception's type and message, with every URL cut to its host and every address, key or byte string removed.
+  An endpoint that answers with an HTTP error says why in its answer: the start of that answer is part of the
+  message, cut and cleaned the same way.
   `EveryKindOfFailureIsToldApartAndOnlyAConnectivityFailureIsTheNetworks`,
-  `AFailedRequestLogsOneLineWithItsHostAndNothingOfThePlayers` and
-  `AFailedRequestSaysWhatFailedOnThePageAndInTheLog` guard it.
+  `AFailedRequestLogsOneLineWithItsHostAndNothingOfThePlayers`,
+  `AFailedRequestSaysWhatFailedOnThePageAndInTheLog` and `ARefusingEndpointsOwnWordsReachTheLogCutAndCleaned`
+  guard it.
 - **Plugin boundary:** the Android plugin is reached through one seam, `IAndroidPlugin`, one method per Java
   member, and no Java object is made anywhere else. Every call is made on the application thread, whichever
   thread asked, because JNI finds the application's classes only there; a call that fails names its Java class

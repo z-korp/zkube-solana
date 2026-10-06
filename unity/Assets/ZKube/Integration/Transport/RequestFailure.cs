@@ -11,10 +11,17 @@ namespace ZKube.Integration.Transport
     public enum FailureKind { Timeout, NoNetwork, Insecure, Busy, Refused, ServerError, HttpError, RpcError, UnreadableReply, Local }
 
     // A non-success HTTP answer, with its status kept as a number.
+    // What the endpoint said with it is kept too, cut and cleaned like every logged word.
     public sealed class HttpStatusException : HttpRequestException
     {
+        public const int BodyBytes = 512;
         public int Status { get; }
-        public HttpStatusException(int status) : base("HTTP status " + status) { Status = status; }
+        public HttpStatusException(int status, string body = null) : base("HTTP status " + status + Said(body)) { Status = status; }
+        private static string Said(string body)
+        {
+            body = RequestFailure.Clean(body);
+            return body.Length == 0 ? "" : ": " + (body.Length <= 160 ? body : body.Substring(0, 160) + "…");
+        }
     }
 
     // What went wrong with one request, in the terms a page and a log line need:
