@@ -180,7 +180,8 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {
             yield return PrepareScenario("owner-overview", 1.3f);
-            host.GetComponent<PageShell>().Simulate(new Rect(0, 0, 360, 520), new Rect(0, 0, 360, 520 - ZKube.Tests.Presentation.Phones.CompactTopInsetDp));
+            // A screen short enough that the landing page, which pins no line under an empty board, still has to scroll.
+            host.GetComponent<PageShell>().Simulate(new Rect(0, 0, 360, 470), new Rect(0, 0, 360, 470 - ZKube.Tests.Presentation.Phones.CompactTopInsetDp));
             Click("Connect"); yield return Idle();
             var shell = host.GetComponent<PageShell>(); var scroll = shell.Scroll;
             Canvas.ForceUpdateCanvases();

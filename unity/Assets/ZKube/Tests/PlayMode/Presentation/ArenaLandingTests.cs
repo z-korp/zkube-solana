@@ -95,6 +95,76 @@ namespace ZKube.Tests.Presentation
             }
         }
 
+        // A player appears once in a board's column, on both phones. Among the
+        // rows shown their row is lit in place and nothing is pinned; one place
+        // below the last row shown it is pinned under them. A player with no
+        // result has no line, unless they have played: then one line says they
+        // have no score there, alone on a board without rows.
+        [UnityTest] public IEnumerator APlayerAppearsOnceInEachBoardColumnOnBothPhones()
+        {
+            yield return Open(1);
+            const string noScore = "No score yet";
+            ArcadeView Boards(int? rank, bool played, int held = 12)
+            {
+                var view = ArenaLanding.View();
+                foreach (var board in view.Boards)
+                {
+                    var all = Enumerable.Range(1, held).Select(place => new BoardRowView { Rank = place.ToString(), Player = place == rank ? "You" : "7WFy…ZDRA",
+                        Value = (500 - place).ToString(), Yours = place == rank }).ToArray();
+                    board.Rows = all.Take(PageViews.LandingRowsSeeker).ToArray(); board.Empty = held == 0 ? "No runs yet" : null;
+                    board.Yours = rank.HasValue ? all[rank.Value - 1] : played ? new BoardRowView { Player = "You", Note = noScore, Yours = true } : null;
+                }
+                return view;
+            }
+            foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Compact, "compact"), (Phones.Seeker, "seeker") })
+            {
+                phone(shell, 1);
+                yield return Draw(Boards(null, false));
+                int shown = root.GetComponentsInChildren<Image>().Count(image => image.name.StartsWith("Score board row ") && !image.name.EndsWith(" rim"));
+                Assert.That(shown, Is.InRange(PageViews.LandingRowsCompact, PageViews.LandingRowsSeeker));
+                int Mine(string board) => root.GetComponentsInChildren<TMP_Text>().Count(text => text.name.StartsWith(board + " board ") && text.name.EndsWith(" player") && text.text == "You");
+                bool Pinned(string board) => root.GetComponentsInChildren<Image>().Any(image => image.name == board + " board yours");
+                foreach (string board in new[] { "Score", "Objective" })
+                { Assert.That(Mine(board), Is.Zero, size + ": no result, no line"); Assert.That(Pinned(board), Is.False, size + ": no result, nothing pinned"); }
+                foreach (var (rank, what) in new[] { (1, "rank 1"), (3, "inside the rows shown"), (shown, "the last row shown"), (shown + 1, "one below the rows shown") })
+                {
+                    yield return Draw(Boards(rank, true));
+                    foreach (string board in new[] { "Score", "Objective" })
+                    {
+                        Assert.That(Mine(board), Is.EqualTo(1), size + ", " + what + ": the player appears once on the " + board + " board");
+                        Assert.That(Pinned(board), Is.EqualTo(rank > shown), size + ", " + what + ": pinned only below the rows shown");
+                        if (rank <= shown) Assert.That(root.GetComponentsInChildren<Image>().Any(image => image.name == board + " board row " + rank + " rim"), Is.True, size + ", " + what + ": lit in place");
+                    }
+                    yield return Captures.Snap(shell, "own row " + size + " " + what);
+                }
+                // Played today, no row on these boards: one line under the others' rows says so.
+                yield return Draw(Boards(null, true));
+                foreach (string board in new[] { "Score", "Objective" })
+                {
+                    Assert.That(Mine(board), Is.EqualTo(1)); Assert.That(Pinned(board), Is.True);
+                    Assert.That(root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == board + " board yours note").text, Is.EqualTo(noScore));
+                }
+                yield return Captures.Snap(shell, "own row " + size + " no score under rows");
+                // The same on boards nobody has a row on: that line alone, in place of "No runs yet".
+                yield return Draw(Boards(null, true, 0));
+                foreach (string board in new[] { "Score", "Objective" })
+                {
+                    Assert.That(Mine(board), Is.EqualTo(1)); Assert.That(Pinned(board), Is.True);
+                    Assert.That(root.GetComponentsInChildren<TMP_Text>().Any(text => text.name == board + " board empty"), Is.False, size + ": one line is enough");
+                }
+                yield return Captures.Snap(shell, "own row " + size + " no score on empty boards");
+                // And before the player has played: "No runs yet", and no line of their own.
+                yield return Draw(Boards(null, false, 0));
+                foreach (string board in new[] { "Score", "Objective" })
+                {
+                    Assert.That(Mine(board), Is.Zero); Assert.That(Pinned(board), Is.False);
+                    Assert.That(root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == board + " board empty").text, Is.EqualTo("No runs yet"));
+                }
+                yield return Captures.Snap(shell, "own row " + size + " empty boards");
+            }
+            Phones.Clear(shell);
+        }
+
         // The Kredit figure shows its own state and opens Kredits: plain with
         // enough, a gold rim and a plus on the last one, an ember rim and a plus at none.
         [UnityTest] public IEnumerator TheKreditFigureShowsItsStateAndOpensKredits()
@@ -142,9 +212,10 @@ namespace ZKube.Tests.Presentation
             yield return Captures.Snap(shell, "landing boards failed compact");
 
             var empty = ArenaLanding.View();
-            foreach (var board in empty.Boards) { board.Rows = Array.Empty<BoardRowView>(); board.Empty = "No runs yet"; board.Yours = new BoardRowView { Rank = "–", Player = "You", Value = "–", Yours = true }; }
+            foreach (var board in empty.Boards) { board.Rows = Array.Empty<BoardRowView>(); board.Empty = "No runs yet"; board.Yours = null; }
             yield return Draw(empty);
             Assert.That(root.GetComponentsInChildren<TMP_Text>().Count(text => text.name.EndsWith(" board empty") && text.text == "No runs yet"), Is.EqualTo(2));
+            Assert.That(root.GetComponentsInChildren<Image>().Any(image => image.name.EndsWith(" board yours")), Is.False, "An empty board is one line: nothing is pinned under it");
             yield return Captures.Snap(shell, "landing boards empty compact");
 
             yield return Draw(ArenaLanding.View(classic: true));
@@ -175,8 +246,7 @@ namespace ZKube.Tests.Presentation
                 ("boards loading", () => With(view => view.Boards = null), "Enter · 1 Kredit"),
                 ("boards failed", () => With(view => { view.Boards = null; view.BoardsNotice = "Boards not loaded.";
                     view.BoardsRetry = new PageAction { Label = "Try again", Name = "Reload boards" }; }), "Enter · 1 Kredit"),
-                ("boards empty", () => With(view => { foreach (var board in view.Boards) { board.Rows = Array.Empty<BoardRowView>(); board.Empty = "No runs yet";
-                    board.Yours = new BoardRowView { Rank = "–", Player = "You", Value = "–", Yours = true }; } }), "Enter · 1 Kredit"),
+                ("boards empty", () => With(view => { foreach (var board in view.Boards) { board.Rows = Array.Empty<BoardRowView>(); board.Empty = "No runs yet"; board.Yours = null; } }), "Enter · 1 Kredit"),
                 ("classic", () => ArenaLanding.View(classic: true), "Enter · 1 Kredit"),
                 ("rewards to claim", () => With(view => { view.Reason = "Your device request is still finishing."; }, ArenaLanding.View(claims: "2 to claim")), "Resume run") };
             foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Seeker, "seeker"), (Phones.Compact, "compact") })

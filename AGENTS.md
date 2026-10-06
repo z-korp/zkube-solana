@@ -450,11 +450,15 @@ deployment or spending approval.
   last one, none), which opens Kredits, and one action, the player's next step: connect, the Campaign before
   launch, the device, its deposit, Kredits, the run in flight, the entry, or the boards once entries close. Where
   no step can be taken the card says why. The boards card shows Score and Theme side by side from the chain, Score
-  alone on a Classic day: the top rows that fit, ten at most, and the player's own row. A column opens its board
-  and a badge counts the rewards still to claim. The Daily, the boards and the claims are each read on their own
-  and nothing is saved, so a failed boards read says so in its card while the Daily's action still works.
-  `TheLandingPageFitsBothPhonesWithBothBoardsAndTheOwnRows`, `TheKreditFigureShowsItsStateAndOpensKredits`,
-  `TheBoardsCardStandsAloneWhileLoadingFailedEmptyAndClassic`,
+  alone on a Classic day: the top rows that fit, ten at most. A player appears once in a column: among the rows
+  shown their row is lit in place, and their line is pinned under the rows only when it is not one of them, as
+  their row further down or, once they have entered the day, as no score yet (a result of zero earns no row). A
+  board without rows has one line: that one, or that nobody has run yet. A column opens its board and a badge
+  counts the rewards still to claim. The Daily, the boards and the claims are each read on their own and nothing
+  is saved, so a failed boards read says so in its card while the Daily's action still works.
+  `TheLandingPageFitsBothPhonesWithBothBoardsAndTheOwnRows`,
+  `APlayersLineIsPinnedOnlyWhenItIsNotAmongTheRowsShown`, `APlayerAppearsOnceInEachBoardColumnOnBothPhones`,
+  `TheKreditFigureShowsItsStateAndOpensKredits`, `TheBoardsCardStandsAloneWhileLoadingFailedEmptyAndClassic`,
   `ABoardColumnOpensItsBoardAndTheBadgeOpensTheRewards`, `TheLandingsOneActionIsThePlayersNextStep`,
   `TheLandingShowsTodaysBoardsAndEachReadStandsAlone` and `ARewardToClaimShowsAsTheBadgeThatOpensItsBoard` guard
   the page and its reads.
@@ -462,10 +466,13 @@ deployment or spending approval.
   pair, the player's row, the rows, which scroll inside their card, the one button (the claim or the seal) and, as
   the page's foot over the tab bar (owner, 2026-10-05), the day stepper: one band holding the previous day's
   chevron, the date over the day's state and the next day's chevron, over every calendar day from the launch day
-  to today. The page keeps that shape while a day is read and when its read failed. Today's rows are the chain's
-  live boards, without payouts. A finished day not yet finalized shows the same rows and offers to seal it. A
-  sealed day shows its paying rows with their payouts and, under a divider that calls them unofficial, the read
-  model's places a hundred at a time. `TheBoardsPageStepsThroughDaysAndReadsEachKindOfDay`,
+  to today. The page keeps that shape while a day is read and when its read failed. The player's card over the
+  rows says what the rows do not, so nobody is listed twice with the same figures: on a sealed day it is the
+  claim's anchor, the rank with the reward and where its claim stands; on a live day it stands only for a row
+  below the top ten, or to say the player has no score there yet. A row in the list is lit in place. Today's rows
+  are the chain's live boards, without payouts. A finished day not yet finalized shows the same rows and offers to
+  seal it. A sealed day shows its paying rows with their payouts and, under a divider that calls them unofficial,
+  the read model's places a hundred at a time. `TheBoardsPageStepsThroughDaysAndReadsEachKindOfDay`,
   `TheDayStepperIsTheBoardsPagesFootUnderTheRowsAndItsOneButton` and
   `MorePlacesComeAHundredAtATimeAndOnlyWhereTheyFollowOn` guard the page, its layout and its further places.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds

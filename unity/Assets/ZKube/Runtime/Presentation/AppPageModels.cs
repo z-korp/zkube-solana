@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ZKube.Core.Generated;
@@ -136,21 +137,27 @@ namespace ZKube.Presentation
 
     // One row of a board: its rank, the player, the result and, on a sealed
     // board, the payout. Yours is the reader's own row; Unofficial is a place
-    // the board no longer holds, shown from the public read model.
+    // the board no longer holds, shown from the public read model. Note is a
+    // few words in place of a result the row does not have.
     public sealed class BoardRowView
     {
-        public string Rank, Player, Value, Payout;
+        public string Rank, Player, Value, Payout, Note;
         public bool Yours, Unofficial;
     }
     // A board on the landing page: its pictogram (with its chip) and name, its
-    // top rows, the reader's own row under them, and the tap that opens it.
-    // Empty says why a board has no rows.
+    // top rows, and the tap that opens it. Empty says why a board has no rows.
+    // Yours is the reader's own line: their row wherever the board holds it,
+    // a line saying they have no score here once they have played, or none.
     public sealed class BoardColumnView
     {
         public string Name, Pictogram, Chip, Empty;
         public BoardRowView[] Rows = Array.Empty<BoardRowView>();
         public BoardRowView Yours;
         public PageAction Open;
+        // A player appears once in a column. Among the rows shown, their row is
+        // lit in place and nothing is pinned; their line is pinned under the
+        // rows only when it is not one of them.
+        public BoardRowView Pinned(int shown) => Rows.Take(shown).Any(row => row.Yours) ? null : Yours;
     }
 
     public sealed class ProfileChoiceView

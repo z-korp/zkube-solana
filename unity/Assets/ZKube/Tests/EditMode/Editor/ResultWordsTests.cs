@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using ZKube.Presentation;
 
@@ -54,6 +55,29 @@ namespace ZKube.Editor.Tests
                 Assert.AreEqual(best, result.NewBest, score + " " + beats);
                 Assert.AreEqual(moment, result.Speaks); Assert.AreEqual(stars, result.SpeaksStars);
             }
+        }
+
+        // A player appears once in a board's column: among the rows shown their
+        // row is lit in place and nothing is pinned; only a line that is not one
+        // of them is pinned under.
+        [Test] public void APlayersLineIsPinnedOnlyWhenItIsNotAmongTheRowsShown()
+        {
+            BoardColumnView Column(int? rank, BoardRowView other = null)
+            {
+                var rows = System.Linq.Enumerable.Range(1, 10).Select(place => new BoardRowView { Rank = place.ToString(), Yours = place == rank }).ToArray();
+                return new BoardColumnView { Rows = rows, Yours = rank.HasValue && rank <= 10 ? rows[rank.Value - 1] : other };
+            }
+            foreach (int shown in new[] { 5, 10 })
+            {
+                Assert.IsNull(Column(1).Pinned(shown), "Rank 1"); Assert.IsNull(Column(3).Pinned(shown), "Inside the rows shown");
+                Assert.IsNull(Column(shown).Pinned(shown), "The last row shown");
+                Assert.IsNull(Column(null).Pinned(shown), "No result");
+            }
+            Assert.AreEqual("6", Column(6).Pinned(5).Rank, "One below five shown rows");
+            var eleventh = new BoardRowView { Rank = "11", Yours = true };
+            Assert.AreSame(eleventh, Column(null, eleventh).Pinned(10), "One below ten shown rows");
+            var unscored = new BoardRowView { Player = "You", Note = "No score yet", Yours = true };
+            Assert.AreSame(unscored, Column(null, unscored).Pinned(5)); Assert.AreSame(unscored, new BoardColumnView { Yours = unscored }.Pinned(5), "Alone on a board without rows");
         }
     }
 }

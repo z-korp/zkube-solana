@@ -59,7 +59,9 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario("daily-playable"); Click("Connect"); yield return Idle();
             yield return LandingBoards();
             Assert.That(Offers("Open Score board"), Is.True);
-            Assert.That(host.GetComponentsInChildren<Image>().Any(image => image.name == "Score board yours"), Is.True, "The player's own row");
+            // The player appears once in a column: lit among the rows shown, or pinned under them, never both.
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Count(text => text.name.StartsWith("Score board ") && text.name.EndsWith(" player") && text.text == "You"),
+                Is.LessThanOrEqualTo(1), "The player's own row, once");
             CollectionAssert.AreEqual(new[] { "Enter · 1 Kredit" }, DailyActions());
             Set("landingBoardsFailed", true); Redraw(); yield return Idle();
             Assert.That(Says("Boards not loaded."), Is.True); Assert.That(Offers("Reload boards"), Is.True);
@@ -97,6 +99,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Says("Sealed"), Is.True); Assert.That(Payouts(), Is.True, "A sealed board's rows carry their payouts");
             Assert.That(host.GetComponentsInChildren<Image>().Any(image => image.name == "Day state mark"), Is.False, "Only a live day is lit");
             StringAssert.Contains("claim by", Text("Your row row detail"));
+            // The card says what the rows do not: the rank and the claim. The score is on the player's row, lit in the list, once.
+            int Mine() => host.GetComponentsInChildren<TMP_Text>().Count(text => text.name.StartsWith("Board rows row ") && text.name.EndsWith(" player") && text.text == "You");
+            Assert.That(Text("Your row"), Does.Match("^#[0-9,]+$")); Assert.That(Mine(), Is.EqualTo(1));
             uint today = ZKube.Core.NativeEngine.DayAt(environment.Clock());
             while (Adapter.RewardDay < today) { yield return SessionClick("Next day"); yield return Idle(); }
             Assert.That(Find("Next day").interactable, Is.False, "No day after today");
@@ -117,6 +122,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<Image>().Any(image => image.name == "Day state mark"), Is.True, "A live day's lit dot");
             Assert.That(Find("Next day").interactable, Is.False, "No day after today"); Assert.That(Payouts(), Is.False);
             Assert.That(Offers("Seal results"), Is.False, "A live day has nothing to seal");
+            // A live board holds the player among its top rows: lit there, and no card repeats them.
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Count(text => text.name.StartsWith("Board rows row ") && text.name.EndsWith(" player") && text.text == "You"), Is.EqualTo(1));
+            Assert.That(host.GetComponentsInChildren<Transform>().Any(piece => piece.name == "Your row card"), Is.False, "No card over a row already in view");
         }
 
         // Every kind of day fits both phones: only the rows list scrolls, never

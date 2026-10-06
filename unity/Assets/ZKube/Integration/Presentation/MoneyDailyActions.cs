@@ -195,11 +195,20 @@ namespace ZKube.Integration.Presentation
             if (landingBoards == null || landingBoards.DayId != lobby.DayId) return;
             // A Classic day has no objective and so no second board.
             var shown = lobby.ObjectiveKind == 0 ? new[] { landingBoards.Score } : new[] { landingBoards.Score, landingBoards.Theme };
-            arcade.Boards = shown.Select(board => BoardColumn(board, lobby.DayId)).ToArray();
+            // Whether the player has entered today: a board without their row then says they have no score on it.
+            bool played = PlayedOn(lobby.Profile, lobby.DayId);
+            arcade.Boards = shown.Select(board => BoardColumn(board, lobby.DayId, played)).ToArray();
         }
+        // The profile's last paid entry was on this day.
+        private static bool PlayedOn(PlayerProfile profile, uint day) => (uint?)profile?.Fields?["last_entry_day_id"] == day;
+        // What a board says of a player who has played its day and holds no row
+        // on it: a result of zero qualifies for no place, and a run still in
+        // flight has none yet.
+        private const string NoScore = "No score yet";
+        private static BoardRowView Unscored() => new BoardRowView { Player = "You", Note = NoScore, Yours = true };
         // A board as the landing page shows it: its top rows as the chain holds
-        // them now and the player's own row, with the way into the board.
-        private BoardColumnView BoardColumn(PrizeBoard board, uint day)
+        // them now and the player's own line, with the way into the board.
+        private BoardColumnView BoardColumn(PrizeBoard board, uint day, bool played)
         {
             var (icon, chip) = BoardIcon(board.Kind, day);
             string kind = board.Kind;
@@ -208,8 +217,8 @@ namespace ZKube.Integration.Presentation
             var rows = BoardRows(board).ToArray();
             column.Rows = rows.Take(PageViews.LandingRowsSeeker).ToArray();
             if (rows.Length == 0) column.Empty = "No runs yet";
-            // The player's row: their rank where the board holds them; a dash before any positive result.
-            column.Yours = rows.FirstOrDefault(row => row.Yours) ?? new BoardRowView { Rank = "–", Player = "You", Value = "–", Yours = true };
+            // The player's line: their row where the board holds them; once they have played, that they have no score here; else none.
+            column.Yours = rows.FirstOrDefault(row => row.Yours) ?? (played ? Unscored() : null);
             return column;
         }
         // A board's rows in order: a sealed board's paying rows with their

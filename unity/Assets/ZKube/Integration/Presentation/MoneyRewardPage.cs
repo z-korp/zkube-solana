@@ -145,7 +145,7 @@ namespace ZKube.Integration.Presentation
             if (BoardPair() is PanelBlock pair) blocks.Add(pair);
             string paid = ConfirmedRewardText(state);
             if (paid != null) blocks.Add(PanelBlock.Text("Reward received", paid, SkinTokens.Positive));
-            var yours = YourRow(board);
+            var yours = YourRow(board, PlayedOn(state.Profile, rewardDay));
             if (yours != null) blocks.Add(PanelBlock.Card("Your row card", yours));
             // The rows: the chain's own, then the read model's places under the divider.
             var rows = BoardRows(board).Concat(board.Unpaid.Select(row => new BoardRowView { Rank = row.Rank.ToString(CultureInfo.InvariantCulture),
@@ -186,24 +186,30 @@ namespace ZKube.Integration.Presentation
             return page;
         }
         private static string ClaimBy(long seconds) => DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM", CultureInfo.InvariantCulture);
-        // The player's row on the shown board: their rank and result, and under
-        // them what the reward is and where its claim stands. A place below the
-        // paying rows comes from the public read model and is said to be so.
-        private PanelBlock YourRow(PrizeBoard board)
+        // The player's card over the rows says what the rows do not, so a player
+        // is never shown twice with the same figures. A row in the list is lit
+        // in place. On a live board the card stands only for a row below the top
+        // ones, or to say the player has no score there yet. On a sealed board it
+        // is the claim's anchor: the rank, what the reward is and where its claim
+        // stands. A place below the paying rows comes from the public read model
+        // and is said to be so.
+        private PanelBlock YourRow(PrizeBoard board, bool played)
         {
             var (icon, chip) = BoardIcon(board.Kind);
-            string Figure(uint rank, ulong metric) => "#" + rank.ToString("N0", CultureInfo.InvariantCulture) + " · " + metric.ToString("N0", CultureInfo.InvariantCulture);
+            string Place(uint rank) => "#" + rank.ToString("N0", CultureInfo.InvariantCulture);
+            string Figure(uint rank, ulong metric) => Place(rank) + " · " + metric.ToString("N0", CultureInfo.InvariantCulture);
             if (board.Live)
             {
                 var row = board.Account.Rows.FirstOrDefault(value => value.Player == identity.Owner);
-                return row == null ? null : PanelBlock.Row("Your row", "You", Figure(row.Position + 1, board.Metric(row)), icon: icon, chip: chip);
+                if (row == null) return played ? PanelBlock.Row("Your row", "You", null, detail: NoScore, icon: icon, chip: chip) : null;
+                return row.Position < PageViews.LandingRowsSeeker ? null : PanelBlock.Row("Your row", "You", Figure(row.Position + 1, board.Metric(row)), icon: icon, chip: chip);
             }
             if (board.Yours != null)
             {
                 string payout = Sol(board.Yours.PayoutLamports);
                 string detail = board.ClaimStatus == "claimed" ? payout + " claimed" : board.ClaimStatus == "expired" ? "Claim window closed" :
                     board.ExpiresAt.HasValue ? payout + " · claim by " + ClaimBy(board.ExpiresAt.Value) : payout;
-                return PanelBlock.Row("Your row", "You", Figure(board.Yours.Rank, board.Yours.Metric), detail: detail, icon: icon, chip: chip);
+                return PanelBlock.Row("Your row", "You", Place(board.Yours.Rank), detail: detail, icon: icon, chip: chip);
             }
             return board.Standing == null ? null :
                 PanelBlock.Row("Your row", "You", Figure(board.Standing.Rank, board.Standing.Metric), detail: "Below the paid places", icon: icon, chip: chip);

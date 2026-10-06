@@ -148,8 +148,10 @@ namespace ZKube.Presentation
 
         // A board row's height and the gap under it, in u.
         private const float BoardRowU = 24, BoardRowGapU = 2;
-        // The boards as columns: each its pictogram and name with the way in,
-        // its top rows, and the reader's own row in the gold rim.
+        // The boards as columns: each its pictogram and name with the way in and
+        // its top rows, the reader's own lit in its gold rim. The reader's line
+        // is pinned under the rows only when it is not among them
+        // (BoardColumnView.Pinned); on a board without rows it is the one line.
         private Piece BoardColumns(ScreenKit inside, BoardColumnView[] boards, int rows)
         {
             float u = inside.U, gap = 8 * u, head = BoardRowU * u, step = (BoardRowU + BoardRowGapU) * u;
@@ -157,7 +159,10 @@ namespace ZKube.Presentation
             int columns = boards == null ? 2 : Mathf.Max(1, boards.Length);
             // Boards with few rows take only their room, one line at least.
             if (boards != null) rows = Mathf.Clamp(boards.Max(board => board?.Rows.Length ?? 0), 1, rows);
-            float height = head + (rows + 1) * step + 3 * u;
+            // The line under the rows is kept only where a column pins one (or while the read is out).
+            bool under = boards == null || boards.Any(board => board != null && board.Rows.Length > 0 && board.Pinned(rows) != null);
+            // A column is its board's way in: it keeps a touch's height however few lines it holds.
+            float height = Mathf.Max(inside.Touch(48), head + rows * step + (under ? step + 3 * u : 0));
             return new Piece(height, rect => {
                 float width = (rect.width - gap * (columns - 1)) / columns;
                 for (int c = 0; c < columns; c++)
@@ -167,20 +172,26 @@ namespace ZKube.Presentation
                     float y = column.yMax - head;
                     if (board != null) BoardHead(inside, board, new Rect(column.x, y, column.width, head));
                     string name = board == null ? "Board " + c : board.Name + " board";
+                    var pinned = board?.Pinned(rows);
                     for (int i = 0; i < rows; i++)
                     {
                         y -= step;
                         var place = new Rect(column.x, y, column.width, BoardRowU * u);
                         if (board == null) ui.Pill(name + " place " + (i + 1), place, shell.Page, RowInk(false, true));
                         else if (i < board.Rows.Length) BoardRow(inside, name + " row " + (i + 1), board.Rows[i], place, shell.Page);
+                        // A board without rows has one line: the reader's own, or why it is empty.
+                        else if (i == 0 && board.Rows.Length == 0 && pinned != null) BoardRow(inside, name + " yours", pinned, place, shell.Page);
                         else if (i == 0 && board.Rows.Length == 0 && board.Empty != null)
                             inside.Text(name + " empty", board.Empty, place, inside.SmallDp, SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
                                 TextAlignmentOptions.Left);
                     }
-                    y -= step + 3 * u;
-                    var own = new Rect(column.x, y, column.width, BoardRowU * u);
-                    if (board == null) ui.Pill(name + " place own", own, shell.Page, RowInk(false, true));
-                    else if (board.Yours != null) BoardRow(inside, name + " yours", board.Yours, own, shell.Page);
+                    if (under)
+                    {
+                        y -= step + 3 * u;
+                        var own = new Rect(column.x, y, column.width, BoardRowU * u);
+                        if (board == null) ui.Pill(name + " place own", own, shell.Page, RowInk(false, true));
+                        else if (board.Rows.Length > 0 && pinned != null) BoardRow(inside, name + " yours", pinned, own, shell.Page);
+                    }
                     if (board?.Open == null) continue;
                     var hit = ui.Rect<Image>(name + " tap", column, shell.Page); hit.color = Color.clear; Tap(hit, board.Open);
                 }
@@ -223,6 +234,16 @@ namespace ZKube.Presentation
                 ui.Label(name + " payout", row.Payout, new Rect(right - payWidth, rect.y, payWidth, rect.height), inside.SmallDp, SkinTokens.Accent, parent,
                     SkinUi.Type.Number, TextAlignmentOptions.Right).textWrappingMode = TextWrappingModes.NoWrap;
                 right -= payWidth + 8 * u;
+            }
+            // A row without a result says so in its place, in words.
+            if (row.Note != null)
+            {
+                float noteWidth = ui.TextWidth(row.Note, inside.SmallDp, SkinUi.Type.Caption) + 2 * u;
+                ui.Label(name + " note", row.Note, new Rect(right - noteWidth, rect.y, noteWidth, rect.height), inside.SmallDp, SkinTokens.TextMuted, parent,
+                    SkinUi.Type.Caption, TextAlignmentOptions.Right).textWrappingMode = TextWrappingModes.NoWrap;
+                ui.Label(name + " player", row.Player ?? "", new Rect(x, rect.y, Mathf.Max(0, right - noteWidth - 4 * u - x), rect.height), inside.SmallDp,
+                    row.Yours ? SkinTokens.Accent : ink, parent, SkinUi.Type.Caption, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                return;
             }
             // The result keeps its 14 dp; a long one abbreviates before it crowds the name.
             float numberDp = Mathf.Max(14, 14 * inside.K);
