@@ -198,8 +198,8 @@ namespace ZKube.Integration.Presentation
         private void ReturnFromOperation() => OpenSharedPage(AppPage.Settings);
         private PanelPageView OperationPage()
         {
-            var back = PageAction("Back", ReturnFromOperation, PageAvailable);
-            // A page that shows: it keeps its tab bar, Settings lit, and Back returns there. It has a
+            var back = PageAction(null, ReturnFromOperation, PageAvailable);
+            // A page that shows: it keeps its tab bar, Settings lit, which returns there. It has a
             // button only where there is a step to take.
             var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back, Tab = AppPage.Settings };
             var receipt = LastReceipt;

@@ -164,7 +164,7 @@ namespace ZKube.Local
                     PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1], PrimaryCount = level.Primary[2],
                     SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] },
                 Play = Action(Runs.Active("campaign") == null ? "Play" : "Resume run", Play),
-                Back = Action("Back to map", Map) };
+                Map = Action("Map", Map) };
         }
         // The finished run's result: a kept star continues on the map, none leaves
         // for it; Retry plays the level again. Campaign results have no Share.

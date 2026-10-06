@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /Back to (?:map|Arena|Profile)\b|"Back"|Back,? top left|Back (?:alone )?beside the title|the Back tablet|Back as their one way back/, trees: AUTHORED,
+    reversal: "The top band holds no button: a page is left by its lit tab, its foot row or the Android back key" },
   { pattern: /expired before it was sent/i, trees: [UNITY],
     reversal: "An entry that never landed says so on its card, with what is safe and the entry back on its button" },
   { pattern: /Refresh before|Refresh to (?:check|try)|needs? refreshing|Results changed\. Refresh/i, trees: [UNITY],
@@ -58,8 +60,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Realms and Arena use the shared Unity pages and native wallet plugin" },
   { pattern: /fixed[ _-]?puzzle|default[ _-]?seed|campaign[ _-]?proof|campaign checkpoint|Campaign run slot|Campaign publication|Campaign delegation|set up (?:this |a |your )?device before (?:a |your )?Campaign trial/i, trees: [...SOURCE, join(ROOT, "README.md")],
     reversal: "Campaign attempts use fresh seeds and synchronize reported progress" },
-  { pattern: /Finalization allocates one|exact-sized allocation at finalization|Operator withdrawals remain governance actions|invokes the existing claim instruction|This Daily prize position was already claimed|The Daily prize claim window has closed/i, trees: AUTHORED,
-    reversal: "Cadence funds growing boards; purchases pay the team and stale claims are no-ops" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

@@ -117,8 +117,8 @@ namespace ZKube.Tests.MoneyOverview
             if (controller.SelectedEmblem != emblem) { yield return SessionClick("Emblem " + emblem); yield return Idle(); }
             if (controller.SelectedBorder != border)
             {
-                // The preview keeps the choice when it goes back for a border.
-                if (host.GetComponent<PageViews>().ShownPanel == "Profile Selection") { yield return SessionClick("Back"); yield return Idle(); }
+                // The Android back key keeps the choice when it goes back for a border.
+                if (host.GetComponent<PageViews>().ShownPanel == "Profile Selection") { Assert.That(host.GetComponent<PageViews>().GoBack(), Is.True); yield return Idle(); }
                 yield return SessionClick("Choose a border"); yield return Idle();
                 yield return SessionClick("Border " + border); yield return Idle();
             }

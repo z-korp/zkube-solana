@@ -49,7 +49,7 @@ namespace ZKube.Tests.MoneyOverview
             environment.AdvanceClock(86400); yield return null; yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True); Assert.That(controller.SelectedTrial, Is.EqualTo(1));
             Assert.That(environment.Calls.Count, Is.EqualTo(before), "UTC update cannot switch pages or silently refresh owner data");
-            Click("Back to map"); yield return Idle(); Click("Next"); yield return Idle();
+            Click("Map"); yield return Idle(); Click("Next"); yield return Idle();
             Assert.That(controller.SelectedRealm, Is.EqualTo(2));
             // A closed realm shows why it waits, with no trial to open.
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Trial ") && button.interactable), Is.False);

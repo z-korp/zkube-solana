@@ -43,7 +43,7 @@ namespace ZKube.Tests.Presentation
         private IEnumerator Draw(params PanelBlock[] blocks)
         {
             var all = blocks.Prepend(PanelBlock.Space()).Append(PanelBlock.Text("Kredit terms", "Kredits can’t be withdrawn, transferred or exchanged.", SkinTokens.TextMuted, true)).ToArray();
-            views.RenderPanel(new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Back = new PageAction { Label = "Back", Name = "Back" }, Blocks = all });
+            views.RenderPanel(new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Back = new PageAction(), Blocks = all });
             yield return null;
             foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
             yield return null; Canvas.ForceUpdateCanvases();

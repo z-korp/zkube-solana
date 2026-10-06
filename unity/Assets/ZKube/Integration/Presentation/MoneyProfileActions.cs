@@ -158,7 +158,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView ProfilePanel()
         {
             var state = profileRead.Value; var player = state.Profile;
-            var back = PageAction("Back", () => ShowProfile(ProfileView.Main), PageAvailable);
+            var back = PageAction(null, () => ShowProfile(ProfileView.Main), PageAvailable);
             switch (profileView)
             {
                 case ProfileView.Records: return Records(state, back);
@@ -189,8 +189,9 @@ namespace ZKube.Integration.Presentation
                         PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
                         PanelBlock.Card("Selection card", PanelBlock.Title(name, centered: true, name: "Selection"),
                             PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.")) };
-                    // A page that asks for a decision: no tab bar. Back keeps the choice for more
-                    // changes; Keep current look puts it back.
+                    // A page that asks for a decision: no tab bar, and its foot row leaves it. Keep current
+                    // look puts the choice back; the Android back key returns to the profile with the
+                    // choice kept, so a border can be chosen with an emblem in one change.
                     var page = new PanelPageView { Key = "Profile Selection", Title = "Wear selection", Back = back };
                     if (economyActionPending || sessionActionPending) Requesting(page);
                     else if (state.Pending != null) Awaiting("Profile", page, () => PageAvailable() && !Busy);
@@ -229,7 +230,7 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank),
                     PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", SkinTokens.TextMuted)));
             }
-            // A page that shows: Back is its one way back, and it keeps its tab bar, Profile lit.
+            // A page that shows: it keeps its tab bar, Profile lit, which is its way back.
             return new PanelPageView { Key = "Profile Records", Title = "Your records", Subtitle = Short(player.Owner), Back = back, Tab = AppPage.Profile,
                 Blocks = blocks.ToArray() };
         }

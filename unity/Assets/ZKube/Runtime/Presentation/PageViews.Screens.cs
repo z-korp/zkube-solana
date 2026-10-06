@@ -103,11 +103,11 @@ namespace ZKube.Presentation
             if (value.Level == Protocol.CampaignTargets.Length && value.Realm < Protocol.Realms.Length)
                 pieces.Add(Opens(kit, catalog.Realm((byte)(value.Realm + 1)).realmName));
             pieces.Add(Piece.Grow);
-            // The way back is Back, top left, as on every page opened from another; Play is the foot's.
-            var slots = new ScreenKit.Slots { Back = Back(value.Back), Chrome = shell.Overlay, Primary = Control(value.Play, SkinSlots.IconPlay) };
+            // A decision page: Play, and Map beside it, which is also where the Android back key leads.
+            var slots = new ScreenKit.Slots { Primary = Control(value.Play, SkinSlots.IconPlay), Secondary = Control(value.Map, SkinSlots.IconMap) };
             slots.Body = HeroBody(kit, pieces, slots, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName,
                 room: room, sizeDp: kit.HeroTitleDp), Step(170, 118));
-            Place(kit, slots, value.Back);
+            Place(kit, slots, value.Map);
             // The first preview of the first level teaches its stars once.
             if (value.Realm == 1 && value.Level == 1 && !Lessons.Device.Taught(Lesson.Stars))
                 Teach(Lessons.Stars, () => Lessons.Device.Teach(Lesson.Stars));

@@ -44,7 +44,7 @@ namespace ZKube.Tests
             yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "preview stars");
             yield return ReadPageLesson();
             Assert.That(Lessons.Device.Taught(Lesson.Stars), Is.True);
-            Click(app, "Back to map"); yield return Page(StorePage.Campaign);
+            Click(app, "Map"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             Assert.That(PageLesson, Is.Null, "Taught once");
         }

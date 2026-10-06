@@ -47,7 +47,9 @@ namespace ZKube.Presentation
         // owner 2026-10-06): the kit names it on every control it places, and
         // EveryPagePlacesItsControlsByRole holds each to its band and its slot.
         // Anywhere is a scene's tap on the whole screen (a talk's next line, a result's entrance).
-        public enum Role { Back, Skip, Primary, Secondary, Tertiary, Destructive, Step, Tab, Setting, WayIn, CardAction, ViewSwitch, Choice, Status, Anywhere }
+        // No role stands in the top band but a lesson's Skip (owner, 2026-10-06): a page is left
+        // by its tab bar or its foot row.
+        public enum Role { Skip, Primary, Secondary, Tertiary, Destructive, Step, Tab, Setting, WayIn, CardAction, ViewSwitch, Choice, Status, Anywhere }
         public static T As<T>(T control, Role role) where T : Component
         {
             var placed = control.GetComponent<Placed>(); if (placed == null) placed = control.gameObject.AddComponent<Placed>();
@@ -65,12 +67,10 @@ namespace ZKube.Presentation
         // controls by role. The page places none of them.
         public sealed class Slots
         {
-            // Top left, beside the title; drawn in Chrome where the body runs under the whole screen.
-            public Control Back;
-            public string BackIcon = SkinSlots.IconBack;
-            public Transform Chrome;
-            // The title row's piece: a title plate, or a page's own header.
+            // The title row's piece: a title plate, or a page's own header. Under is a page under a tab's
+            // main page or a decision page: its title row is 48 dp tall at least, the title centred in it.
             public Piece? Title;
+            public bool Under;
             // The middle band, with the page's own spacers.
             public IEnumerable<Piece> Body = Array.Empty<Piece>();
             // Directly above the foot row.
@@ -202,7 +202,7 @@ namespace ZKube.Presentation
         }
         // The one composer (the placement rule, owner 2026-10-06). A page is three
         // bands: the top says where you are, the middle shows, the bottom does.
-        // From the top: Back beside the title, in a row as tall as its tablet;
+        // From the top: the title, alone in its row, with no button beside it;
         // the page's body; its notices, directly over the foot; the foot row;
         // the stepper, the lowest row; and the tab bar on the bottom edge. What
         // the screen has left goes above the foot, so the bottom band never
@@ -228,31 +228,18 @@ namespace ZKube.Presentation
             var pieces = Pieces(slots, false);
             if (!Fits(pieces)) pieces = Pieces(slots, true);
             var used = Compose(pieces);
-            // A page with no title at its top (a preview, whose title stands with its hero)
-            // hangs Back alone in the corner, over the room its body leaves there.
-            if (slots.Back != null && !slots.Title.HasValue) BackAt(slots, Edge);
             slots.Tabs?.Invoke(TabRect(Ui, screen, Safe));
             return used;
         }
-        private void BackAt(Slots slots, float top)
-        {
-            var back = slots.Back; float tablet = BackSize;
-            var button = Ui.IconButton(back.Name ?? back.Label, new Rect(Safe.x + 12 * U, top - tablet, tablet, tablet), slots.BackIcon, back.Click,
-                slots.Chrome ?? Parent, false, out _, out _);
-            As(button, Role.Back); back.Made?.Invoke(button, null);
-        }
-        // Back's tablet: 48 dp at least, 12u in from the side, its top on the page's edge.
-        public float BackSize => Touch(40);
+        // The least height of the title row of a page under another.
+        public float UnderTitle => Touch(40);
         private Piece TitleRow(Slots slots)
         {
-            if (slots.Back == null) return slots.Title.Value;
-            float tablet = BackSize, above = slots.Title?.Above ?? 0, words = slots.Title?.Height ?? 0;
-            // The row is as tall as the tablet, so the next piece never touches it;
-            // a shorter title stands level with the tablet's middle.
-            return new Piece(Mathf.Max(words, tablet - 2 * above), rect => {
-                BackAt(slots, rect.yMax + above);
-                slots.Title?.Draw(new Rect(rect.x, rect.center.y - words / 2, rect.width, words));
-            }, above);
+            if (!slots.Under) return slots.Title.Value;
+            float above = slots.Title.Value.Above, words = slots.Title.Value.Height;
+            // A shorter title stands in the row's middle.
+            return new Piece(Mathf.Max(words, UnderTitle - 2 * above), rect =>
+                slots.Title.Value.Draw(new Rect(rect.x, rect.center.y - words / 2, rect.width, words)), above);
         }
         // The foot row: the primary, then the secondary, the tertiary and the
         // destructive one last, each an icon and a word. The tertiary and the

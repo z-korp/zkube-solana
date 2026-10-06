@@ -114,8 +114,8 @@ namespace ZKube.Integration.Presentation
 
         private PanelPageView RewardPage()
         {
-            // Back is a way off the page: never held.
-            var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
+            // The way back is a way off the page: never held.
+            var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
             // The page hands its controls over by role: one action at most in the foot
             // row, and the day stepper, the lowest row, in every state.
             var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home };

@@ -141,7 +141,7 @@ namespace ZKube.Tests.MoneyOverview
                 yield return ArenaScreen(phone, "boards " + name);
                 var shell = host.GetComponent<PageShell>();
                 Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + .5f), phone + " " + name + ": only the rows list scrolls");
-                // Back top left, the one button on the stepper, the stepper on the tab bar, in every kind of day.
+                // Nothing to tap in the top band, the one button on the stepper, the stepper on the tab bar, in every kind of day.
                 Placement.Check(host.transform, shell.SafeArea, 1, phone + " boards " + name);
                 Assert.That(host.GetComponentsInChildren<Button>().Count(button => button.GetComponent<Placed>()?.Role == ScreenKit.Role.Step), Is.EqualTo(2), phone + " " + name + ": the stepper is drawn");
             }
@@ -229,8 +229,8 @@ namespace ZKube.Tests.MoneyOverview
             Adapter.Navigate(AppPage.Settings); yield return Idle(); Assert.That(Receipt(), Is.False, "Settings");
             yield return SessionClick("Last operation"); yield return Idle();
             Assert.That(Receipt(), Is.True, "The one page that shows the receipt");
-            yield return SessionClick("Back"); yield return Idle();
-            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Settings), "Back returns to Settings");
+            yield return Return(); yield return Idle();
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Settings), "The lit tab returns to Settings");
         }
     }
 }

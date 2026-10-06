@@ -227,8 +227,6 @@ namespace ZKube.Presentation
                 actions.Bind(button, action, relabel: action.Progress == null ? value => text.text = value : (Action<string>)null);
                 Loader(button, action);
             } };
-        // Back is drawn only where it can be taken at all.
-        private ScreenKit.Control Back(PageAction action) => action != null && action.Enabled ? Control(action) : null;
         // A stepper's arrow: one that cannot step is still drawn, dimmed, under its own name.
         private ScreenKit.Control Arrow(PageAction action, string name) => action == null || !action.Enabled ? new ScreenKit.Control { Name = name } : Control(action);
         // A hero page's pieces (a preview, a result), its guardian and title sized against the page with its foot.
@@ -241,9 +239,11 @@ namespace ZKube.Presentation
             return body;
         }
         // A page, laid out by the kit's composer from its controls by role: the
-        // page's notices stand over its foot, its tab bar on the bottom edge, and
-        // the Android back key takes its Back.
-        private void Place(ScreenKit kit, ScreenKit.Slots slots, PageAction backAction = null)
+        // page's notices stand over its foot and its tab bar on the bottom edge.
+        // returning is where the page leads back to: no button draws it. The
+        // Android back key takes it, and so does the lit tab of a page under a
+        // tab's main page.
+        private void Place(ScreenKit kit, ScreenKit.Slots slots, PageAction returning = null)
         {
             if (pageNotices.Length != 0)
             {
@@ -252,18 +252,23 @@ namespace ZKube.Presentation
                 pageNotices = Array.Empty<string>();
             }
             if (selectedTab >= 0) slots.Tabs = _ => TabBar(shell.SafeArea, selectedTab);
-            back = backAction ?? back;
+            back = returning ?? back;
             pageFoot = kit.Page(slots).y;
         }
-        // A title's room beside Back's tablet, kept clear on both sides so it stays centred.
+        // The room of the title of a page under another: the room its wireframe gives it, clear on both sides.
         private float TitleRoom(ScreenKit kit) => shell.SafeArea.width - 2 * (12 * kit.U + kit.Touch(40) + 8 * ui.Density);
         // The kit tab bar; each tab is bound to its page action so it dims while
-        // navigation is unavailable.
+        // navigation is unavailable. The lit tab is the way back (owner,
+        // 2026-10-06): on a page under a tab's main page it returns there, as the
+        // Android back key does; on the main page itself it does nothing.
         private void TabBar(Rect safe, int selected)
         {
             var icons = new[] { SkinSlots.IconHome, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings };
-            var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Home ? homeTab : target.ToString(),
-                Name = target == AppPage.Home ? homeTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
+            bool under = shownPanel != null; var returning = back;
+            var bound = tabs.Select((target, i) => new PageAction { Label = target == AppPage.Home ? homeTab : target.ToString(),
+                Name = target == AppPage.Home ? homeTab : target.ToString(),
+                CanInvoke = () => i == selected && under && returning != null ? returning.Available : source.CanNavigate(target),
+                Invoke = () => { if (i != selected) source.Navigate(target); else if (under) GoBack(); } }).ToArray();
             var bar = ui.TabBar("Tab bar", tabBar, new ScreenKit(ui, null, shell.ScreenArea, safe).U, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);
             var buttons = bar.GetComponentsInChildren<Button>();
             for (int i = 0; i < buttons.Length; i++) { actions.Bind(buttons[i], bound[i], fade: false); ScreenKit.As(buttons[i], ScreenKit.Role.Tab); }
@@ -470,8 +475,17 @@ namespace ZKube.Presentation
                     if (nextDailyResult != null) nextDailyResult.text = UsedLine(countdownView.NextOpensAt - now);
                 }
             }
-            if (back != null && Input.GetKeyDown(KeyCode.Escape) && back.Available) actions.Run(back.Invoke);
+            if (Input.GetKeyDown(KeyCode.Escape)) GoBack();
         }
+        // What the Android back key and gesture do: where the page leads back to. A page under a
+        // tab's main page returns there, a decision page declines, a preview or a result goes on
+        // as its foot row would; a tab's main page has nowhere to go back to.
+        public bool GoBack()
+        {
+            if (back == null || !back.Available) return false;
+            actions.Run(back.Invoke); return true;
+        }
+        public bool LeadsBack => back != null;
 
         private static string NextDaily(long seconds) => "Next Daily in " + DayClock(seconds);
         // A clock whose digits each take the widest digit's width (clockEm, in ems).

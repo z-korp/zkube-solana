@@ -11,16 +11,17 @@ namespace ZKube.Tests.Presentation
     // three bands: the top says where you are, the middle shows, the bottom does.
     // Every control carries the role the kit placed it by, and a role has one
     // place:
-    //   Back         top left, in the title row, 48 dp, alone there
+    //   the top band nothing a finger lands on, but a lesson's Skip: top right, 48 dp tall
     //   foot row     Primary, Secondary, Tertiary, Destructive: under everything
     //                the page shows, in that reading order, in two rows at most,
     //                one primary a page, 48 dp tall or more
     //   Step         the two arrows of one bar, the lowest row, at its ends
     //   Tab          the bottom edge
-    //   Skip         a lesson's, top right, 48 dp tall
     //   Anywhere     a scene's tap: the whole screen
     //   the rest     in the middle band, under the title row
-    // A control without a role was placed by its page, which the rule forbids.
+    // A page is left by its bottom band: it has a tab bar or a foot button,
+    // unless it is the app's first page. A control without a role was placed by
+    // its page, which the rule forbids.
     public static class Placement
     {
         private static readonly ScreenKit.Role[] Foot = { ScreenKit.Role.Primary, ScreenKit.Role.Secondary, ScreenKit.Role.Tertiary, ScreenKit.Role.Destructive };
@@ -49,7 +50,8 @@ namespace ZKube.Tests.Presentation
             return false;
         }
 
-        public static void Check(Transform page, Rect safe, float density, string at)
+        // first is the app's first page, which nothing leads back from; scrolled is a page checked again at its foot.
+        public static void Check(Transform page, Rect safe, float density, string at, bool first = false, bool scrolled = false)
         {
             var controls = page.GetComponentsInChildren<Button>().Where(button => button.gameObject.activeInHierarchy)
                 .Select(button => (button, rect: Reach(button), placed: button.GetComponent<Placed>())).ToList();
@@ -61,33 +63,25 @@ namespace ZKube.Tests.Presentation
             foreach (var control in controls.Where(control => control.placed.Role == ScreenKit.Role.Anywhere))
                 Assert.That(control.rect.xMin <= safe.xMin + .5f && control.rect.xMax >= safe.xMax - .5f && control.rect.yMin <= safe.yMin + .5f && control.rect.yMax >= safe.yMax - .5f,
                     Is.True, at + ": " + control.button.name + " " + control.rect + " takes the whole screen");
+            bool scene = controls.Any(control => control.placed.Role == ScreenKit.Role.Anywhere);
             controls.RemoveAll(control => control.placed.Role == ScreenKit.Role.Anywhere);
             List<(Button button, Rect rect)> Of(params ScreenKit.Role[] roles) =>
                 controls.Where(control => roles.Contains(control.placed.Role)).Select(control => (control.button, control.rect)).ToList();
             float dp48 = 48 * density - .5f;
             string Name((Button button, Rect rect) control) => control.button.name + " " + control.rect;
 
-            // Back: one, top left, 48 dp, its top on the page's edge under the safe top.
-            var back = Of(ScreenKit.Role.Back);
-            Assert.That(back.Count, Is.LessThanOrEqualTo(1), at + ": one Back");
-            float titleRow = float.PositiveInfinity;
-            if (back.Count == 1)
-            {
-                var rect = back[0].rect; titleRow = rect.yMin;
-                Assert.That(rect.width >= dp48 && rect.height >= dp48, Is.True, at + ": Back reaches 48 dp, " + rect);
-                Assert.That(rect.xMax, Is.LessThan(safe.center.x - safe.width / 4), at + ": Back is top left, " + rect);
-                Assert.That(rect.yMax, Is.InRange(safe.yMax - (ScreenKit.TopClearDp + 1) * density, safe.yMax + .5f), at + ": Back hangs from the page's edge, " + rect);
-            }
-            // A page titled at its top without a Back keeps its controls under the title too.
+            // The top band: down to the foot of the page's title, and at least the 48 dp under the
+            // page's edge where a corner button would hang. Nothing in it takes a tap but a lesson's
+            // Skip (a chip's 48 dp reach may pass its card's edge; where the control stands is its middle).
             var plates = page.GetComponentsInChildren<Image>().Where(image => image.gameObject.activeInHierarchy && image.name == "Screen title plate")
                 .Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
-            if (back.Count == 0 && plates.Count != 0 && controls.All(control => control.rect.yMax <= plates.Max(plate => plate.yMax) + .5f)) titleRow = plates.Min(plate => plate.yMin);
-            // The top band is Back's and a lesson's Skip: every other control stands under the title row
-            // (a chip's 48 dp reach may pass its card's edge; where the control stands is its middle).
-            foreach (var control in controls.Where(control => control.placed.Role != ScreenKit.Role.Back && control.placed.Role != ScreenKit.Role.Skip))
-                Assert.That(control.rect.center.y, Is.LessThanOrEqualTo(titleRow + .5f), at + ": " + control.button.name + " " + control.rect + " is in the top band");
+            float topBand = safe.yMax - (ScreenKit.TopClearDp + 48) * density;
+            if (plates.Count != 0) topBand = Mathf.Min(topBand, plates.Min(plate => plate.yMin));
+            // A page scrolled to its foot has moved its middle band up: the band is judged at rest.
+            foreach (var control in controls.Where(control => !scrolled && control.placed.Role != ScreenKit.Role.Skip))
+                Assert.That(control.rect.center.y, Is.LessThanOrEqualTo(topBand + .5f), at + ": " + control.button.name + " " + control.rect + " takes a tap in the top band, over " + topBand);
 
-            // Skip: a lesson's way out, top right, hanging from the page's edge like Back.
+            // Skip: a lesson's way out, top right, hanging from the page's edge.
             foreach (var skip in Of(ScreenKit.Role.Skip))
             {
                 Assert.That(skip.rect.height, Is.GreaterThanOrEqualTo(dp48), at + ": " + Name(skip) + " is 48 dp tall");
@@ -129,7 +123,7 @@ namespace ZKube.Tests.Presentation
             {
                 float footTop = foot.Max(control => control.rect.yMax);
                 foreach (var control in controls.Where(control => !Foot.Contains(control.placed.Role) && control.placed.Role != ScreenKit.Role.Tab && control.placed.Role != ScreenKit.Role.Step &&
-                    control.placed.Role != ScreenKit.Role.Back && control.placed.Role != ScreenKit.Role.Skip))
+                    control.placed.Role != ScreenKit.Role.Skip))
                     Assert.That(control.rect.yMin, Is.GreaterThanOrEqualTo(footTop - .5f), at + ": " + control.button.name + " " + control.rect + " is beside or under the foot row, whose top is " + footTop);
                 foreach (var control in foot) Assert.That(control.rect.height, Is.GreaterThanOrEqualTo(dp48), at + ": " + Name(control) + " is 48 dp tall");
                 var rows = foot.GroupBy(control => Mathf.Round(control.rect.center.y)).OrderByDescending(row => row.Key).ToList();
@@ -139,6 +133,9 @@ namespace ZKube.Tests.Presentation
                 for (int i = 0; i < foot.Count; i++) for (int j = i + 1; j < foot.Count; j++)
                     Assert.That(foot[i].rect.Overlaps(foot[j].rect), Is.False, at + ": " + Name(foot[i]) + " and " + Name(foot[j]) + " overlap");
             }
+            // A page is left by its bottom band: a tab bar or a foot button.
+            if (!first && !scene)
+                Assert.That(tabs.Count != 0 || foot.Count != 0, Is.True, at + ": the page has a tab bar or a foot button to leave by");
             // Everything a finger lands on reaches 48 dp one way at least.
             foreach (var control in controls)
                 Assert.That(Mathf.Max(control.rect.width, control.rect.height), Is.GreaterThanOrEqualTo(dp48), at + ": " + control.button.name + " " + control.rect + " reaches 48 dp");

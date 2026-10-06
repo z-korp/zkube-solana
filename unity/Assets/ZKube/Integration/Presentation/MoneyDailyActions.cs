@@ -284,7 +284,7 @@ namespace ZKube.Integration.Presentation
             Action close = () => { confirmingDaily = false; Present(); };
             var cancel = PageAction("Not now", close, CanUseDaily, "Cancel entry");
             return new PanelPageView { Key = "Entry", Title = "Enter today’s Daily", Subtitle = realm.realmName + " · " + Day(lobby.DayId),
-                Back = PageAction("Back", close, CanUseDaily),
+                Back = cancel,
                 Blocks = new[] {
                     PanelBlock.Card("Entry card",
                         PanelBlock.Row("Entry cost", "Entry", "1 Kredit", icon: SkinSlots.IconKredit),

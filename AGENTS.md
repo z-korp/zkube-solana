@@ -412,8 +412,8 @@ deployment or spending approval.
   connection, the wait for its read, a failed read and the Arena itself in its own slots; no titled panel stands
   in for it. No page waits on a read nobody is making: a page whose read is absent or has gone stale, with no
   failure shown in its place, starts it, whatever retired or outdated the one before (the wallet in front of the
-  app, a pause, a confirmed transaction). No line asks the player to refresh. A way off a page (Back, a tab, the
-  Boards stepper) waits for nothing the page is doing: it retires the page's read or wait, and the stepper stops
+  app, a pause, a confirmed transaction). No line asks the player to refresh. A way off a page (a tab, the Android
+  back key, the Boards stepper) waits for nothing the page is doing: it retires the page's read or wait, and the stepper stops
   only at the launch day and today. `TheArenaHasOneHomePageInEveryState`,
   `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp`, `APageWhoseReadIsAbsentReadsItWithoutATap`,
   `EveryArenaPageReadsAgainByItselfWhenItsReadGoesStale` and
@@ -488,7 +488,7 @@ deployment or spending approval.
   `ABoardColumnOpensItsBoardAndTheBadgeOpensTheRewards`, `TheLandingsOneActionIsThePlayersNextStep`,
   `TheLandingShowsTodaysBoardsAndEachReadStandsAlone` and `ARewardToClaimShowsAsTheBadgeThatOpensItsBoard` guard
   the page and its reads.
-- **Boards page:** one page shows any day's boards. From the top: Back alone beside the title, the Score and Theme
+- **Boards page:** one page shows any day's boards. From the top: the title alone in its row, the Score and Theme
   pair, the player's row, the rows, which scroll inside their card, the one button (the claim or the seal) and, as
   the page's foot over the tab bar (owner, 2026-10-05), the day stepper: one band holding the previous day's
   chevron, the date over the day's state and the next day's chevron, over every calendar day from the launch day
@@ -788,8 +788,8 @@ draws the shown page again by itself, for both identities;
 `AChangedDisplayDrawsThePageAgainUnderBothIdentityImplementations` guards it.
 
 Every control has a role, and a role has one place (the placement rule, owner 2026-10-06). A page is three bands:
-the top says where you are, the middle shows, the bottom does. One composer, in `ScreenKit`, places them: Back
-top left beside the title, in a row as tall as its 48 dp tablet; the page's reason or notice directly over its
+the top says where you are, the middle shows, the bottom does. One composer, in `ScreenKit`, places them: the
+title alone in its row; the page's reason or notice directly over its
 foot row; the foot row (the primary, the secondary, the tertiary, the destructive one last, each an icon and a
 word; three that do not fit one row are the primary across the column over the other two, never three rows); a
 stepper as the lowest row, its two arrows at the ends of one bar that never changes shape; and the tab bar on the
@@ -808,8 +808,21 @@ device the deposit's action is the primary and Disable device the last, an outli
 launch and a page that did not load put their one step in the foot row; the profile's Manage device is its foot
 row, under the notice that asks for it, and the page fits both phones without scrolling: a phone with no height to
 spare tightens the emblem card evenly, its padding and the gaps between its rows, and the notice and every word
-keep their size (`TheProfileThatAsksForTheDeviceFitsBothPhonesWithoutScrolling`); Your records and Last operation keep the tab bar and have Back as their
-one way back. The entry confirmation keeps Confirm with Not now beside it on one row. Nothing a finger lands on
+keep their size (`TheProfileThatAsksForTheDeviceFitsBothPhonesWithoutScrolling`); the entry confirmation keeps
+Confirm with Not now beside it on one row.
+The top band holds no button (owner, 2026-10-06, after the build on his phone): nothing there takes a tap but a
+lesson's Skip, and a page is left by its bottom band. A page that shows or lists under a tab's main page (Kredits,
+Boards, This device, Your records, Borders, Last operation) keeps the tab bar with its parent tab lit, and the
+lit tab returns to that main page; on the main page itself the lit tab does nothing. The Android back key and
+gesture do what the lit tab does. No journey is deeper than one level under a tab: This device opened from
+Kredits, Boards, the profile or Last operation returns to its lit tab's main page like any other. A page that
+asks for a decision has no tab bar and leaves by its foot row, which the back key takes too: Not now on the entry
+confirmation, Keep enabled on the disable confirmation, Play or Map on a level's preview, the way on from a
+result. Wear selection leaves by Wear selection or Keep current look, which puts the choice back; its back key
+returns to the profile with the choice kept, so a border can join an emblem in one change. Every page but the
+app's first has a tab bar or a foot button, and the back key leads back from every page that is not a tab's main
+page. `EveryPagePlacesItsControlsByRole` holds every page to the empty top band, the way out and the back key, and
+`TheLitTabAndTheBackKeyReturnFromEveryPageUnderATabAndADecisionPageLeavesByItsFoot` walks each return. Nothing a finger lands on
 reaches under 48 dp: the guided run's Skip tips and the armed bonus's cancel take the tap over 48 dp round their
 smaller faces (`TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
 `TheChosenStateFitsEveryPhone`).
@@ -818,8 +831,8 @@ A realm that is not open has the bar: the realm before, "Realm N of 10", the rea
 restore where the store closes it; a realm waiting for stars has no button, and its reason and the stepper lead
 on. The open map has no height for a bar (the compact phone's path did not fit under one,
 `EveryRealmsMapFitsWholeAndItsNodesClearEachOtherOnBothPhones`), so its two arrows stand at the ends of the
-lowest row with Play between them, and its header says "Realm N of 10". A level's preview goes back by Back, top
-left, like every page opened from another. A result page shows a result: with none to show, it is Home. On
+lowest row with Play between them, and its header says "Realm N of 10". A level's preview has Map beside
+Play, the way back to its realm. A result page shows a result: with none to show, it is Home. On
 Settings, How to play is the last row of the switches card, Unmute is a chip at the end of the Sound card's header
 while everything is muted, and the identity's actions are the foot row: Restore purchases in Realms; Last
 operation, then Disconnect, in the Arena.

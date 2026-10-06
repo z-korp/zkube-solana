@@ -50,7 +50,7 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
-            yield return SessionClick("Back"); yield return Idle();
+            yield return Return(); yield return Idle();
             yield return Wait(controller.OpenKredits()); yield return Idle();
             Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
             var exact = controller.LastReceipt;

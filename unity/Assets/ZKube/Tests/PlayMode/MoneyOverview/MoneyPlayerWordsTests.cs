@@ -56,16 +56,14 @@ namespace ZKube.Tests.MoneyOverview
             yield return Open("owner-overview"); Click("Connect"); yield return Page("Arena with a saved run");
             Click("Settings"); yield return Page("Settings");
             Click("Manage"); yield return Page("This device");
-            Click("Back"); yield return Idle(); Click("Last operation"); yield return Page("No operation yet");
-            Assert.That(Offers("Back to Arena"), Is.False, "Back is the one way back");
+            Click(LitTab); yield return Idle(); Click("Last operation"); yield return Page("No operation yet");
             yield return Wait(Adapter.OpenKredits()); yield return Page("Kredits");
             yield return Wait(Adapter.OpenRewards()); yield return Page("Results pending");
             yield return Wait(Adapter.OpenCampaign()); yield return Page("Campaign");
             yield return Wait(Adapter.OpenProfile()); yield return Page("Profile");
             Click("Your records"); yield return Page("Your records");
             Assert.That(PageText.Visible(host.transform), Has.Some.Property("text").EqualTo("Objective boards"));
-            Assert.That(Offers("Back to Profile"), Is.False, "Back is the one way back");
-            Click("Back"); yield return Idle(); Click("Choose a border"); yield return Page("Borders");
+            Click(LitTab); yield return Idle(); Click("Choose a border"); yield return Page("Borders");
             yield return Wait(Adapter.OpenDaily()); yield return Idle();
             Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Page("No connection");
             yield return Wait(Adapter.OpenDaily()); yield return Idle();

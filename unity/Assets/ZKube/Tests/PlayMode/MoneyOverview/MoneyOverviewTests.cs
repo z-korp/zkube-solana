@@ -278,6 +278,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(labelled.Length, Is.EqualTo(1), "One button named or labelled " + name + " among " + string.Join(", ", buttons.Select(value => value.name)));
             return labelled[0];
         }
+        // The way back from a page under a tab's main page is its lit tab.
+        private string LitTab { get { var bar = host.GetComponentInChildren<SkinTabBar>(); return bar.GetComponentsInChildren<Button>()[bar.Selected].GetComponentInChildren<TMP_Text>().text; } }
+        private IEnumerator Return() { yield return SessionClick(LitTab); }
         private void Click(string name)
         {
             var button = Find(name);

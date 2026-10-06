@@ -30,7 +30,7 @@ namespace ZKube.Tests.Presentation
         {
             public LevelPageView Level = new LevelPageView { Realm = 1, Level = 1, Moves = 16,
                 Goals = new CampaignGoals { Points = 10, PrimaryKind = 3, PrimaryValue = 0, PrimaryCount = 6, SecondaryKind = 9, SecondaryValue = 2, SecondaryCount = 1 },
-                Play = new PageAction { Label = "Play" }, Back = new PageAction { Label = "Back to map", Name = "Back to map" } };
+                Play = new PageAction { Label = "Play" }, Map = new PageAction { Label = "Map" } };
             public CampaignPageView CampaignView() => new CampaignPageView { Realm = 1, Stars = 6,
                 Previous = new PageAction { Label = "Previous", Name = "Previous" }, Next = new PageAction { Label = "Next", Name = "Next", Enabled = false },
                 Trials = Enumerable.Range(1, 10).Select(level => new CampaignTrialView { Level = (byte)level, Stars = (byte)(level <= 3 ? 4 - level : 0),
@@ -346,7 +346,7 @@ namespace ZKube.Tests.Presentation
                 ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, NewBest = true, NextOpensAt = 20705L * 86400,
                 Now = () => 20705L * 86400 - 7 * 3600, Done = new PageAction { Label = "Continue" } };
             var panel = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Tab = AppPage.Home,
-                Back = new PageAction { Label = "Back", Name = "Back" }, Blocks = new[] { PanelBlock.Card("Balance card", PanelBlock.Figure("Balance", "Kredits", "3")) } };
+                Back = new PageAction(), Blocks = new[] { PanelBlock.Card("Balance card", PanelBlock.Figure("Balance", "Kredits", "3")) } };
             var pages = new (string name, Action draw)[] {
                 ("home", () => { source.Daily = daily; views.Render(AppPage.Home); }),
                 ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Home); }),
@@ -417,7 +417,7 @@ namespace ZKube.Tests.Presentation
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
                 Score = 24, StarSources = 3, EndReason = 2, MovesLeft = 0, PrimaryProgress = 6, Goals = source.Level.Goals, NextOpen = false,
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
-            var panel = new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Back = new PageAction { Label = "Back", Name = "Back" },
+            var panel = new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Back = new PageAction(),
                 Blocks = new[] { PanelBlock.Card("Balance card", PanelBlock.Figure("Balance", "Kredits", "3")) } };
             const string notice = "The store could not be reached.";
             var notices = new[] { notice };

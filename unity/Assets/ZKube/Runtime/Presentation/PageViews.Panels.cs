@@ -39,9 +39,10 @@ namespace ZKube.Presentation
             Music(true); Drawn();
         }
 
-        // An identity page through the composer: Back beside its title, its blocks
-        // in the middle (centred on a page without tabs), its reason over the
-        // foot row, its buttons by role, its stepper and its tab bar.
+        // An identity page through the composer: its title alone in its row, its
+        // blocks in the middle (centred on a page without tabs), its reason over
+        // the foot row, its buttons by role, its stepper and its tab bar. A page
+        // under a tab's main page that names no return goes back to that tab.
         private void Composed(PanelPageView page)
         {
             Stage(page.Tab, false);
@@ -49,12 +50,14 @@ namespace ZKube.Presentation
             if (!page.Tab.HasValue) body.Add(Piece.Grow);
             body.AddRange(BlockPieces(page.Blocks, kit, false));
             body.Add(Piece.Grow);
-            var slots = new ScreenKit.Slots { Back = Back(page.Back), Body = body,
+            var returning = page.Back ?? (page.Tab is AppPage parent
+                ? new PageAction { CanInvoke = () => source.CanNavigate(parent), Invoke = () => source.Navigate(parent) } : null);
+            var slots = new ScreenKit.Slots { Under = page.Back != null, Body = body,
                 Title = (page.Title ?? page.Subtitle) == null ? (Piece?)null : kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)),
                 Notices = page.Reason == null ? (Piece?)null : BlockPieces(new[] { page.Reason }, kit, false)[0],
                 Primary = Control(page.Primary), Secondary = Control(page.Secondary), Tertiary = Control(page.Tertiary), Destructive = Control(page.Destructive),
                 Stepper = page.Stepper == null ? (Piece?)null : StepperPiece(page.Stepper, kit) };
-            Place(kit, slots, page.Back);
+            Place(kit, slots, returning);
         }
 
         // An identity's blocks as pieces of a composed screen (Home's Arcade

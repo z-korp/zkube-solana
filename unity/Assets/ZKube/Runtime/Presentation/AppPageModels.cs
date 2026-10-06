@@ -70,7 +70,8 @@ namespace ZKube.Presentation
         public byte Realm, Level, Stars;
         public uint Moves;
         public CampaignGoals Goals;
-        public PageAction Play, Back;
+        // Play, and the way back to the map beside it.
+        public PageAction Play, Map;
     }
 
     // The realm a returning player continues in: the furthest realm the core progression opens.
@@ -264,7 +265,8 @@ namespace ZKube.Presentation
         public AppPage? Tab;
         // Without a title the header is the product mark over the subtitle.
         public string Title, Subtitle;
-        // Back, top left, on a page opened from another.
+        // Where the page leads back to. No button draws it: the Android back key takes it, and
+        // so does the lit tab of a page that keeps its tab bar; a decision page's is its decline.
         public PageAction Back;
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
         // The page's controls by role: the composer places them in the foot row and on the stepper bar.

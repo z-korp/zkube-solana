@@ -30,7 +30,7 @@ namespace ZKube.Tests.Presentation
                 Trials = CampaignView().Trials, Map = new PageAction { Label = "Explore map" } };
             public LevelPageView LevelPage() => new LevelPageView { Realm = 1, Level = 3, Stars = 3, Moves = uint.MaxValue,
                 Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
-                Play = new PageAction { Label = "Play" }, Back = new PageAction { Label = "Back to map" } };
+                Play = new PageAction { Label = "Play" }, Map = new PageAction { Label = "Map" } };
             public DailyPageView Daily;
             public DailyPageView DailyPage() => Daily;
             public ulong Ladder = ulong.MaxValue;

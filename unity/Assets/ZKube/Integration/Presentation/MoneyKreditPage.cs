@@ -77,7 +77,7 @@ namespace ZKube.Integration.Presentation
         // discounted or pushed, and the one-way rule stays in view.
         private PanelPageView KreditPage()
         {
-            var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
+            var back = PageAction(null, () => _ = OpenDaily(), PageAvailable);
             var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Back = back, Tab = AppPage.Home };
             var terms = PanelBlock.Text("Kredit terms", "Kredits can’t be withdrawn, transferred or exchanged.", SkinTokens.TextMuted, true);
             PackView[] Cards(Func<uint, PackView> card) => SessionViewPolicy.KreditPacks.Select(card).ToArray();

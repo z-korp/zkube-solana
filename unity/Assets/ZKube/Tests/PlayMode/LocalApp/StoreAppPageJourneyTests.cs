@@ -404,7 +404,6 @@ namespace ZKube.Tests
             Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Text size: standard"); yield return Page(StorePage.Settings);
-            Assert.That(Buttons().Any(button => button.name == "Back"), Is.False, "A tab page has no back button");
             Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             nodes = Nodes();
@@ -856,7 +855,7 @@ namespace ZKube.Tests
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
             // Realm 2 is still closed, so its page is the waiting realm, drawn from its own art.
             var steps = new[] { ("Campaign", StorePage.Campaign), ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign),
-                ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign), ("Trial 1", StorePage.Level), ("Back to map", StorePage.Campaign),
+                ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign), ("Trial 1", StorePage.Level), ("Map", StorePage.Campaign),
                 ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Profile", StorePage.Profile), ("Home", StorePage.Home),
                 ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile), ("Home", StorePage.Home) };
             var shown = app.GetComponent<PageShell>().Artwork; int swaps = 0;
@@ -1081,7 +1080,7 @@ namespace ZKube.Tests
                     app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " preview");
-                    ScreenFits(shell, name + " preview", "Play", "Back to map");
+                    ScreenFits(shell, name + " preview", "Play", "Map");
                     // In a player's order: starless runs on a fresh level, its first three
                     // stars (a new best), then runs that keep fewer.
                     product.Write(state => { state.Stars[0] = 0; return state; });
@@ -1176,7 +1175,7 @@ namespace ZKube.Tests
                 Assert.That(rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True, at + ": " + button + " is on screen");
                 // A card's own button sits inside it, as the wireframes place Play today and Play level N.
                 bool carded = pieces.Any(piece => piece.Contains(rect.min + Vector2.one * .5f) && piece.Contains(rect.max - Vector2.one * .5f));
-                if (button != "Back to map" && !carded) pieces.Add(rect);
+                if (!carded) pieces.Add(rect);
             }
             for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
                 Assert.That(pieces[a].Overlaps(pieces[b]), Is.False, at + ": pieces " + pieces[a] + " and " + pieces[b] + " stay apart");
@@ -1362,7 +1361,7 @@ namespace ZKube.Tests
                 Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Level talk rule heading" && !string.IsNullOrEmpty(text.text)), Is.False,
                     "The preview speaks only its line, as drawn");
                 previous = said;
-                Click(app, "Back to map"); yield return Page(StorePage.Campaign);
+                Click(app, "Map"); yield return Page(StorePage.Campaign);
             }
         }
         // Settings is the fourth tab and Home has no gear; settings toggles carry

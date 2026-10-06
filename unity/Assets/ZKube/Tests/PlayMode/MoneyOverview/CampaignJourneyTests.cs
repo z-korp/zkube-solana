@@ -89,15 +89,15 @@ namespace ZKube.Tests.MoneyOverview
             int greeted = 0; app.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
             string Step(string step) { log.Add("# " + step); return step; }
             missing = null;
-            // A tap whose button is not there: when Back to map is, the product needs
+            // A tap whose button is not there: when Map is, the product needs
             // that extra step first (recorded as one); otherwise the walk stops there.
             IEnumerator Go(string target)
             {
                 yield return Tap(scope, Step(target));
                 if (missing == null) yield break;
-                if (!Active(scope).Any(button => button.name == "Back to map" || Label(button) == "Back to map")) { log.Add("! no button " + missing); yield break; }
-                missing = null; log.Add("! extra step: Back to map");
-                yield return Tap(scope, "Back to map"); yield return Record(app, scope, log, 8, 1.5f);
+                if (!Active(scope).Any(button => button.name == "Map" || Label(button) == "Map")) { log.Add("! no button " + missing); yield break; }
+                missing = null; log.Add("! extra step: Map");
+                yield return Tap(scope, "Map"); yield return Record(app, scope, log, 8, 1.5f);
                 yield return Tap(scope, target);
                 if (missing != null) log.Add("! no button " + missing);
             }

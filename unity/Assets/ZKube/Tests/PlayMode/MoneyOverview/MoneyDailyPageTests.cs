@@ -138,7 +138,7 @@ namespace ZKube.Tests.MoneyOverview
                 controller.enabled = false; yield return null;
                 controller.enabled = true; yield return Idle();
                 Assert.That(controller.SessionActionPending, Is.True);
-                yield return SessionClick("Back"); yield return Idle();
+                yield return Return(); yield return Idle();
                 yield return SessionClick("Arena"); yield return Idle();
                 var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume run");
                 Assert.That(resume.interactable, Is.False);
