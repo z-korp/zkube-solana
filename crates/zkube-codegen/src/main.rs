@@ -5,6 +5,7 @@ mod captions;
 mod native_client;
 mod native_fixtures;
 mod pictograms;
+mod realms;
 mod skins;
 mod words;
 
@@ -213,7 +214,11 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    // Valid level by level is not enough: each realm asks for goals of its own.
+    match realms::failures(catalog).into_iter().next() {
+        Some(failure) => Err(failure),
+        None => Ok(()),
+    }
 }
 
 fn render_realm_rules_rust(catalog: &CampaignCatalog) -> String {

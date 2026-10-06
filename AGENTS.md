@@ -662,13 +662,28 @@ exhaustion retains earlier stars. `constraint_stars_latch_in_any_order`,
 and `exhausted_runs_keep_latched_stars` guard those transitions.
 
 The core score ladder and tier derive the move budget; the catalog authors tier and both constraints, not
-target or budget. Primary facts are cumulative with count at least two; secondary facts are moments, not the
-primary fact or the realm guardian's own trigger. ComboOfAtLeast, ComboOfExactly, AllWidthsInMove, BigMove,
+target or budget. Primary facts are cumulative with count at least two; secondary facts are moments, never the
+primary fact. The core refuses the realm guardian's own trigger as a second goal only beside Trigger the guardian;
+the catalogue refuses it on every level. ComboOfAtLeast, ComboOfExactly, AllWidthsInMove, BigMove,
 BonusLinesInMove and PerfectClear carry count one; Streak and BreakInMove retain their in-action N.
 `campaign_move_budget_is_derived_from_the_ladder_and_tier`, `campaign_catalog_rejects_an_authored_budget`,
 `campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
 `codegen_enforces_constraint_class_per_slot` and `constraint_classes_and_tags_are_exhaustive_and_stable`
 guard the catalog and engine. `committed_catalog_validates_and_emits_protocol_constants` checks its version.
+
+Each realm asks for goals of its own (owner, 2026-10-06, after ten realms that differed by a tier and a number).
+The codegen holds the level table to it, in the terms a player sees: a goal's face is the picture on its plate
+and its fact is that picture without its block size or bonus; a points goal is the lines goal it equals, since
+only lines score. On level 1 a first-goal fact opens at most two realms, three or more realms apart, with
+different second goals; on any level number no two realms show the same pair of faces; within a realm no pair
+repeats; the fact that opens a realm is the first goal of at least three of its levels; a second goal is never
+the guardian's own trigger; and every goal kind is asked somewhere. A level 1 has too few moves to earn and use a
+bonus, which leaves seven facts for ten realms: that is why two realms may share an opening.
+`every_realm_asks_for_goals_of_its_own` guards the committed table and each rule's refusal. The earn rules have
+the same class and its rule is written, `every_realm_earns_its_bonus_its_own_way`: no two realms share a bonus
+and a trigger family, N or more and exactly N lines in one move being one family, and a family serves at most two
+realms, three or more apart. The committed earn rows do not keep it yet: changing them is a program upgrade, which
+waits for the owner's decision, and the test holds the rows proposed for it.
 
 One Rust Run owns grid, guardians, scoring, pressure, metrics, clocks, payouts and replay. The native host
 owns safe codecs; zkube-core-ffi is the unsafe shell. The program reconstructs Arcade through that same

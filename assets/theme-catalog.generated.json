@@ -143,7 +143,7 @@
       "words": 629
     },
     {
-      "chip": "10+",
+      "chip": "3+",
       "count": 0,
       "counter": "fill",
       "kind": 5,
@@ -152,7 +152,7 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "value": 10,
+      "value": 3,
       "words": 630
     },
     {
@@ -221,19 +221,6 @@
       "words": 635
     },
     {
-      "chip": "4+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 9,
-      "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
-      ],
-      "value": 4,
-      "words": 636
-    },
-    {
       "chip": "=2",
       "count": 0,
       "counter": "ring",
@@ -244,33 +231,20 @@
         "goal-burst-lines-2"
       ],
       "value": 2,
+      "words": 636
+    },
+    {
+      "chip": "×2",
+      "count": 2,
+      "counter": "bar",
+      "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
+      "value": 1,
       "words": 637
-    },
-    {
-      "chip": "=3",
-      "count": 0,
-      "counter": "ring",
-      "kind": 10,
-      "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
-      ],
-      "value": 3,
-      "words": 638
-    },
-    {
-      "chip": "=4",
-      "count": 0,
-      "counter": "ring",
-      "kind": 10,
-      "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
-      ],
-      "value": 4,
-      "words": 639
     },
     {
       "chip": "×3",
@@ -283,11 +257,37 @@
         "goal-streak"
       ],
       "value": 1,
-      "words": 640
+      "words": 638
+    },
+    {
+      "chip": "×4",
+      "count": 4,
+      "counter": "bar",
+      "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
+      "value": 1,
+      "words": 639
     },
     {
       "chip": "×5",
       "count": 5,
+      "counter": "bar",
+      "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
+      "value": 1,
+      "words": 640
+    },
+    {
+      "chip": "×6",
+      "count": 6,
       "counter": "bar",
       "kind": 11,
       "pictograms": [
@@ -312,8 +312,8 @@
       "words": 642
     },
     {
-      "chip": "×14",
-      "count": 14,
+      "chip": "×7",
+      "count": 7,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -325,21 +325,60 @@
       "words": 643
     },
     {
-      "chip": "×3",
-      "count": 3,
+      "chip": "×8",
+      "count": 8,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
-        "goal-burst-break-1",
-        "goal-burst-break-1",
-        "goal-burst-break-1"
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
       ],
-      "value": 1,
+      "value": 0,
       "words": 644
     },
     {
-      "chip": "×5",
-      "count": 5,
+      "chip": "×9",
+      "count": 9,
+      "counter": "ring",
+      "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
+      "value": 0,
+      "words": 645
+    },
+    {
+      "chip": "×10",
+      "count": 10,
+      "counter": "ring",
+      "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
+      "value": 0,
+      "words": 646
+    },
+    {
+      "chip": "×12",
+      "count": 12,
+      "counter": "ring",
+      "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
+      "value": 0,
+      "words": 647
+    },
+    {
+      "chip": "×4",
+      "count": 4,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -348,7 +387,7 @@
         "goal-burst-break-1"
       ],
       "value": 1,
-      "words": 645
+      "words": 648
     },
     {
       "chip": "×6",
@@ -361,20 +400,7 @@
         "goal-burst-break-1"
       ],
       "value": 1,
-      "words": 646
-    },
-    {
-      "chip": "×8",
-      "count": 8,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-1",
-        "goal-burst-break-1",
-        "goal-burst-break-1"
-      ],
-      "value": 1,
-      "words": 647
+      "words": 649
     },
     {
       "chip": "×3",
@@ -387,7 +413,7 @@
         "goal-burst-break-2"
       ],
       "value": 2,
-      "words": 648
+      "words": 650
     },
     {
       "chip": "×4",
@@ -400,20 +426,7 @@
         "goal-burst-break-2"
       ],
       "value": 2,
-      "words": 649
-    },
-    {
-      "chip": "×6",
-      "count": 6,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-2",
-        "goal-burst-break-2",
-        "goal-burst-break-2"
-      ],
-      "value": 2,
-      "words": 650
+      "words": 651
     },
     {
       "chip": "×2",
@@ -426,24 +439,11 @@
         "goal-burst-break-3"
       ],
       "value": 3,
-      "words": 651
+      "words": 652
     },
     {
       "chip": "×3",
       "count": 3,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-3",
-        "goal-burst-break-3",
-        "goal-burst-break-3"
-      ],
-      "value": 3,
-      "words": 652
-    },
-    {
-      "chip": "×4",
-      "count": 4,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -455,8 +455,8 @@
       "words": 653
     },
     {
-      "chip": "×3",
-      "count": 3,
+      "chip": "×2",
+      "count": 2,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -466,19 +466,6 @@
       ],
       "value": 4,
       "words": 654
-    },
-    {
-      "chip": "×4",
-      "count": 4,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-4",
-        "goal-burst-break-4",
-        "goal-burst-break-4"
-      ],
-      "value": 4,
-      "words": 655
     },
     {
       "chip": "",
@@ -491,7 +478,7 @@
         "goal-all-widths"
       ],
       "value": 0,
-      "words": 656
+      "words": 655
     },
     {
       "chip": "6+",
@@ -504,59 +491,7 @@
         "goal-burst-spark"
       ],
       "value": 6,
-      "words": 657
-    },
-    {
-      "chip": "8+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 8,
-      "words": 658
-    },
-    {
-      "chip": "10+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 10,
-      "words": 659
-    },
-    {
-      "chip": "12+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 12,
-      "words": 660
-    },
-    {
-      "chip": "15+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 15,
-      "words": 661
+      "words": 656
     },
     {
       "chip": "",
@@ -569,20 +504,7 @@
         "goal-burst-bonus-lines-wave"
       ],
       "value": 1,
-      "words": 662
-    },
-    {
-      "chip": "2+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 15,
-      "pictograms": [
-        "goal-burst-bonus-lines-hammer",
-        "goal-burst-bonus-lines-totem",
-        "goal-burst-bonus-lines-wave"
-      ],
-      "value": 2,
-      "words": 663
+      "words": 657
     },
     {
       "chip": "",
@@ -595,7 +517,20 @@
         "goal-perfect-clear"
       ],
       "value": 0,
-      "words": 664
+      "words": 658
+    },
+    {
+      "chip": "↑5",
+      "count": 0,
+      "counter": "fill",
+      "kind": 17,
+      "pictograms": [
+        "goal-stack-high",
+        "goal-stack-high",
+        "goal-stack-high"
+      ],
+      "value": 5,
+      "words": 659
     },
     {
       "chip": "↑6",
@@ -608,7 +543,7 @@
         "goal-stack-high"
       ],
       "value": 6,
-      "words": 665
+      "words": 660
     },
     {
       "chip": "↑7",
@@ -621,7 +556,7 @@
         "goal-stack-high"
       ],
       "value": 7,
-      "words": 666
+      "words": 661
     },
     {
       "chip": "↑8",
@@ -634,7 +569,20 @@
         "goal-stack-high"
       ],
       "value": 8,
-      "words": 667
+      "words": 662
+    },
+    {
+      "chip": "↓2",
+      "count": 0,
+      "counter": "fill",
+      "kind": 18,
+      "pictograms": [
+        "goal-stack-low",
+        "goal-stack-low",
+        "goal-stack-low"
+      ],
+      "value": 2,
+      "words": 663
     },
     {
       "chip": "↓3",
@@ -647,7 +595,7 @@
         "goal-stack-low"
       ],
       "value": 3,
-      "words": 668
+      "words": 664
     },
     {
       "chip": "↓4",
@@ -660,7 +608,7 @@
         "goal-stack-low"
       ],
       "value": 4,
-      "words": 669
+      "words": 665
     }
   ],
   "dailyThemes": [
@@ -727,22 +675,22 @@
     {
       "kind": 17,
       "value": 7,
-      "words": 666
+      "words": 661
     },
     {
       "kind": 17,
       "value": 8,
-      "words": 667
+      "words": 662
     },
     {
       "kind": 18,
       "value": 3,
-      "words": 668
+      "words": 664
     },
     {
       "kind": 18,
       "value": 4,
-      "words": 669
+      "words": 665
     }
   ],
   "effects": {
@@ -764,10 +712,10 @@
       "threshold": 2,
       "trigger": 1,
       "words": {
-        "description": 670,
+        "description": 666,
         "effect": 294,
         "name": 295,
-        "sentence": 671
+        "sentence": 667
       }
     },
     {
@@ -777,10 +725,10 @@
       "threshold": 2,
       "trigger": 4,
       "words": {
-        "description": 672,
+        "description": 668,
         "effect": 284,
         "name": 285,
-        "sentence": 673
+        "sentence": 669
       }
     },
     {
@@ -790,10 +738,10 @@
       "threshold": 10,
       "trigger": 8,
       "words": {
-        "description": 674,
+        "description": 670,
         "effect": 289,
         "name": 290,
-        "sentence": 675
+        "sentence": 671
       }
     },
     {
@@ -803,10 +751,10 @@
       "threshold": 3,
       "trigger": 9,
       "words": {
-        "description": 676,
+        "description": 672,
         "effect": 284,
         "name": 285,
-        "sentence": 677
+        "sentence": 673
       }
     },
     {
@@ -816,10 +764,10 @@
       "threshold": 7,
       "trigger": 2,
       "words": {
-        "description": 678,
+        "description": 674,
         "effect": 294,
         "name": 295,
-        "sentence": 679
+        "sentence": 675
       }
     },
     {
@@ -829,10 +777,10 @@
       "threshold": 0,
       "trigger": 6,
       "words": {
-        "description": 680,
+        "description": 676,
         "effect": 289,
         "name": 290,
-        "sentence": 681
+        "sentence": 677
       }
     },
     {
@@ -842,10 +790,10 @@
       "threshold": 3,
       "trigger": 4,
       "words": {
-        "description": 682,
+        "description": 678,
         "effect": 284,
         "name": 285,
-        "sentence": 683
+        "sentence": 679
       }
     },
     {
@@ -855,10 +803,10 @@
       "threshold": 3,
       "trigger": 1,
       "words": {
-        "description": 684,
+        "description": 680,
         "effect": 289,
         "name": 290,
-        "sentence": 685
+        "sentence": 681
       }
     },
     {
@@ -868,10 +816,10 @@
       "threshold": 2,
       "trigger": 7,
       "words": {
-        "description": 686,
+        "description": 682,
         "effect": 289,
         "name": 290,
-        "sentence": 687
+        "sentence": 683
       }
     },
     {
@@ -881,10 +829,10 @@
       "threshold": 4,
       "trigger": 4,
       "words": {
-        "description": 688,
+        "description": 684,
         "effect": 284,
         "name": 285,
-        "sentence": 689
+        "sentence": 685
       }
     }
   ],
@@ -6790,5 +6738,5 @@
       }
     }
   ],
-  "wordCount": 690
+  "wordCount": 686
 }
