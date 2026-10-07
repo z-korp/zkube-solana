@@ -1,24 +1,28 @@
 # zKube
 
 zKube is a falling-block puzzle game where clearing lines feeds combos. One Rust engine and one Unity client
-ship it as two Android games: walletless **zKube: Realms**, and **zKube: Arena** with a paid Daily on Solana.
+ship it as two Android games: **zKube: Arena** with a paid Daily on Solana, and walletless **zKube: Realms**.
 
 <p align="center">
-  <img src="assets/brand/screenshot.jpg" width="270" alt="Level 1 of the Tiki realm on a Seeker, with the turtle guardian leaning on the board">
+  <img src="assets/brand/readme/arena-home.jpg" width="200" alt="The Arena's home page: today's Daily in the Japan realm with Kitsune the fox, its prize, the time left and an Enter button for one Kredit, over today's two boards, where the player has no score yet">
+  <img src="assets/brand/readme/daily-run.jpg" width="200" alt="A Daily run in the Japan realm: Kitsune the fox leans over a board of carved blocks, with a hundred moves left and the next row waiting under the board">
+  <img src="assets/brand/readme/level-preview.jpg" width="200" alt="A level's preview in the Norse realm: Fenris the wolf welcomes the player above the level's three goals and the move that earns his Totem, with Play and Map buttons">
+  <img src="assets/brand/readme/boards-claim.jpg" width="200" alt="The Arena's Boards page for a finished day: the player is first on the Score board, with the prize beside each place and a Claim button under the rows">
 </p>
 
 ## Products
 
 | Game | Package | Store | Identity | What's in it |
 | --- | --- | --- | --- | --- |
-| zKube: Realms | com.zkorp.zkube.store | Google Play | Walletless; the Google Play Games account names the player, and play needs no sign-in | 100-level Campaign with a purchase policy on realms 4–10, and a local Daily that turns over at 07:00 UTC. ARM64 and x86_64 AAB without money assemblies or wallet plugins |
 | zKube: Arena | com.zkorp.zkube | Solana dApp Store, Seeker | The connected Solana address, through the Kotlin Mobile Wallet Adapter plugin | Free Campaign whose stars are saved on chain, and the paid Arena Daily. ARM64 APK |
+| zKube: Realms | com.zkorp.zkube.store | Google Play | Walletless; the Google Play Games account names the player, and play needs no sign-in | 100-level Campaign with a purchase policy on realms 4–10, and a local Daily that turns over at 07:00 UTC. ARM64 and x86_64 AAB without money assemblies or wallet plugins |
 
-Both share the Campaign, the Unity pages and board, and the Lumen skin. The original Starknet release, zKube:
-Origins, spent several months among that network's most-used contracts.
+Both share the Campaign, the Unity pages and board, the Lumen skin and twelve languages. zKube: Origins was the
+first zKube, on Starknet.
 
-**Status:** zKube: Arena is live on Solana Devnet, a test network, since 2026-10-04. Store billing and distribution
-are in development, and mainnet waits on counsel, economic and distribution review.
+**Status:** zKube: Arena is live on Solana Devnet, a test network, since 2026-10-04, and has been played there end
+to end on a phone: buying Kredits, entering, a run, the boards and a claim. Mainnet waits on counsel, economic and
+distribution review. Realms' store billing and distribution are in development.
 
 ## How the Arena works
 
@@ -32,7 +36,7 @@ are in development, and mainnet waits on counsel, economic and distribution revi
   objective's count; they split the pot equally. With no Objective qualifier, its half folds into Score. Each
   player keeps their best run per board.
 - **Prizes:** weights follow 1/rank and pay at least four places when enough players qualify. Winners claim
-  by position for thirty days from the Daily's finalization; unclaimed prizes return to the next pot.
+  by position for thirty days from the Daily's finalization; unclaimed prizes move to the newest pot.
 - **Ladder:** integer log-rank points for placing and a flat credit for qualifying. They pay no SOL and never
   decay.
 - **Execution:** runs play on a MagicBlock ephemeral rollup with VRF and settle on Solana. Replay commitments let
@@ -40,8 +44,11 @@ are in development, and mainnet waits on counsel, economic and distribution revi
   backstop for cleanup and abandoned runs under separately approved limits, and a public read model serves the
   full standings without any authority over them.
 
-Campaign plays locally in both games and never touches money. On Arena, the packed star array on chain is the
-player's save, synchronized across their devices; stars grant no SOL, entries or prize eligibility.
+Campaign plays locally in both games and never touches money. Each realm asks for goals of its own and earns its
+guardian's bonus its own way, and the guardian guides the first run of level 1. On Arena, the packed star array on
+chain is the player's save, synchronized across their devices; stars grant no SOL, entries or prize eligibility.
+The program on Devnet predates the newest earn rules: until an approved upgrade, an Arena Daily in Egypt, China,
+Japan, Mayan, Serengeti or Inca earns its bonus by the earlier rule.
 
 ## Repository
 
@@ -53,15 +60,16 @@ working rules, the development environment, the locked protocol rules and operat
 | crates/zkube-core | Rust | The one engine: gameplay, metrics, clocks, payouts and replay |
 | crates/zkube-core-host | Rust | Safe native codecs and the keeper's WASM exports |
 | crates/zkube-core-ffi | Rust | The native byte boundary for Unity |
-| crates/zkube-codegen | Rust | Catalog and skin validation, and every generated file |
+| crates/zkube-codegen | Rust | Catalog, skin and word validation, and every generated file |
 | programs/solana | Anchor | Player records, Arcade lifecycle, accounting and settlement |
 | services | TypeScript | One Cloudflare Worker: the public standings read model and the keeper, which runs only on its schedule |
 | tools/chain, shared | TypeScript | Operator CLI, the checked-in program IDL and shared chain identity |
 | unity | Unity | Both Android identities; toolchain.json pins the editor and identities, tools/build.py runs Unity |
 | unity/Assets/ZKube | C# | Runtime (pages, board, kit, talk scene), Integration (Arena chain and wallet), Local (Realms saves and billing), Rendering, Android, Editor, Tests |
+| unity/NativeAndroid | Kotlin | The Arena's Android plugin: Mobile Wallet Adapter, the install key and its vault |
 | unity/dapp-store | JSON | Solana dApp Store publishing metadata |
-| assets | Art | Catalog, skins, guardians, shared images and sounds, and each product's brand |
-| fixtures | Rust | Core golden vectors and Rust-produced boundary scenarios |
+| assets | Art and words | Catalog, skins, guardians, shared images and sounds, the words of every language, and each product's brand |
+| fixtures | Rust | The Campaign catalog, core golden vectors and Rust-produced boundary scenarios |
 
 Generated files are never edited by hand; the codegen writes them.
 
@@ -113,17 +121,18 @@ Android builds are inspected after they finish. build.py holds a lease, so two r
 
 ## Content
 
-- Goal and Daily objective captions come from crates/zkube-codegen/src/captions.rs, and each goal's pictogram,
-  value chip and counter from pictograms.rs beside it.
-- Realm names, guardian titles and their ten lines come from assets/catalog.json.
-- Page copy lives in the page that shows it.
+- Every word a player reads lives in assets/words/<code>.json, one file a language and twelve today, with English
+  as the source: page copy, goal and Daily objective captions, realm names, guardian titles and their ten lines.
+- Each level's goals and each realm's earn rule come from fixtures/campaign-catalog.json.
+- The kinds of goal come from crates/zkube-codegen/src/captions.rs, and each goal's pictogram, value chip and
+  counter from pictograms.rs beside it.
 - A retired model's words are listed in services/tests/supersession.test.ts so they cannot return.
 
 ## Devices
 
 - The Realms store build includes x86_64 and runs on the Android emulator.
 - The Arena money APK is ARM64 only and needs a physical device, such as the Seeker. Seed Vault Wallet is the
-  reference wallet, with Phantom and Solflare on Android as further targets.
+  reference wallet, with Phantom and Solflare on Android as further targets. The Devnet runs so far used Solflare.
 - Production candidates need an explicit version code and the owner's release signing; see AGENTS.md.
 
 ## License
