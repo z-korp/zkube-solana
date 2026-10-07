@@ -508,20 +508,42 @@ deployment or spending approval.
   token expiry is a Gate G1 observation (Restart).
 - **Device deposit:** what the owner's wallet puts on a device is a deposit on every page, never a fee: the
   amount asked for, what a run costs, that the rest returns when the device is disabled, the deposit a device
-  in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words.
+  in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words. The
+  top-up happens where it is tapped (owner, 2026-10-06): on the landing and on the Boards page Top up deposit
+  asks the wallet from that page through the one runner, the tapped button is its loader, a refusal stays there
+  with its retry, and when it lands the page reads again and the button is its next step; the device page keeps
+  its own. `TheTopUpHappensOnTheCardItIsTappedOnAndTheButtonBecomesEnter` guards both pages.
+- **A button does what it says:** an Arena action acts on the page it is tapped on. One that opens another page
+  instead is made as such, and its words name that page: the Kredits shop behind Buy Kredits (a pack is chosen
+  there), the device's set-up behind Set up device and Manage device (its deposit is stated there before the
+  wallet is asked), the boards, the Campaign, and the way on from a result. An action that opens a page without
+  saying so is recorded where it is tapped, and every Arena test fails on one when its scenario ends;
+  `EveryPagePlacesItsControlsByRole` holds the lit buttons that open a page to that short list.
+- **One reason, said once:** a failed action's reason has one owner. A page that draws it in its own line takes
+  it from the runner and by taking it is that owner; a page that draws none leaves it to the notice above the
+  page, which is made after the page and leaves out what the page drew. No list says which pages do which.
+  `EveryPagePlacesItsControlsByRole` walks a refused action on the landing, This device, the Boards page, the
+  profile and Wear selection, and on every page of the walk no sentence stands twice.
 - **Arena landing:** the Arena's home is one page that fits both phones without scrolling: today's Daily card over
-  today's boards. The Daily card shows the pot as its figure, the Kredit balance with its own state (enough, the
-  last one, none), which opens Kredits, and one action, the player's next step: connect, the Campaign before
-  launch, the device, its deposit, Kredits, the run in flight, the entry, or the boards once entries close. Where
-  no step can be taken the card says why. The boards card shows Score and Theme side by side from the chain, Score
+  today's boards. The Daily card is one grid on the card's two edges (owner, 2026-10-06), which the boards under
+  it share: the guardian's portrait with its name, realm and the objective; one strip of three equal cells on one
+  line, each a mark and a figure at one size and no word (the pot, the time left, and the Kredit balance with its
+  own state, enough, the last one or none, which opens Kredits); and one action across the card, the player's
+  next step: connect, the Campaign before launch, the device, its deposit, Kredits, the run in flight, the entry,
+  or the boards once entries close. One line is kept over the button for its reason, so the card is as tall in
+  every state and only a reason that needs a second line grows it; the day's state, where entries are not open,
+  is a tag beside the card's heading. Kredits are entries and the deposit is what the device pays each run with:
+  where the deposit is the reason, that line is what the device holds against what an entry needs, two amounts
+  and no sentence, so a balance of Kredits beside Top up deposit does not read as a contradiction. The boards
+  card shows Score and Theme side by side from the chain, Score
   alone on a Classic day: the top rows that fit, ten at most. A player appears once in a column: among the rows
   shown their row is lit in place, and their line is pinned under the rows only when it is not one of them, as
   their row further down or, once they have entered the day, as no score yet (a result of zero earns no row). A
   board without rows has one line: that one, or that nobody has run yet. A column opens its board and a badge
   counts the rewards still to claim. The Daily, the boards and the claims are each read on their own and nothing
   is saved, so a failed boards read says so in its card while the Daily's action still works.
-  `TheLandingPageFitsBothPhonesWithBothBoardsAndTheOwnRows`,
-  `APlayersLineIsPinnedOnlyWhenItIsNotAmongTheRowsShown`, `APlayerAppearsOnceInEachBoardColumnOnBothPhones`,
+  `TheLandingPageFitsBothPhonesWithBothBoardsAndTheOwnRows`, `EveryLandingStateFitsBothPhonesWithoutScrolling`
+  (the grid in every state), `APlayersLineIsPinnedOnlyWhenItIsNotAmongTheRowsShown`, `APlayerAppearsOnceInEachBoardColumnOnBothPhones`,
   `TheKreditFigureShowsItsStateAndOpensKredits`, `TheBoardsCardStandsAloneWhileLoadingFailedEmptyAndClassic`,
   `ABoardColumnOpensItsBoardAndTheBadgeOpensTheRewards`, `TheLandingsOneActionIsThePlayersNextStep`,
   `TheLandingShowsTodaysBoardsAndEachReadStandsAlone` and `ARewardToClaimShowsAsTheBadgeThatOpensItsBoard` guard

@@ -30,6 +30,7 @@ namespace ZKube.Tests.MoneyOverview
             delay?.Release();
             if (host != null)
             {
+                NoStrayOpens();
                 var startup = host.GetComponent<AppStartup>();
                 if (startup != null) yield return Wait(startup.StopAsync());
                 Object.Destroy(host);
@@ -277,6 +278,13 @@ namespace ZKube.Tests.MoneyOverview
             var labelled = buttons.Where(value => value.GetComponentsInChildren<TMP_Text>().Any(text => text.text == name)).ToArray();
             Assert.That(labelled.Length, Is.EqualTo(1), "One button named or labelled " + name + " among " + string.Join(", ", buttons.Select(value => value.name)));
             return labelled[0];
+        }
+        // A button does what its words say on the page it is tapped on, unless its action says it opens
+        // another page. Every tap any Arena test makes is held to that when its scenario ends.
+        private void NoStrayOpens()
+        {
+            var controller = host.GetComponent<MoneyIdentity>()?.Controller;
+            if (controller != null) Assert.That(controller.StrayOpens, Is.Empty, "These buttons opened another page without their action saying so");
         }
         // The way back from a page under a tab's main page is its lit tab.
         private string LitTab { get { var bar = host.GetComponentInChildren<SkinTabBar>(); return bar.GetComponentsInChildren<Button>()[bar.Selected].GetComponentInChildren<TMP_Text>().text; } }

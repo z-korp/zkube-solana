@@ -27,15 +27,16 @@ namespace ZKube.Presentation
         private float Step(float seeker, float compact) => Kit.Step(seeker, compact);
         // Buttons a kit piece places, not the composer (a card's own action, a row's quiet pill), across
         // kit's column, in the role that piece gives them.
-        private Piece Buttons(ScreenKit kit, ScreenKit.Role role, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
+        private Piece Buttons(ScreenKit kit, ScreenKit.Role role, params (PageAction action, ScreenKit.Kind kind, string icon)[] items) => Buttons(kit, role, false, items);
+        private Piece Buttons(ScreenKit kit, ScreenKit.Role role, bool fill, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
         {
             items = items.Where(item => item.action != null).ToArray();
             return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Progress ?? item.action.Label, actions.Click(item.action), item.kind,
                     Mark(item.action, item.icon))).ToArray(), (i, button, text) => {
                     actions.Bind(button, items[i].action, relabel: items[i].action.Progress == null ? value => text.text = value : (Action<string>)null);
-                    ScreenKit.As(button, role);
+                    ScreenKit.As(button, role).GetComponent<Placed>().Opens = items[i].action.Opens;
                     Loader(button, items[i].action);
-                }, shorter: items.Select(item => item.action.Short).ToArray());
+                }, shorter: items.Select(item => item.action.Short).ToArray(), fill: fill);
         }
         // An action in progress: the loader where its icon was and its step as its words, on
         // every button a page draws. Reduced motion shows the still hourglass and the same word.

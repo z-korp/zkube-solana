@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using TMPro;
@@ -37,12 +38,21 @@ namespace ZKube.Tests.Presentation
         private IEnumerator Draw(ArcadeView arcade, string action = "Enter · 1 Kredit")
         {
             long now = 20705L * 86400 + 8 * 3600;
+            // The page as the Arena hands it over: before there is an address it has no tab bar, and an action wears its own icon.
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400 + 7 * 3600 - 60,
-                Arcade = arcade, Actions = action == null ? Array.Empty<PageAction>() : new[] { new PageAction { Label = action } } };
+                NoTabs = action == "Connect wallet",
+                Arcade = arcade, Actions = action == null ? Array.Empty<PageAction>() : new[] { action.StartsWith("~")
+                    // An action in progress: the tapped button is its loader, with its step as its word.
+                    ? new PageAction { Label = action.Substring(1), Name = "Action progress", Progress = action.Substring(1) }
+                    : new PageAction { Label = action, Icon = ActionIcons.TryGetValue(action, out string icon) ? icon : null } } };
             views.Render(AppPage.Home); yield return null;
             foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+            // The page is measured and captured once it has arrived.
+            for (float until = Time.realtimeSinceStartup + 5; shell.Moving && Time.realtimeSinceStartup < until;) yield return null;
             yield return null; Canvas.ForceUpdateCanvases();
         }
+        private static readonly Dictionary<string, string> ActionIcons = new Dictionary<string, string> { ["Connect wallet"] = SkinSlots.IconWallet,
+            ["Set up device"] = SkinSlots.IconDevice, ["Top up deposit"] = SkinSlots.IconPlus, ["Buy Kredits"] = SkinSlots.IconKredit, ["See boards"] = SkinSlots.IconTrophy };
         private Image[] Named(string name) => root.GetComponentsInChildren<Image>().Where(image => image.name == name).ToArray();
         private Rect Area(string name) => SkinUi.ScreenRect(Named(name).Single().rectTransform);
 
@@ -228,6 +238,12 @@ namespace ZKube.Tests.Presentation
         // Every state of the page fits both phones without scrolling: each next
         // step, each reason, the day's headlines, and the boards card loading,
         // failed, empty, alone on a Classic day and with rewards to claim.
+        // In every one of them Today's Daily is one grid (owner, 2026-10-06): the
+        // portrait, the strip, the button and the boards under them share the
+        // card's two edges; the strip is three equal cells on one line, each a
+        // mark and a figure at one size and no word; the card is as tall in every
+        // state whose reason takes one line; and only the top-up shows what the
+        // deposit holds against what an entry needs, over its button.
         [UnityTest] public IEnumerator EveryLandingStateFitsBothPhonesWithoutScrolling()
         {
             yield return Open();
@@ -237,8 +253,10 @@ namespace ZKube.Tests.Presentation
                 ("last kredit", () => ArenaLanding.View(kredits: "1", level: KreditLevel.Last), "Enter · 1 Kredit"),
                 ("no kredits", () => ArenaLanding.View(kredits: "0", level: KreditLevel.None), "Buy Kredits"),
                 ("set up device", () => ArenaLanding.View(kredits: "0"), "Set up device"),
-                ("top up deposit", () => ArenaLanding.View(), "Top up deposit"),
+                ("top up deposit", () => ArenaLanding.View(kredits: "21", deposit: "0.0012" + CurrencyMark.Tag, needs: "0.0056" + CurrencyMark.Tag), "Top up deposit"),
                 ("run in flight", () => ArenaLanding.View(kredits: "2"), "Resume run"),
+                ("entry on its way", () => ArenaLanding.View(kredits: "2"), "~Entering"),
+                ("connect", () => new ArcadeView { Reason = "Your address. Your play.", Detail = "Connecting is free." }, "Connect wallet"),
                 ("still checking", () => With(view => view.Reason = "Still checking. This either completes or changes nothing."), "Confirming"),
                 ("entries paused", () => With(view => { view.Headline = "Entries paused"; view.Warning = true; view.Reason = "Entries are paused."; }), "Play Campaign"),
                 ("entries closed", () => With(view => view.Headline = "Entries closed"), "See boards"),
@@ -252,15 +270,19 @@ namespace ZKube.Tests.Presentation
             foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Seeker, "seeker"), (Phones.Compact, "compact") })
             {
                 phone(shell, 1);
+                var heights = new List<(string state, float height)>();
                 foreach (var (name, view, action) in states)
                 {
                     yield return Draw(view(), action);
                     string at = size + ", " + name;
+                    Grid(at, name == "top up deposit", heights, name);
                     Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Scroll.viewport.rect.height + .5f), at + ": the page does not scroll");
-                    var safe = shell.SafeArea; var bar = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
+                    var safe = shell.SafeArea; var tabs = shell.Chrome.GetComponentInChildren<SkinTabBar>();
+                    // Before there is an address the page has no tab bar: its cards may reach the safe area's foot.
+                    var bar = tabs == null ? new Rect(safe.x, safe.y, safe.width, 0) : SkinUi.ScreenRect((RectTransform)tabs.transform);
                     foreach (string card in new[] { "Daily card", "Boards card" })
                     {
-                        if (Named(card).Length == 0) { Assert.That(name, Is.EqualTo("opens soon"), at + ": only an unopened Arena has no " + card); continue; }
+                        if (Named(card).Length == 0) { Assert.That(new[] { "opens soon", "connect" }, Does.Contain(name), at + ": only an unopened Arena or one without an address has no " + card); continue; }
                         var area = Area(card);
                         Assert.That(area.xMin >= safe.xMin && area.xMax <= safe.xMax && area.yMin >= bar.yMax && area.yMax <= safe.yMax, Is.True, at + ": the " + card + " inside the safe area");
                     }
@@ -268,7 +290,77 @@ namespace ZKube.Tests.Presentation
                         button.name != "Kredits"), Is.EqualTo(action == null ? 0 : 1), at + ": one action at most");
                     yield return Captures.Snap(shell, "landing " + name + " " + size);
                 }
+                Assert.That(heights.Select(entry => Mathf.Round(entry.height)).Distinct().Count(), Is.EqualTo(1),
+                    size + ": the card is as tall in every state: " + string.Join(", ", heights.Select(entry => entry.state + " " + entry.height)));
             }
+        }
+        private TMP_Text Words(string name) => root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == name);
+        private void Grid(string at, bool topUp, List<(string, float)> heights, string state)
+        {
+            var card = Area("Daily card");
+            var cells = new[] { "Prize pool value", "Daily countdown", "Kredit figure" }.Select(Area).ToArray();
+            for (int i = 1; i < cells.Length; i++)
+            {
+                Assert.That(cells[i].width, Is.EqualTo(cells[0].width).Within(.5f), at + ": three equal cells");
+                Assert.That(cells[i].y, Is.EqualTo(cells[0].y).Within(.5f), at + ": on one line");
+                Assert.That(cells[i].height, Is.EqualTo(cells[0].height).Within(.5f), at + ": on one plate");
+                Assert.That(cells[i].xMin, Is.GreaterThan(cells[i - 1].xMax), at + ": side by side");
+            }
+            float left = cells[0].xMin, right = cells[2].xMax;
+            // One left edge and one right edge: the portrait, the strip, the button, and the boards under them.
+            Assert.That(Area("Daily guardian").xMin, Is.EqualTo(left).Within(.5f), at + ": the portrait on the strip's left edge");
+            var buttons = root.GetComponentsInChildren<Button>().Where(button => button.name != "Kredits" && card.Contains(SkinUi.ScreenRect((RectTransform)button.transform).center))
+                .Select(button => SkinUi.ScreenRect((RectTransform)button.transform)).ToArray();
+            if (buttons.Length != 0)
+            {
+                Assert.That(buttons.Min(button => button.xMin), Is.EqualTo(left).Within(.5f), at + ": the button on the strip's left edge");
+                Assert.That(buttons.Max(button => button.xMax), Is.EqualTo(right).Within(.5f), at + ": and on its right edge");
+                Assert.That(buttons.Max(button => button.yMax), Is.LessThan(cells[0].yMin), at + ": under the strip");
+            }
+            Assert.That(left - card.xMin, Is.EqualTo(card.xMax - right).Within(.5f), at + ": the card's padding on both sides");
+            if (Named("Boards card").Length != 0)
+            {
+                var boards = Area("Boards card");
+                Assert.That(boards.xMin, Is.EqualTo(card.xMin).Within(.5f), at + ": the boards card on the same edges"); Assert.That(boards.xMax, Is.EqualTo(card.xMax).Within(.5f), at);
+                Assert.That(SkinUi.ScreenRect(Words("Boards heading").rectTransform).xMin, Is.EqualTo(SkinUi.ScreenRect(Words("Daily card heading").rectTransform).xMin).Within(.5f),
+                    at + ": the two headings start together");
+                var rows = root.GetComponentsInChildren<Image>().Where(image => image.name.Contains(" board row ") && !image.name.EndsWith(" rim")).Select(image => SkinUi.ScreenRect(image.rectTransform)).ToArray();
+                if (rows.Length != 0)
+                {
+                    Assert.That(rows.Min(row => row.xMin), Is.EqualTo(left).Within(.5f), at + ": the board rows start on the strip's left edge");
+                    Assert.That(rows.Max(row => row.xMax), Is.EqualTo(right).Within(.5f), at + ": and end on its right edge");
+                }
+            }
+            // Each cell a mark and a figure, at one size, and no word.
+            var numbers = new[] { "Prize pool value number", "Daily countdown number", "Kredit figure number" }.Select(Words).ToArray();
+            foreach (var number in numbers)
+            {
+                number.ForceMeshUpdate();
+                Assert.That(number.fontSize, Is.EqualTo(numbers[0].fontSize).Within(.01f), at + ": " + number.name + " at the strip's one size");
+                Assert.That(number.fontSize, Is.GreaterThanOrEqualTo(14 - .01f), at + ": numerals of 14 dp or more");
+                Assert.That(number.GetParsedText().Any(char.IsLetter), Is.False, at + ": " + number.name + " has no word, " + number.GetParsedText());
+                var ink = SkinUi.ScreenRect(number.rectTransform);
+                Assert.That(cells.Any(cell => cell.xMin <= ink.xMin + .5f && cell.xMax >= ink.xMax - .5f), Is.True, at + ": " + number.name + " inside its cell");
+            }
+            Assert.That(Named("Daily countdown icon").Length + Named("Kredit figure icon").Length, Is.EqualTo(2), at + ": the clock and the Kredit marks");
+            // The deposit against what an entry needs: only where the deposit is the reason, over the button, as figures.
+            var deposit = root.GetComponentsInChildren<TMP_Text>().Where(text => text.name == "Daily deposit").ToArray();
+            Assert.That(deposit.Length, Is.EqualTo(topUp ? 1 : 0), at + ": the deposit line");
+            if (topUp)
+            {
+                deposit[0].ForceMeshUpdate(); string figures = deposit[0].GetParsedText();
+                Assert.That(figures.Any(char.IsLetter), Is.False, at + ": figures, not a sentence: " + figures);
+                Assert.That(figures.Count(letter => letter == '/'), Is.EqualTo(1), at + ": what it holds against what an entry needs");
+                Assert.That(deposit[0].textInfo.characterInfo.Take(deposit[0].textInfo.characterCount).Count(character => character.elementType == TMP_TextElementType.Sprite),
+                    Is.EqualTo(2), at + ": both amounts carry the mark");
+                var line = SkinUi.ScreenRect(deposit[0].rectTransform);
+                Assert.That(line.yMax <= cells[0].yMin + .5f && line.yMin >= buttons.Max(button => button.yMax) - .5f, Is.True, at + ": between the strip and the button");
+                Assert.That(deposit[0].fontSize, Is.GreaterThanOrEqualTo(14 - .01f), at + ": numerals of 14 dp or more");
+            }
+            // A reason on one line, or none, leaves the card at its one height.
+            var reason = root.GetComponentsInChildren<TMP_Text>().Where(text => text.name == "Daily reason" || text.name == "Daily reason detail").ToArray();
+            foreach (var text in reason) text.ForceMeshUpdate();
+            if (reason.Sum(text => text.textInfo.lineCount) <= 1) heights.Add((state, card.height));
         }
 
         // An action in progress shows on its own button: the loader turning where

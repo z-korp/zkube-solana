@@ -23,8 +23,23 @@ namespace ZKube.Integration.Presentation
         private string pageNotice;
         public bool BrowsingOperation => browsingOperation;
 
-        private static PageAction PageAction(string text, Action invoke, Func<bool> available = null, string name = null, string icon = null) =>
-            new PageAction { Label = text, Name = name, Invoke = invoke, CanInvoke = available, Icon = icon };
+        // An action does what its words say on the page it is tapped on. One that opens another
+        // page is made by Leading, and its words name that page. An action that opens a page
+        // without saying so is recorded here, where every test that taps it finds it.
+        private PageAction PageAction(string text, Action invoke, Func<bool> available = null, string name = null, string icon = null)
+        {
+            var action = new PageAction { Label = text, Name = name, CanInvoke = available, Icon = icon };
+            action.Invoke = () => {
+                // Connecting and disconnecting change who is here, not which page is open.
+                string from = Family(); invoke(); string to = Family();
+                if (to != from && from != "Connect" && to != "Connect" && !strayOpens.Contains(name ?? text)) strayOpens.Add(name ?? text);
+            };
+            return action;
+        }
+        private static PageAction Leading(string text, Action invoke, Func<bool> available = null, string name = null, string icon = null) =>
+            new PageAction { Label = text, Name = name, Invoke = invoke, CanInvoke = available, Icon = icon, Opens = true };
+        private readonly List<string> strayOpens = new List<string>();
+        public IReadOnlyList<string> StrayOpens => strayOpens;
         private bool PageAvailable() => Flow != null && !detached && !paused && isActiveAndEnabled && !PlayingRun;
         // A tab is a way off the page: it waits for nothing the page is doing.
         public bool CanNavigate(AppPage page) => PageAvailable() && (page == AppPage.Settings || identity.Owner != null);
@@ -70,9 +85,9 @@ namespace ZKube.Integration.Presentation
             view.Identity = new[] {
                 PanelBlock.Card("Device card", PanelBlock.Eyebrow(Words.ArenaDeviceTitleHeading, SkinTokens.TextMuted),
                     new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short,
-                        Token = DeviceState(session).Token, Action = PageAction(Words.ArenaDeviceManageShort, () => _ = OpenSession(true), () => PageAvailable() && !Busy, "Manage") }) };
+                        Token = DeviceState(session).Token, Action = Leading(Words.ArenaDeviceManageShort, () => _ = OpenSession(true), () => PageAvailable() && !Busy, "Manage") }) };
             // The foot row: the last operation, and Disconnect last.
-            view.Tertiary = PageAction(Words.ArenaOperationTitle, OpenOperation, () => PageAvailable() && !Busy, "Last operation"); view.Tertiary.Icon = SkinSlots.IconClock;
+            view.Tertiary = Leading(Words.ArenaOperationTitle, OpenOperation, () => PageAvailable() && !Busy, "Last operation"); view.Tertiary.Icon = SkinSlots.IconClock;
             view.Destructive = PageAction(Words.ArenaDisconnect, () => _ = Disconnect(), () => PageAvailable(), "Disconnect"); view.Destructive.Icon = SkinSlots.IconWallet;
             return view;
         }
@@ -87,9 +102,9 @@ namespace ZKube.Integration.Presentation
             // not saved yet is asked for again here; the boards are the way out.
             bool unsaved = SavingResult && boardHost.Unsaved;
             value.Done = unsaved ? PageAction(Words.ActionTryAgain, boardHost.SaveAgain, PageAvailable, "Try again")
-                : PageAction(Words.ActionContinue, () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult, "Continue");
+                : Leading(Words.ActionContinue, () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult, "Continue");
             uint day = value.Day;
-            if (value.HasResult) value.Leaderboard = PageAction(Words.ArenaSeeBoards, () => { boardHost?.Close(); _ = OpenRewards(day); },
+            if (value.HasResult) value.Leaderboard = Leading(Words.ArenaSeeBoards, () => { boardHost?.Close(); _ = OpenRewards(day); },
                 () => PageAvailable() && !Busy && (!SavingResult || boardHost.Unsaved));
             return value;
         }
@@ -127,17 +142,19 @@ namespace ZKube.Integration.Presentation
         private byte ShownRealm => shell.Artwork?.RealmId is byte realm && realm != 0 ? realm : TodayRealm;
         private void Draw()
         {
-            var notices = new[] { NoticeFor(Family()) };
+            // The page is made before its notice is: a reason the page drew is its own, and the notice leaves it out.
+            refusalDrawn = false;
+            string[] Notices() => new[] { NoticeFor(Family()) };
             switch (Family())
             {
                 // The Arena has one home page. Without an address it carries the connect
                 // request, and before its read lands what it is waiting for, in its own slots.
                 case "Connect": views.Render(AppPage.Home); break;
                 case "Campaign":
-                    views.Render(campaignPage.Value, campaign.Unsaved ? notices.Append(RunBoard.UnsavedWarning) : notices); break;
+                    views.Render(campaignPage.Value, campaign.Unsaved ? Notices().Append(RunBoard.UnsavedWarning) : Notices()); break;
                 case "Daily":
                     if (dailyRead == null) views.Render(AppPage.Home);
-                    else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
+                    else if (confirmingDaily) views.RenderPanel(EntryPage(), Notices());
                     else
                     {
                         views.Render(AppPage.Home);
@@ -146,26 +163,26 @@ namespace ZKube.Integration.Presentation
                     }
                     break;
                 // A page without its read shows its failure itself.
-                case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : notices); break;
-                case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : notices); break;
-                case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : notices); break;
+                case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : Notices()); break;
+                case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : Notices()); break;
+                case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : Notices()); break;
                 case "Profile":
                     if (profileRead == null) views.RenderPanel(Waiting("Profile", Words.TabProfile, null, AppPage.Profile, pageNotice));
-                    else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, notices);
-                    else views.RenderPanel(ProfilePanel(), notices);
+                    else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, Notices());
+                    else views.RenderPanel(ProfilePanel(), Notices());
                     break;
                 case "Operation": views.RenderPanel(OperationPage()); break;
-                case "Settings": views.Render(AppPage.Settings, notices); break;
-                case "Result": views.Render(AppPage.Result, notices); break;
+                case "Settings": views.Render(AppPage.Settings, Notices()); break;
+                case "Result": views.Render(AppPage.Result, Notices()); break;
                 default: throw new InvalidOperationException("Unknown page " + Family());
             }
         }
         // While a wallet request is open, Disconnect stays within reach, last in the foot row.
         private PageAction Disconnecting() => PageAction(Words.ArenaDisconnect, () => _ = Disconnect(), () => PageAvailable(), "Disconnect", SkinSlots.IconWallet);
-        // A failure the page itself does not show goes on it as a notice; the
-        // Connect, Device and Kredits pages show their refused action themselves.
+        // What the page should say above itself: a refused action's reason where the page did not
+        // draw it, else a failed read or what the last operation left to say.
         private string NoticeFor(string family) => family == "Connect" ? null :
-            refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" && family != "Daily" && family != "Operation" ? refusal : failure ?? info;
+            RefusalOn(family) != null && !refusalDrawn ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
         // read failed, why, with the way forward. A read that went stale is
@@ -177,7 +194,7 @@ namespace ZKube.Integration.Presentation
             {
                 page.Blocks = new[] { PanelBlock.Title(Words.ArenaHeadlineNotLoaded, centered: true, name: "Not loaded"), PanelBlock.Text("Page failure", failure, centered: true) };
                 page.Primary = PageAction(Words.ActionTryAgain, () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Try again", SkinSlots.IconRetry);
-                page.Secondary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null, "Play Campaign", SkinSlots.IconPlay);
+                page.Secondary = Leading(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null, "Play Campaign", SkinSlots.IconPlay);
             }
             else if (sessionActionPending || economyActionPending) Requesting(page);
             else page.Blocks = new[] { PanelBlock.Text("Page notice", message ?? Words.ArenaChecking, SkinTokens.TextMuted) };
@@ -198,7 +215,7 @@ namespace ZKube.Integration.Presentation
         private void ReturnFromOperation() => OpenSharedPage(AppPage.Settings);
         private PanelPageView OperationPage()
         {
-            var back = PageAction(null, ReturnFromOperation, PageAvailable);
+            var back = Leading(null, ReturnFromOperation, PageAvailable);
             // A page that shows: it keeps its tab bar, Settings lit, which returns there. It has a
             // button only where there is a step to take.
             var page = new PanelPageView { Key = "Operation", Title = Words.ArenaOperationTitle, Subtitle = Words.TabArena, Back = back, Tab = AppPage.Settings };
@@ -230,7 +247,7 @@ namespace ZKube.Integration.Presentation
             blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), centered: false));
             if (receipt.Outcome == ExecutionOutcome.Pending) Refused("Operation", page, () => PageAvailable() && !Busy);
             else if (receipt.Outcome == ExecutionOutcome.FeeShortage)
-                page.Primary = PageAction(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
+                page.Primary = Leading(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
             page.Blocks = blocks.ToArray();
             return page;
         }

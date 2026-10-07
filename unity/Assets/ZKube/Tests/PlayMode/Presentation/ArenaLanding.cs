@@ -9,7 +9,7 @@ namespace ZKube.Tests.Presentation
     public static class ArenaLanding
     {
         public static ArcadeView View(string pot = "0.10" + CurrencyMark.Tag, string kredits = "3", KreditLevel level = KreditLevel.Enough, string result = "48,210",
-            bool classic = false, string claims = null)
+            bool classic = false, string claims = null, string deposit = null, string needs = null)
         {
             BoardColumnView Column(string name, string pictogram, string chip) => new BoardColumnView { Name = name, Pictogram = pictogram, Chip = chip,
                 Rows = Enumerable.Range(1, PageViews.LandingRowsSeeker).Select(rank => new BoardRowView { Rank = rank.ToString(), Player = rank == 3 ? "mira.skr" : "7WFy…ZDRA",
@@ -18,6 +18,7 @@ namespace ZKube.Tests.Presentation
             var goal = PageCatalog.Load().Goal(1, 3);
             var score = Column("Score", SkinSlots.GoalScore, null);
             return new ArcadeView { Pot = pot, Kredits = kredits, KreditLevel = level, OpenKredits = new PageAction { Label = "Kredits" }, HasBoards = true,
+                Deposit = deposit, EntryNeeds = needs,
                 Boards = classic ? new[] { score } : new[] { score, Column("Objective", goal.Pictogram(1), goal.chip) },
                 Claims = claims == null ? null : new PageAction { Label = claims, Name = "Rewards to claim" } };
         }

@@ -83,7 +83,7 @@ namespace ZKube.Integration.Presentation
             else if (!state.Session.Current || state.Session.Funding != "ready")
             {
                 notices.Add(Words.ArenaProfileLookNeedsDevice);
-                action = PageAction(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
+                action = Leading(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
             }
             // Back to the automatic emblem, where the device can make that change.
             else if (worn.StoredEmblem != 0)
@@ -198,7 +198,7 @@ namespace ZKube.Integration.Presentation
                     else if (!state.Session.Current || state.Session.Funding != "ready")
                     {
                         page.Reason = PanelBlock.Text("Selection notice", Words.ArenaProfileLookNeedsDevice);
-                        page.Primary = PageAction(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
+                        page.Primary = Leading(Words.ArenaDeviceManage, () => _ = OpenSession(), () => PageAvailable() && !Busy, "Manage device", SkinSlots.IconDevice);
                     }
                     else page.Primary = PageAction(Words.ArenaProfileWearSelection, () => _ = WearProfileSelection(), () => ProfileEditable() && ProfileSelectionChanged(), "Wear selection", SkinSlots.Tick);
                     page.Tertiary = PageAction(Words.ArenaProfileKeepLook, KeepProfileLook, () => PageAvailable() && !Busy, "Keep current look", SkinSlots.IconClose);

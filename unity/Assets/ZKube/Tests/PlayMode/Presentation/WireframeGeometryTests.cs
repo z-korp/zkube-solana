@@ -660,7 +660,7 @@ namespace ZKube.Tests.Presentation
                             Assert.That(high.y, Is.LessThanOrEqualTo(pawsEnd + .5f), at + ": the paws reach " + pawsEnd + " and cover \"" + text.text + "\", whose top is at " + high.y);
                         }
                         Assert.That(words, Is.GreaterThan(0), at + ": the card says something");
-                        if (realm == 5 || realm == 10) yield return Captures.Snap(shell, "paws " + size + " realm " + realm.ToString("00") + " " + name);
+                        yield return Captures.Snap(shell, "paws " + size + " realm " + realm.ToString("00") + " " + name);
                     }
                 }
             Phones.Clear(shell);

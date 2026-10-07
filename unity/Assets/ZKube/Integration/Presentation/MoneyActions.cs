@@ -116,6 +116,8 @@ namespace ZKube.Integration.Presentation
         private string Reason(Exception error) => error is MoneyConfigurationException ? Words.ArenaNetworkConfig :
             error is WalletRequestException wallet ? MoneyReceiptText.Refusal(wallet.Code) : MoneyReceiptText.Refusal(RequestFailure.Of(error));
 
+        // The page an action in progress was asked on: its tapped button is the loader there.
+        private string actingOn;
         // Every wallet and device action runs here. Its page shows the request
         // while it is open; a result that is not a success, or an error on the
         // way, stays on that page as a reason with a retry.
@@ -125,6 +127,7 @@ namespace ZKube.Integration.Presentation
             string family = Family(); var lease = identity.Lease();
             return Run(async (epoch, token) => {
                 if (device) sessionActionPending = true; else economyActionPending = true;
+                actingOn = family;
                 ClearRefusal(); actionStep = null; slow = false; Present();
                 try
                 {
@@ -158,7 +161,7 @@ namespace ZKube.Integration.Presentation
                 finally
                 {
                     if (device) sessionActionPending = false; else economyActionPending = false;
-                    actionStep = null;
+                    actionStep = null; actingOn = null;
                     if (Current(epoch)) Present();
                     else if (device) sessionReadbackNeeded = true; else economyReadbackNeeded = true;
                 }
@@ -167,12 +170,17 @@ namespace ZKube.Integration.Presentation
 
         // This page's refused action: its reason and its retry, in place of the action itself.
         private string RefusalOn(string family) => refusalFamily == family ? refusal : null;
+        // A failed action's reason has one owner. A page that draws it takes it here, and by
+        // taking it is that owner: the notice over the page then leaves it out. A page that only
+        // asks whether there is one (RefusalOn) leaves the reason to the notice.
+        private string RefusalFor(string family) { string reason = RefusalOn(family); if (reason != null) refusalDrawn = true; return reason; }
+        private bool refusalDrawn;
         private static PanelBlock RefusalLine(string reason) => PanelBlock.Text("Action refused", reason, SkinTokens.Negative, true);
         // A page hands these three states over by role: the reason stands over the foot
         // row, the action in its primary slot, and the way out of a wallet request last.
         private bool Refused(string family, PanelPageView page, Func<bool> available)
         {
-            if (RefusalOn(family) == null) return false;
+            if (RefusalFor(family) == null) return false;
             page.Reason = RefusalLine(refusal);
             page.Primary = PageAction(Words.ActionTryAgain, refusalRetry, available, "Try again", SkinSlots.IconRetry);
             return true;
@@ -194,7 +202,7 @@ namespace ZKube.Integration.Presentation
         {
             page.Blocks = new[] { PanelBlock.Title(Words.ArenaStatusOpensSoon, centered: true),
                 PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", Words.ModeCampaign, Words.ArenaOpen, tagToken: SkinTokens.Positive)) };
-            page.Primary = PageAction(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
+            page.Primary = Leading(Words.ArenaPlayCampaign, () => _ = OpenCampaign(), () => PageAvailable(), "Play Campaign", SkinSlots.IconPlay);
         }
     }
 }

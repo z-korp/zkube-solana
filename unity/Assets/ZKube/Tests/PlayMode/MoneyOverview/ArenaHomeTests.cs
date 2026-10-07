@@ -55,6 +55,54 @@ namespace ZKube.Tests.MoneyOverview
             }
         }
 
+        // The deposit's top-up happens where it is tapped (owner, 2026-10-06): the card says what the
+        // deposit holds against what an entry needs, apart from the Kredits; the tap asks the wallet
+        // from this page with the tapped button as its loader, and once it lands the card reads again
+        // and its button is Enter. A top-up that does not go through leaves its reason and a retry here.
+        [UnityTest] public IEnumerator TheTopUpHappensOnTheCardItIsTappedOnAndTheButtonBecomesEnter()
+        {
+            yield return PrepareScenario("daily-playable"); environment.RunDownDeposit(); Click("Connect"); yield return Idle();
+            var views = host.GetComponent<PageViews>();
+            CollectionAssert.AreEqual(new[] { "Top up deposit" }, DailyActions(), "The deposit is the next step");
+            Assert.That(ulong.Parse(Text("Kredit figure number")), Is.GreaterThan(0), "There are Kredits: the deposit is another thing");
+            string figures = Text("Daily deposit");
+            Assert.That(System.Text.RegularExpressions.Regex.Matches(figures, System.Text.RegularExpressions.Regex.Escape(CurrencyMark.Tag)).Count, Is.EqualTo(2),
+                "What the device holds and what an entry needs, both in SOL: " + figures);
+            var hold = environment.HoldNextWallet();
+            Click("Top up deposit"); yield return Wait(hold.Entered); yield return null; yield return null;
+            Assert.That(views.Shown, Is.EqualTo(AppPage.Home), "The request shows on the page it was tapped on"); Assert.That(views.ShownPanel, Is.Null);
+            CollectionAssert.AreEqual(new[] { "Action progress" }, DailyActions(), "The tapped button is the loader");
+            hold.Release(); yield return Idle();
+            Assert.That(environment.SentSignature, Is.Not.Null, "The top-up was sent");
+            Assert.That(views.Shown, Is.EqualTo(AppPage.Home)); Assert.That(views.ShownPanel, Is.Null);
+            CollectionAssert.AreEqual(new[] { "Enter · 1 Kredit" }, DailyActions(), "It landed: the card read again and the button is Enter");
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Daily deposit"), Is.False, "The deposit is no longer the reason");
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+            yield return EndScenario();
+
+            // Not approved: the reason stays on the card, with the retry on its button.
+            yield return PrepareScenario("daily-playable"); environment.RunDownDeposit(); Click("Connect"); yield return Idle();
+            Refuse("Daily"); yield return Idle();
+            Assert.That(Text("Daily reason"), Is.EqualTo("Not approved in your wallet."));
+            CollectionAssert.AreEqual(new[] { "Try again" }, DailyActions());
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
+            yield return EndScenario();
+
+            // The Boards page's Top up deposit does the same there: the page stays and reads again when it lands.
+            yield return PrepareScenario("claim-score-sealed"); environment.RunDownDeposit(0); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay, "score")); yield return Idle();
+            views = host.GetComponent<PageViews>();
+            Assert.That(Offers("Top up deposit"), Is.True, "A claim is the device's transaction: its deposit comes first");
+            hold = environment.HoldNextWallet();
+            Click("Top up deposit"); yield return Wait(hold.Entered); yield return null; yield return null;
+            Assert.That(views.ShownPanel, Is.EqualTo("Boards"), "The request shows on the page it was tapped on");
+            Assert.That(Offers("Action progress"), Is.True, "The tapped button is the loader");
+            hold.Release(); yield return Idle();
+            Assert.That(environment.SentSignature, Is.Not.Null, "The top-up was sent");
+            Assert.That(views.ShownPanel, Is.EqualTo("Boards")); Assert.That(Offers("Top up deposit"), Is.False, "It landed: the page read again and the deposit is no longer its step");
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // Today's boards arrive beside the Daily, from the chain: each column
         // opens its board, and the page asks the read model nothing. A failed
         // boards read says so in its card and leaves the Daily's action working.

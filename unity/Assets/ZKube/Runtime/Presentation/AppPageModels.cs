@@ -21,6 +21,8 @@ namespace ZKube.Presentation
         // Its icon, a skin slot, set where the action is made: it travels with the action to wherever it is placed.
         public string Icon;
         public bool Enabled = true;
+        // Whether its tap opens another page, which its words then name; unset, it acts on the page it is tapped on.
+        public bool Opens;
         public Func<bool> CanInvoke;
         public Action Invoke;
         public bool Available => Enabled && (CanInvoke?.Invoke() ?? true);
@@ -114,12 +116,16 @@ namespace ZKube.Presentation
     {
         // The prize pool, or null when the Daily has none to show.
         public string Pot;
-        // In place of the countdown when entries are not open ("Entries closed").
+        // The day's state when entries are not open ("Entries closed"): the card's line over its
+        // button, where nothing more is to be said.
         public string Headline;
         // Why no entry can be made now, and what still can be done; in the
-        // negative ink when Warning is set.
+        // negative ink when Warning is set. One line is the card's; a second grows it.
         public string Reason, Detail;
         public bool Warning;
+        // What the device's deposit holds and what an entry needs, as amounts, where the deposit is
+        // why no entry can be made: the reason for the top-up, told apart from the Kredits at a glance.
+        public string Deposit, EntryNeeds;
         // The confirmed Kredit balance as a figure that shows its own state and
         // opens the Kredits page; null where there is no balance to show.
         public string Kredits;

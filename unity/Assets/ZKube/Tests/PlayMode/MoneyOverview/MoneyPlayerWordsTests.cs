@@ -56,11 +56,15 @@ namespace ZKube.Tests.MoneyOverview
             yield return Open("owner-overview"); Click("Connect"); yield return Page("Arena with a saved run");
             Click("Settings"); yield return Page("Settings");
             Click("Manage"); yield return Page("This device");
+            // A refused action on each page that can hold one: its reason is on the page once, whoever draws it.
+            Refuse("Device"); yield return Page("This device refused"); Unrefuse();
             Click(LitTab); yield return Idle(); Click("Last operation"); yield return Page("No operation yet");
             yield return Wait(Adapter.OpenKredits()); yield return Page("Kredits");
             yield return Wait(Adapter.OpenRewards()); yield return Page("Results pending");
+            Refuse("Rewards"); yield return Page("Boards refused"); Unrefuse();
             yield return Wait(Adapter.OpenCampaign()); yield return Page("Campaign");
             yield return Wait(Adapter.OpenProfile()); yield return Page("Profile");
+            Refuse("Profile"); yield return Page("Profile refused"); Unrefuse();
             Click("Your records"); yield return Page("Your records");
             Assert.That(PageText.Visible(host.transform), Has.Some.Property("text").EqualTo("Objective boards"));
             Click(LitTab); yield return Idle(); Click("Choose a border"); yield return Page("Borders");
@@ -72,6 +76,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return EndScenario();
 
             yield return Open("daily-playable"); Click("Connect"); yield return Page("Arena");
+            Refuse("Daily"); yield return Page("Arena refused"); Unrefuse(); yield return Idle();
             Click("Enter · 1 Kredit"); yield return Page("Entry confirmation");
             Set("confirmingDaily", false);
             var lobby = ((MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -126,11 +131,13 @@ namespace ZKube.Tests.MoneyOverview
             yield return Open("profile-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenProfile()); yield return Idle();
             Click("Emblem 8"); yield return Page("Wear selection");
+            Refuse("Profile"); yield return Page("Wear selection refused"); Unrefuse();
             Assert.That(environment.ForbiddenCalls, Is.Zero);
             yield return EndScenario();
         }
         private void Refuse(string family)
         { Set("refusal", "Not approved in your wallet."); Set("refusalFamily", family); Set("refusalRetry", (System.Action)(() => { })); Redraw(); }
+        private void Unrefuse() { Set("refusal", null); Set("refusalFamily", null); Set("refusalRetry", null); Redraw(); }
         // Every SOL amount has one format: its figure with at least two decimals, then the Solana mark.
         // Only a sentence says the word.
         [Test] public void SolAmountsShowAtLeastTwoDecimals()
@@ -148,6 +155,7 @@ namespace ZKube.Tests.MoneyOverview
         // Stops one scenario's app so the next scenario starts its own.
         private IEnumerator EndScenario()
         {
+            NoStrayOpens();
             yield return Wait(host.GetComponent<AppStartup>().StopAsync());
             Object.Destroy(host); host = null; yield return null;
         }
