@@ -44,25 +44,12 @@
       "counter": "fill",
       "kind": 2,
       "pictograms": [
-        "goal-break-any",
-        "goal-break-any",
-        "goal-break-any"
-      ],
-      "value": 0,
-      "words": 623
-    },
-    {
-      "chip": "",
-      "count": 0,
-      "counter": "fill",
-      "kind": 2,
-      "pictograms": [
         "goal-break-1",
         "goal-break-1",
         "goal-break-1"
       ],
       "value": 1,
-      "words": 624
+      "words": 623
     },
     {
       "chip": "",
@@ -75,7 +62,7 @@
         "goal-break-2"
       ],
       "value": 2,
-      "words": 625
+      "words": 624
     },
     {
       "chip": "",
@@ -88,7 +75,7 @@
         "goal-break-3"
       ],
       "value": 3,
-      "words": 626
+      "words": 625
     },
     {
       "chip": "",
@@ -101,20 +88,7 @@
         "goal-break-4"
       ],
       "value": 4,
-      "words": 627
-    },
-    {
-      "chip": "",
-      "count": 0,
-      "counter": "fill",
-      "kind": 3,
-      "pictograms": [
-        "goal-lines",
-        "goal-lines",
-        "goal-lines"
-      ],
-      "value": 0,
-      "words": 628
+      "words": 626
     },
     {
       "chip": "=2",
@@ -127,7 +101,7 @@
         "goal-burst-lines-2"
       ],
       "value": 2,
-      "words": 629
+      "words": 627
     },
     {
       "chip": "=3",
@@ -140,10 +114,10 @@
         "goal-burst-lines-3"
       ],
       "value": 3,
-      "words": 630
+      "words": 628
     },
     {
-      "chip": "10+",
+      "chip": "3+",
       "count": 0,
       "counter": "fill",
       "kind": 5,
@@ -152,8 +126,8 @@
         "goal-burst-spark",
         "goal-burst-spark"
       ],
-      "value": 10,
-      "words": 631
+      "value": 3,
+      "words": 629
     },
     {
       "chip": "+1",
@@ -166,7 +140,7 @@
         "goal-bonus-wave"
       ],
       "value": 0,
-      "words": 632
+      "words": 630
     },
     {
       "chip": "",
@@ -179,7 +153,7 @@
         "goal-bonus-lines-wave"
       ],
       "value": 0,
-      "words": 633
+      "words": 631
     },
     {
       "chip": "",
@@ -192,7 +166,7 @@
         "goal-bonus-breaks-wave"
       ],
       "value": 0,
-      "words": 634
+      "words": 632
     },
     {
       "chip": "2+",
@@ -205,7 +179,7 @@
         "goal-burst-lines-2"
       ],
       "value": 2,
-      "words": 635
+      "words": 633
     },
     {
       "chip": "3+",
@@ -218,20 +192,7 @@
         "goal-burst-lines-3"
       ],
       "value": 3,
-      "words": 636
-    },
-    {
-      "chip": "4+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 9,
-      "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
-      ],
-      "value": 4,
-      "words": 637
+      "words": 634
     },
     {
       "chip": "=2",
@@ -244,33 +205,20 @@
         "goal-burst-lines-2"
       ],
       "value": 2,
-      "words": 638
+      "words": 635
     },
     {
-      "chip": "=3",
-      "count": 0,
-      "counter": "ring",
-      "kind": 10,
+      "chip": "×2",
+      "count": 2,
+      "counter": "bar",
+      "kind": 11,
       "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
       ],
-      "value": 3,
-      "words": 639
-    },
-    {
-      "chip": "=4",
-      "count": 0,
-      "counter": "ring",
-      "kind": 10,
-      "pictograms": [
-        "goal-burst-lines-3",
-        "goal-burst-lines-3",
-        "goal-burst-lines-3"
-      ],
-      "value": 4,
-      "words": 640
+      "value": 1,
+      "words": 636
     },
     {
       "chip": "×3",
@@ -283,7 +231,20 @@
         "goal-streak"
       ],
       "value": 1,
-      "words": 641
+      "words": 637
+    },
+    {
+      "chip": "×4",
+      "count": 4,
+      "counter": "bar",
+      "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
+      "value": 1,
+      "words": 638
     },
     {
       "chip": "×5",
@@ -296,7 +257,20 @@
         "goal-streak"
       ],
       "value": 1,
-      "words": 642
+      "words": 639
+    },
+    {
+      "chip": "×6",
+      "count": 6,
+      "counter": "bar",
+      "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
+      "value": 1,
+      "words": 640
     },
     {
       "chip": "2+ ×2",
@@ -309,11 +283,37 @@
         "goal-streak"
       ],
       "value": 2,
+      "words": 641
+    },
+    {
+      "chip": "×7",
+      "count": 7,
+      "counter": "ring",
+      "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
+      "value": 0,
+      "words": 642
+    },
+    {
+      "chip": "×8",
+      "count": 8,
+      "counter": "ring",
+      "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
+      "value": 0,
       "words": 643
     },
     {
-      "chip": "×14",
-      "count": 14,
+      "chip": "×9",
+      "count": 9,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -325,34 +325,34 @@
       "words": 644
     },
     {
-      "chip": "×3",
-      "count": 3,
+      "chip": "×10",
+      "count": 10,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
-        "goal-burst-break-1",
-        "goal-burst-break-1",
-        "goal-burst-break-1"
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
       ],
-      "value": 1,
+      "value": 0,
       "words": 645
     },
     {
-      "chip": "×5",
-      "count": 5,
+      "chip": "×12",
+      "count": 12,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
-        "goal-burst-break-1",
-        "goal-burst-break-1",
-        "goal-burst-break-1"
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
       ],
-      "value": 1,
+      "value": 0,
       "words": 646
     },
     {
-      "chip": "×6",
-      "count": 6,
+      "chip": "×4",
+      "count": 4,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -364,8 +364,8 @@
       "words": 647
     },
     {
-      "chip": "×8",
-      "count": 8,
+      "chip": "×6",
+      "count": 6,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -403,21 +403,21 @@
       "words": 650
     },
     {
-      "chip": "×6",
-      "count": 6,
+      "chip": "×2",
+      "count": 2,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
-        "goal-burst-break-2",
-        "goal-burst-break-2",
-        "goal-burst-break-2"
+        "goal-burst-break-3",
+        "goal-burst-break-3",
+        "goal-burst-break-3"
       ],
-      "value": 2,
+      "value": 3,
       "words": 651
     },
     {
-      "chip": "×2",
-      "count": 2,
+      "chip": "×3",
+      "count": 3,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
@@ -429,56 +429,17 @@
       "words": 652
     },
     {
-      "chip": "×3",
-      "count": 3,
+      "chip": "×2",
+      "count": 2,
       "counter": "ring",
       "kind": 12,
       "pictograms": [
-        "goal-burst-break-3",
-        "goal-burst-break-3",
-        "goal-burst-break-3"
+        "goal-burst-break-4",
+        "goal-burst-break-4",
+        "goal-burst-break-4"
       ],
-      "value": 3,
+      "value": 4,
       "words": 653
-    },
-    {
-      "chip": "×4",
-      "count": 4,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-3",
-        "goal-burst-break-3",
-        "goal-burst-break-3"
-      ],
-      "value": 3,
-      "words": 654
-    },
-    {
-      "chip": "×3",
-      "count": 3,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-4",
-        "goal-burst-break-4",
-        "goal-burst-break-4"
-      ],
-      "value": 4,
-      "words": 655
-    },
-    {
-      "chip": "×4",
-      "count": 4,
-      "counter": "ring",
-      "kind": 12,
-      "pictograms": [
-        "goal-burst-break-4",
-        "goal-burst-break-4",
-        "goal-burst-break-4"
-      ],
-      "value": 4,
-      "words": 656
     },
     {
       "chip": "",
@@ -491,7 +452,7 @@
         "goal-all-widths"
       ],
       "value": 0,
-      "words": 657
+      "words": 654
     },
     {
       "chip": "6+",
@@ -504,59 +465,7 @@
         "goal-burst-spark"
       ],
       "value": 6,
-      "words": 658
-    },
-    {
-      "chip": "8+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 8,
-      "words": 659
-    },
-    {
-      "chip": "10+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 10,
-      "words": 660
-    },
-    {
-      "chip": "12+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 12,
-      "words": 661
-    },
-    {
-      "chip": "15+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 14,
-      "pictograms": [
-        "goal-burst-spark",
-        "goal-burst-spark",
-        "goal-burst-spark"
-      ],
-      "value": 15,
-      "words": 662
+      "words": 655
     },
     {
       "chip": "",
@@ -569,20 +478,7 @@
         "goal-burst-bonus-lines-wave"
       ],
       "value": 1,
-      "words": 663
-    },
-    {
-      "chip": "2+",
-      "count": 0,
-      "counter": "ring",
-      "kind": 15,
-      "pictograms": [
-        "goal-burst-bonus-lines-hammer",
-        "goal-burst-bonus-lines-totem",
-        "goal-burst-bonus-lines-wave"
-      ],
-      "value": 2,
-      "words": 664
+      "words": 656
     },
     {
       "chip": "",
@@ -595,7 +491,20 @@
         "goal-perfect-clear"
       ],
       "value": 0,
-      "words": 665
+      "words": 657
+    },
+    {
+      "chip": "↑5",
+      "count": 0,
+      "counter": "fill",
+      "kind": 17,
+      "pictograms": [
+        "goal-stack-high",
+        "goal-stack-high",
+        "goal-stack-high"
+      ],
+      "value": 5,
+      "words": 658
     },
     {
       "chip": "↑6",
@@ -608,7 +517,7 @@
         "goal-stack-high"
       ],
       "value": 6,
-      "words": 666
+      "words": 659
     },
     {
       "chip": "↑7",
@@ -621,7 +530,7 @@
         "goal-stack-high"
       ],
       "value": 7,
-      "words": 667
+      "words": 660
     },
     {
       "chip": "↑8",
@@ -634,7 +543,20 @@
         "goal-stack-high"
       ],
       "value": 8,
-      "words": 668
+      "words": 661
+    },
+    {
+      "chip": "↓2",
+      "count": 0,
+      "counter": "fill",
+      "kind": 18,
+      "pictograms": [
+        "goal-stack-low",
+        "goal-stack-low",
+        "goal-stack-low"
+      ],
+      "value": 2,
+      "words": 662
     },
     {
       "chip": "↓3",
@@ -647,7 +569,7 @@
         "goal-stack-low"
       ],
       "value": 3,
-      "words": 669
+      "words": 663
     },
     {
       "chip": "↓4",
@@ -660,7 +582,7 @@
         "goal-stack-low"
       ],
       "value": 4,
-      "words": 670
+      "words": 664
     }
   ],
   "dailyThemes": [
@@ -682,67 +604,67 @@
     {
       "kind": 4,
       "value": 2,
-      "words": 629
+      "words": 627
     },
     {
       "kind": 4,
       "value": 3,
-      "words": 630
+      "words": 628
     },
     {
       "kind": 2,
       "value": 1,
-      "words": 624
+      "words": 623
     },
     {
       "kind": 2,
       "value": 2,
+      "words": 624
+    },
+    {
+      "kind": 2,
+      "value": 3,
       "words": 625
     },
     {
       "kind": 2,
-      "value": 3,
-      "words": 626
-    },
-    {
-      "kind": 2,
       "value": 4,
-      "words": 627
+      "words": 626
     },
     {
       "kind": 6,
       "value": 0,
-      "words": 632
+      "words": 630
     },
     {
       "kind": 7,
       "value": 0,
-      "words": 633
+      "words": 631
     },
     {
       "kind": 8,
       "value": 0,
-      "words": 634
+      "words": 632
     },
     {
       "kind": 17,
       "value": 7,
-      "words": 667
+      "words": 660
     },
     {
       "kind": 17,
       "value": 8,
-      "words": 668
+      "words": 661
     },
     {
       "kind": 18,
       "value": 3,
-      "words": 669
+      "words": 663
     },
     {
       "kind": 18,
       "value": 4,
-      "words": 670
+      "words": 664
     }
   ],
   "effects": {
@@ -764,23 +686,23 @@
       "threshold": 2,
       "trigger": 1,
       "words": {
-        "description": 671,
+        "description": 665,
         "effect": 294,
         "name": 295,
-        "sentence": 672
+        "sentence": 666
       }
     },
     {
       "bonus": 1,
-      "chip": "=2",
-      "pictogram": "goal-burst-lines-2",
-      "threshold": 2,
-      "trigger": 4,
+      "chip": "",
+      "pictogram": "goal-lines",
+      "threshold": 6,
+      "trigger": 2,
       "words": {
-        "description": 673,
+        "description": 667,
         "effect": 284,
         "name": 285,
-        "sentence": 674
+        "sentence": 668
       }
     },
     {
@@ -790,10 +712,10 @@
       "threshold": 10,
       "trigger": 8,
       "words": {
-        "description": 675,
+        "description": 669,
         "effect": 289,
         "name": 290,
-        "sentence": 676
+        "sentence": 670
       }
     },
     {
@@ -803,6 +725,45 @@
       "threshold": 3,
       "trigger": 9,
       "words": {
+        "description": 671,
+        "effect": 284,
+        "name": 285,
+        "sentence": 672
+      }
+    },
+    {
+      "bonus": 3,
+      "chip": "2+",
+      "pictogram": "goal-burst-lines-2",
+      "threshold": 2,
+      "trigger": 7,
+      "words": {
+        "description": 673,
+        "effect": 294,
+        "name": 295,
+        "sentence": 674
+      }
+    },
+    {
+      "bonus": 2,
+      "chip": "",
+      "pictogram": "goal-all-widths",
+      "threshold": 0,
+      "trigger": 6,
+      "words": {
+        "description": 675,
+        "effect": 289,
+        "name": 290,
+        "sentence": 676
+      }
+    },
+    {
+      "bonus": 1,
+      "chip": "×8",
+      "pictogram": "goal-burst-break-any",
+      "threshold": 8,
+      "trigger": 8,
+      "words": {
         "description": 677,
         "effect": 284,
         "name": 285,
@@ -811,10 +772,10 @@
     },
     {
       "bonus": 3,
-      "chip": "",
-      "pictogram": "goal-lines",
-      "threshold": 7,
-      "trigger": 2,
+      "chip": "×4",
+      "pictogram": "goal-streak",
+      "threshold": 4,
+      "trigger": 9,
       "words": {
         "description": 679,
         "effect": 294,
@@ -825,9 +786,9 @@
     {
       "bonus": 2,
       "chip": "",
-      "pictogram": "goal-all-widths",
-      "threshold": 0,
-      "trigger": 6,
+      "pictogram": "goal-lines",
+      "threshold": 8,
+      "trigger": 2,
       "words": {
         "description": 681,
         "effect": 289,
@@ -837,54 +798,15 @@
     },
     {
       "bonus": 1,
-      "chip": "=3",
-      "pictogram": "goal-burst-lines-3",
+      "chip": "2+",
+      "pictogram": "goal-burst-lines-2",
       "threshold": 3,
-      "trigger": 4,
+      "trigger": 7,
       "words": {
         "description": 683,
         "effect": 284,
         "name": 285,
         "sentence": 684
-      }
-    },
-    {
-      "bonus": 2,
-      "chip": "3+",
-      "pictogram": "goal-burst-lines-3",
-      "threshold": 3,
-      "trigger": 1,
-      "words": {
-        "description": 685,
-        "effect": 289,
-        "name": 290,
-        "sentence": 686
-      }
-    },
-    {
-      "bonus": 2,
-      "chip": "2+",
-      "pictogram": "goal-burst-lines-2",
-      "threshold": 2,
-      "trigger": 7,
-      "words": {
-        "description": 687,
-        "effect": 289,
-        "name": 290,
-        "sentence": 688
-      }
-    },
-    {
-      "bonus": 1,
-      "chip": "=4",
-      "pictogram": "goal-burst-lines-3",
-      "threshold": 4,
-      "trigger": 4,
-      "words": {
-        "description": 689,
-        "effect": 284,
-        "name": 285,
-        "sentence": 690
       }
     }
   ],
@@ -6790,5 +6712,5 @@
       }
     }
   ],
-  "wordCount": 691
+  "wordCount": 685
 }

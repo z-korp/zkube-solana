@@ -461,7 +461,10 @@ namespace ZKube.Presentation.Tests
             var icons = board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name.EndsWith(" icon", StringComparison.Ordinal) && i.name != "Moves icon").ToArray();
             CollectionAssert.AreEquivalent(new[] { "Guardian action icon", "Reroll action icon", "Pause icon" }, icons.Select(i => i.name));
             Assert.AreEqual(0, board.State.BonusCharges); Assert.AreEqual(1, board.State.RerollCharges);
-            CollectionAssert.AreEquivalent(new[] { SkinSlots.IconTotemEmpty, SkinSlots.IconReroll, SkinSlots.IconPause }, icons.Select(i => i.sprite.name.Replace("(Clone)", "")));
+            // The guardian's tablet wears its realm's own bonus, empty at the opening.
+            string tablet = new[] { SkinSlots.IconHammerEmpty, SkinSlots.IconTotemEmpty, SkinSlots.IconWaveEmpty }[board.State.BonusType - 1];
+            Assert.AreEqual((byte)Protocol.Realms.Single(realm => realm.MapId == 8).GuardianAndHeight[0], board.State.BonusType);
+            CollectionAssert.AreEquivalent(new[] { tablet, SkinSlots.IconReroll, SkinSlots.IconPause }, icons.Select(i => i.sprite.name.Replace("(Clone)", "")));
             foreach (var icon in icons)
             {
                 Assert.IsFalse(icon.raycastTarget, icon.name + " must use its enclosing button hit target");

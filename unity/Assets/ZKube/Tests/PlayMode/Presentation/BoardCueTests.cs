@@ -181,7 +181,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual("COMBO ×2", BoardView.ComboText(2)); Assert.AreEqual("COMBO ×7", BoardView.ComboText(7));
             int single = 0, several = 0;
             foreach (string fixture in new[] { "mayan-combo-2", "daily-pressure-crossing", "move-perfect-clear-grant", "Wave-perfect-clear-continuation",
-                "blocked-eleventh-row", "move-budget-exhaustion", "mayan-earned-totem" })
+                "blocked-eleventh-row", "move-budget-exhaustion", "mayan-earned-wave" })
             {
                 yield return Load(fixture, true); yield return null;
                 int index = 0;

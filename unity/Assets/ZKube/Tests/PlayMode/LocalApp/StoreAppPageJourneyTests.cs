@@ -934,7 +934,7 @@ namespace ZKube.Tests
             app.Flow.Campaign.SelectRealm(4); yield return Words(StorePage.Campaign, "Realm closed by the purchase");
             app.Flow.Show(StorePage.Profile); yield return Words(StorePage.Profile, "Profile");
             app.Flow.Show(StorePage.Settings); yield return Words(StorePage.Settings, "Settings");
-            var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+            var goals = new CampaignGoals { Points = 60, PrimaryKind = 7, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
             app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 168, StarSources = 7, EndReason = 1, Goals = goals });
             yield return Words(StorePage.Result, "Level won");
             app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
@@ -988,7 +988,7 @@ namespace ZKube.Tests
             app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
             app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
             OnScreen("Play", "Level preview");
-            var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+            var goals = new CampaignGoals { Points = 60, PrimaryKind = 7, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
             // Level 1 has never been starred here, so a starless run says how to open Level 2.
             foreach (var (reason, stars, moves, title, summary) in new[] {
                 ((byte)3, (byte)0, 4u, "Run ended", "An ended run keeps no stars."),

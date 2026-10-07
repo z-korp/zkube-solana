@@ -45,6 +45,44 @@ namespace ZKube.Local.Tests
             CollectionAssert.AreEqual(secondSeed, Open().Read.CampaignRun.Seed);
         }
 
+        // A saved run resumes only as the run it was. One saved under other rules than the level has now
+        // (its goals changed with the app), one saved before runs recorded their rules, one of another
+        // catalogue, one whose log this build cannot replay and one whose log ends the run are let go at
+        // start: nothing throws, the level opens fresh, and no star moves.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void a_saved_campaign_run_that_is_no_longer_the_same_run_is_let_go_at_start(bool money)
+        {
+            var changes = new (string name, Action<LocalCampaignRun> change)[] {
+                ("the level's rules changed", run => run.Rules = Convert.ToBase64String(NativeEngine.Initialize(NativeEngine.CampaignRules(1, 2)).Config)),
+                ("saved before runs recorded their rules", run => run.Rules = null),
+                ("another catalogue", run => run.CatalogVersion++),
+                ("a move the board refuses", run => run.Actions.Add(new LocalCampaignAction { Kind = "Move", Row = 9, Start = 7, Destination = 0 })),
+                ("a log that ends the run", run => run.Actions.Add(new LocalCampaignAction { Kind = "Finish", Reason = 3 })) };
+            foreach (var (name, change) in changes)
+            {
+                var disk = new System.Collections.Generic.Dictionary<string, string>();
+                LocalProductStore Open() => new LocalProductStore(key => disk.TryGetValue(key, out var value) ? value : null,
+                    (key, value) => disk[key] = value, money ? "player-address" : null);
+                // Stars already earned, then a run saved mid-level.
+                Open().WriteCampaign(current => { var next = LocalProductCodec.Decode(LocalProductCodec.Encode(current)); next.Stars[0] = 2; next.Stars[13] = 3; return next; });
+                var runs = Create(Open(), money);
+                var stars = Open().Read.Stars.ToArray();
+                var started = runs.StartCampaign(1, 1);
+                runs.Act(started.View.RunId, started.View.Token, new LocalRunAction(LocalActionKind.Reroll));
+                Assert.That(Open().Read.CampaignRun.Rules, Is.EqualTo(Convert.ToBase64String(started.View.Token.Config)), "A run records the rules it started under");
+                Assert.That(Create(Open(), money).Active("campaign"), Is.Not.Null, "The same run resumes");
+                Open().WriteCampaign(current => { var next = LocalProductCodec.Decode(LocalProductCodec.Encode(current)); change(next.CampaignRun); return next; });
+                LocalRunClient restarted = null;
+                Assert.DoesNotThrow(() => restarted = Create(Open(), money), name);
+                Assert.That(restarted.Active("campaign"), Is.Null, name);
+                Assert.That(Open().Read.CampaignRun, Is.Null, name + ": the save lets it go too");
+                CollectionAssert.AreEqual(stars, Open().Read.Stars, name + ": no star moves");
+                Assert.That(restarted.StartCampaign(1, 1).View.RunId, Is.Not.Null, name + ": the level opens fresh");
+                Assert.That(Create(Open(), money).Active("campaign"), Is.Not.Null, name);
+            }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void local_campaign_run_survives_process_death(bool money)
