@@ -253,7 +253,7 @@ namespace ZKube.Tests.Presentation
                 ("last kredit", () => ArenaLanding.View(kredits: "1", level: KreditLevel.Last), "Enter · 1 Kredit"),
                 ("no kredits", () => ArenaLanding.View(kredits: "0", level: KreditLevel.None), "Buy Kredits"),
                 ("set up device", () => ArenaLanding.View(kredits: "0"), "Set up device"),
-                ("top up deposit", () => ArenaLanding.View(kredits: "21", deposit: "0.0012" + CurrencyMark.Tag, needs: "0.0056" + CurrencyMark.Tag), "Top up deposit"),
+                ("top up deposit", () => ArenaLanding.View(kredits: "21", deposit: "0.0012" + CurrencyMark.Tag, needs: "0.0063" + CurrencyMark.Tag), "Top up deposit"),
                 ("run in flight", () => ArenaLanding.View(kredits: "2"), "Resume run"),
                 ("entry on its way", () => ArenaLanding.View(kredits: "2"), "~Entering"),
                 ("connect", () => new ArcadeView { Reason = "Your address. Your play.", Detail = "Connecting is free." }, "Connect wallet"),

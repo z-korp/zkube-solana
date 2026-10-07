@@ -83,7 +83,7 @@ namespace ZKube.Presentation
             // The day's state beside the heading, where the two fit one line; else it is the card's line.
             ScreenKit.Side? state = arcade.Headline == null ? (ScreenKit.Side?)null
                 : Tag(kit, arcade.Headline, arcade.Warning ? SkinTokens.Negative : SkinTokens.TextMuted, "Daily headline");
-            float heading = ui.TextWidth(Words.DailyToday.ToUpperInvariant(), inside.HeaderDp, SkinUi.Type.Display) * 1.12f;
+            float heading = ui.TextWidth(Words.DailyToday, inside.HeaderDp, SkinUi.Type.Display) * 1.12f;
             bool tagged = state.HasValue && heading + 6 * u + state.Value.Width <= inside.Width;
 
             // The card's line: the reason, or the deposit against what an entry needs, or the day's state.
