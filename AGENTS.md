@@ -107,11 +107,12 @@ tree, and a change reaches Devnet only through an approved upgrade; no migration
 upgrade, funding and keeper enablement still needs its own exact approval. Specification approval is not
 deployment or spending approval.
 
-This tree's catalogue is version 4: six realms earn their bonus by another rule (Egypt, China, Japan, Mayan,
-Serengeti, Inca; owner, 2026-10-07). The program on Devnet was built with version 3 and keeps the old six until an
-approved upgrade. A run's rules are the snapshot its ActiveRun holds, so an Arena run plays and scores by the
-deployed program's rule whatever the client; until the upgrade, a client built from this tree names the new rule
-on the lobby of those six realms' days and plays the old one on the board.
+The program was upgraded in place on 2026-10-07 to the release whose ELF hashes to
+86d3def06192cc86e6c98f48b021ae921c7d76e44aee7dda7c39caf400e6d1e2: the same program ID, no account change and no
+migration. That release carries catalogue version 4, in which each realm earns its guardian's bonus its own way;
+six realms changed their rule (Egypt, China, Japan, Mayan, Serengeti, Inca; owner, 2026-10-07). A run's rules are
+the snapshot its ActiveRun holds, so an Arena run plays and scores by the deployed program's rule whatever the
+client.
 
 | Area | Source status and guard |
 | --- | --- |

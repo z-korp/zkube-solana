@@ -47,8 +47,6 @@ distribution review. Realms' store billing and distribution are in development.
 Campaign plays locally in both games and never touches money. Each realm asks for goals of its own and earns its
 guardian's bonus its own way, and the guardian guides the first run of level 1. On Arena, the packed star array on
 chain is the player's save, synchronized across their devices; stars grant no SOL, entries or prize eligibility.
-The program on Devnet predates the newest earn rules: until an approved upgrade, an Arena Daily in Egypt, China,
-Japan, Mayan, Serengeti or Inca earns its bonus by the earlier rule.
 
 ## Repository
 
