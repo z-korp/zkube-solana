@@ -115,7 +115,8 @@ export async function checkFreshTransaction(connection: Connection, bundle: Oper
     const today = dayIdAt(BigInt(await chainTime(connection)));
     if (today < protocol.suspendedUntilDay && operation.untilDay <= today) {
       const data = await connection.getAccountInfo(programDataAddress(), "confirmed");
-      const deployedAt = data && await connection.getBlockTime(Number(data.data.readBigUInt64LE(4)));
+      // A slot too recent for the endpoint to date counts as today.
+      const deployedAt = data && await connection.getBlockTime(Number(data.data.readBigUInt64LE(4))).catch(() => null);
       if ((!deployedAt || dayIdAt(BigInt(deployedAt)) >= today) &&
           await connection.getAccountInfo(deriveArenaDailyPda(today), "confirmed")) {
         const { value } = await readAccount(connection, "arenaDaily", deriveArenaDailyPda(today));

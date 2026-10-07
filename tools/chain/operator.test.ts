@@ -93,7 +93,7 @@ function upgradeState() {
     deployed: { programDataSha256: createHash("sha256").update(older).digest("hex"), allocationBytes: older.length } };
   const release = upgradeRelease(input, "https://api.devnet.solana.com");
   const world = { held: older as Buffer, buffer: false, suspendedUntilDay: 0, now: opens(20740) + 3600,
-    daily: undefined as Buffer | undefined, deployedSlot: 7, deployedAt: opens(20740) + 600 };
+    daily: undefined as Buffer | undefined, deployedSlot: 7, deployedAt: opens(20740) + 600 as number | undefined };
   const program = Buffer.alloc(36); program.writeUInt32LE(2); programDataAddress().toBuffer().copy(program, 4);
   const programData = () => {
     const header = Buffer.alloc(45); header.writeUInt32LE(3); header.writeBigUInt64LE(BigInt(world.deployedSlot), 4);
@@ -101,7 +101,11 @@ function upgradeState() {
     return state.info(Buffer.concat([header, world.held]));
   };
   const calls = { ...state.calls, getSlot: vi.fn(async () => 1),
-    getBlockTime: vi.fn(async (slot: number) => slot === world.deployedSlot ? world.deployedAt : world.now),
+    getBlockTime: vi.fn(async (slot: number) => {
+      if (slot !== world.deployedSlot) return world.now;
+      if (world.deployedAt === undefined) throw new Error("Block not available for slot");
+      return world.deployedAt;
+    }),
     getMultipleAccountsInfo: vi.fn(async () => [state.info(program, true), programData()]),
     getAccountInfo: vi.fn(async (address: PublicKey) => {
       if (address.equals(programDataAddress())) return programData();
@@ -413,6 +417,9 @@ describe("one operator plan and execution pipeline", () => {
     // A day that is not suspended is not being lifted.
     test.world.suspendedUntilDay = today;
     await lift(today - 2, other);
+    // An upgrade so recent that the endpoint cannot date its slot yet is treated as today's.
+    test.world.suspendedUntilDay = today + 1; test.world.deployedAt = undefined;
+    await expect(lift(today, other)).rejects.toThrow("leave the day suspended");
     // A program deployed on an earlier day prepared today's Daily itself, whatever this checkout would compute:
     // an upgrade that never landed leaves the suspension free to lift.
     test.world.suspendedUntilDay = today + 1; test.world.deployedAt = opens(today) - 1;
