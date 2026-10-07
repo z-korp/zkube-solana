@@ -1,10 +1,46 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { PublicKey, SystemProgram, type Connection } from "@solana/web3.js";
 import { dayIdAt, dailyWindow } from "../../services/src/zkubeCore.js";
 import { ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 import { CADENCE_FUNDING_SEED_LAMPORTS, LAUNCH_DAILY_SEED_LAMPORTS } from "./adminClient.js";
-import { chainTime, readAccount, programDataAddress } from "./chainRelease.js";
+import { assertDevnetRelease, chainTime, readAccount, programDataAddress, type ReleaseBinding } from "./chainRelease.js";
 import { deriveArenaDailyPda, deriveCadenceFundingPda, deriveCreditVaultPda, deriveProtocolConfigPda } from "./pdas.js";
 import { type Operation, type OperatorBundle } from "./operatorPlan.js";
+
+/** How long a signed transaction can still land: its blockhash lives about 150 slots. */
+export const LANDING_SECONDS = 120;
+
+export type DailyRulesHash = (dayId: number) => string;
+/** The rules hash this checkout's program gives a Daily it prepares for that day (programs/solana/examples/daily-rules-hash.rs). */
+export const preparedRulesHash: DailyRulesHash = dayId => execFileSync("cargo",
+  ["run", "-q", "--offline", "--locked", "-p", "solana", "--example", "daily-rules-hash", "--", String(dayId)],
+  { encoding: "utf8", cwd: fileURLToPath(new URL("../../", import.meta.url)), stdio: ["ignore", "pipe", "pipe"] }).trim();
+
+/** Before an upgrade lands ProgramData holds what the plan replaces; afterwards it holds the release. Nothing else passes. */
+export async function assertUpgradeRelease(connection: Connection, release: ReleaseBinding,
+  deployed: { programDataSha256: string; allocationBytes: number }): Promise<void> {
+  try { await assertDevnetRelease(connection, { ...release, ...deployed }); }
+  catch { await assertDevnetRelease(connection, release); }
+}
+
+/**
+ * Preparing a Daily stores a rules hash made from the realm table, and each
+ * entry takes the realm's rules from that table again. New program bytes may
+ * therefore land only while no entry can be made: every day the transaction
+ * could land on is suspended. A day that has not opened has no Daily yet, so
+ * whatever is prepared afterwards is prepared by the new program.
+ */
+export async function requireNoEntryWhileUpgrading(connection: Connection): Promise<void> {
+  const { value } = await readAccount(connection, "protocolConfig", deriveProtocolConfigPda());
+  const now = await chainTime(connection);
+  for (const at of [now, now + LANDING_SECONDS]) {
+    const day = dayIdAt(BigInt(at));
+    if (day >= value.suspendedUntilDay) {
+      throw new Error(`Day ${day} is not suspended: an entry could reach a Daily prepared by the program this upgrade replaces`);
+    }
+  }
+}
 
 export async function checkLaunchWindow(connection: Connection, operation: Operation): Promise<void> {
   if (operation.kind === "launch" && await chainTime(connection) > operation.input.launchCutoffUnixTimestamp) {
@@ -41,8 +77,20 @@ export async function observeDeposits(connection: Connection, authority: string,
   return deposits;
 }
 
-export async function checkFreshTransaction(connection: Connection, bundle: OperatorBundle, index: number): Promise<void> {
+export async function checkFreshTransaction(connection: Connection, bundle: OperatorBundle, index: number,
+  rulesHash: DailyRulesHash = preparedRulesHash): Promise<void> {
   const operation = bundle.payload.operation;
+  if (operation.kind === "upgrade") {
+    const last = bundle.payload.transactions.length - 1;
+    if (index !== 0 && index !== last) return;
+    // The program is still exactly what the plan replaces.
+    await assertDevnetRelease(connection, { ...bundle.payload.release, ...operation.input.deployed });
+    if (index === last) return requireNoEntryWhileUpgrading(connection);
+    if (await connection.getAccountInfo(new PublicKey(operation.input.buffer), "confirmed")) {
+      throw new Error("Upgrade buffer address is occupied");
+    }
+    return;
+  }
   if (operation.kind === "deploy") {
     if (index === 0) {
       const accounts = await connection.getMultipleAccountsInfo([
@@ -58,7 +106,24 @@ export async function checkFreshTransaction(connection: Connection, bundle: Oper
     return;
   }
   if (operation.kind === "set-suspension") {
-    await readGovernance(connection, operation.authority, operation.launchDayId);
+    const protocol = await readGovernance(connection, operation.authority, operation.launchDayId);
+    // Lifting today's suspension lets entries reach today's Daily. If the
+    // program was upgraded today, a Daily the replaced program prepared keeps
+    // its hash while new runs would take the new rules: that day stays
+    // suspended. A program deployed on an earlier day prepared every Daily of
+    // today itself.
+    const today = dayIdAt(BigInt(await chainTime(connection)));
+    if (today < protocol.suspendedUntilDay && operation.untilDay <= today) {
+      const data = await connection.getAccountInfo(programDataAddress(), "confirmed");
+      const deployedAt = data && await connection.getBlockTime(Number(data.data.readBigUInt64LE(4)));
+      if ((!deployedAt || dayIdAt(BigInt(deployedAt)) >= today) &&
+          await connection.getAccountInfo(deriveArenaDailyPda(today), "confirmed")) {
+        const { value } = await readAccount(connection, "arenaDaily", deriveArenaDailyPda(today));
+        if (Buffer.from(value.rulesHash).toString("hex") !== rulesHash(today)) {
+          throw new Error(`Day ${today}'s Daily was prepared under another catalogue; leave the day suspended`);
+        }
+      }
+    }
     return;
   }
   await checkLaunchWindow(connection, operation);

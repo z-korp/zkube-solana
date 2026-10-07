@@ -282,6 +282,49 @@
           "program": "BPFLoaderUpgradeab1e11111111111111111111111"
         }
       ]
+    ],
+    "upgrade": [
+      {
+        "accounts": [
+          {
+            "address": "Hymoe47poDu23GJmVECScPy5ppeNRpsvsWPkDW5DamPf",
+            "signer": false,
+            "writable": true
+          },
+          {
+            "address": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+            "signer": false,
+            "writable": true
+          },
+          {
+            "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+            "signer": false,
+            "writable": true
+          },
+          {
+            "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+            "signer": false,
+            "writable": true
+          },
+          {
+            "address": "SysvarRent111111111111111111111111111111111",
+            "signer": false,
+            "writable": false
+          },
+          {
+            "address": "SysvarC1ock11111111111111111111111111111111",
+            "signer": false,
+            "writable": false
+          },
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "signer": true,
+            "writable": false
+          }
+        ],
+        "data": "AwAAAA==",
+        "program": "BPFLoaderUpgradeab1e11111111111111111111111"
+      }
     ]
   },
   "device": {

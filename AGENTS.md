@@ -1240,7 +1240,25 @@ keeper authority. The approval boundary above applies to every execution.
   program deposit path, into today's Daily only. `operator_top_up_rejects_seeded_balance_drift_and_a_closed_window` and `routes a
   chosen amount to the exact selected prize-pool PDA` guard target and drift.
 - **Suspension plan:** plan set-suspension uses the pinned authority and chosen day; `sets the explicit
-  suspension boundary and seeds cadence funding` guards the instruction.
+  suspension boundary and seeds cadence funding` guards the instruction. After an upgrade, a suspension is not lifted
+  for the day of the upgrade if the replaced program prepared its Daily: that day stays suspended and the next
+  opens by itself.
+  `a_suspension_is_not_lifted_for_a_day_whose_daily_another_catalogue_prepared` guards the refusal.
+- **Upgrade plan:** NO_DNA=1 pnpm chain plan upgrade --bundle build/chain/upgrade.json replaces the deployed
+  program in place: the same address, ProgramData allocation and upgrade authority, the recorded release build
+  at the reviewed hash through the same gate, a buffer written like a deployment's, then the loader's Upgrade,
+  which returns the buffer's lamports to the payer. The plan binds the program it replaces and refuses any
+  other; a build larger than the allocation is refused. Preparing a Daily stores a rules hash made from the
+  realm table and every entry reads that table again, so the Upgrade is sent only while no entry can be made:
+  every day it could land on, the next two minutes, is suspended. The buffer can be written on any day
+  (--until the last write). Top-up and set-suspension plans made for after an upgrade take --upgrade-bundle
+  and bind the upgraded program; they cannot run before it lands. NO_DNA=1 pnpm chain check-release shows
+  whether the deployed program is the reviewed build and whether today's Daily was prepared by it.
+  `upgrade_instruction_bytes_and_accounts_match_the_rust_loader`,
+  `an_upgrade_lands_only_while_no_entry_can_reach_a_daily_the_replaced_program_prepared`,
+  `an_upgrade_bundle_runs_against_the_program_it_replaces_and_resumes_once_it_has_landed`,
+  `plans_made_for_after_an_upgrade_bind_the_upgraded_program_and_wait_for_it` and
+  `the_release_check_says_whether_the_deployed_program_is_the_build_and_prepared_todays_daily` guard it.
 - **Execute:** after exact approval, ZKUBE_APPROVAL and execute --bundle rebuild the public plan before
   loading signer files. `operator_missing_fingerprint_loads_no_keypair`,
   `operator_rebuild_rejects_changed_instruction_bytes_before_loading_a_signer` and

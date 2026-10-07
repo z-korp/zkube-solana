@@ -1,7 +1,7 @@
 import { PublicKey, Transaction, type Connection } from "@solana/web3.js";
 import { buildDepositArenaDailyPlan, buildSetArenaSuspensionPlan, CADENCE_FUNDING_SEED_LAMPORTS, LAUNCH_DAILY_SEED_LAMPORTS } from "./adminClient.js";
 import { quoteLaunchCosts, launchTransactionPlans, buildFundingPlan, type LaunchPlannerInput, type LaunchSettings, type LaunchCostPlan } from "./launchPlanner.js";
-import { deploymentTransactions, type DeploymentInput, type PlannedTransaction } from "./deploymentPlan.js";
+import { deploymentTransactions, upgradeTransactions, type DeploymentInput, type PlannedTransaction, type UpgradeInput } from "./deploymentPlan.js";
 import { type ReleaseBinding, requireInteger, OPERATOR_RESERVE_LAMPORTS } from "./chainRelease.js";
 import { createReadOnlyWallet } from "./readOnlyWallet.js";
 import { fingerprint, publicTransaction, transactionMessage,
@@ -9,6 +9,7 @@ import { fingerprint, publicTransaction, transactionMessage,
 
 export type Operation =
   | { kind: "deploy"; input: DeploymentInput }
+  | { kind: "upgrade"; input: UpgradeInput }
   | { kind: "launch"; input: LaunchSettings; costs: LaunchCostPlan }
   | { kind: "top-up"; authority: string; launchDayId: number;
       deposits: Array<{ dayId: number; lamports: string; seededBefore: string }> }
@@ -23,6 +24,7 @@ export interface OperatorBundle {
 
 export async function rebuildTransactions(operation: Operation, release: ReleaseBinding, connection: Connection): Promise<PlannedTransaction[]> {
   if (operation.kind === "deploy") return deploymentTransactions(operation.input);
+  if (operation.kind === "upgrade") return upgradeTransactions(operation.input);
   if (operation.kind === "launch") {
     const { input, costs } = operation;
     const result: PlannedTransaction[] = [];

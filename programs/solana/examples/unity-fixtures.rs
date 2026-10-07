@@ -88,7 +88,14 @@ fn deployment() -> Value {
         )
         .unwrap(),
     );
-    let rows: Vec<Value> = transactions
+    // An upgrade in place ends with the loader's Upgrade instead, its spill the payer.
+    transactions.push(vec![instruction::upgrade(
+        &solana::ID,
+        &device(),
+        &validator(),
+        &owner(),
+    )]);
+    let mut rows: Vec<Value> = transactions
         .into_iter()
         .map(|instructions| {
             let rows: Vec<Value> = instructions.into_iter().map(|instruction| json!({
@@ -101,10 +108,11 @@ fn deployment() -> Value {
             json!(rows)
         })
         .collect();
+    let upgrade = rows.pop();
     json!({"payer": owner().to_string(), "buffer": device().to_string(),
         "authority": validator().to_string(), "artifact": encoded(artifact),
         "bufferRentLamports": 370, "programRentLamports": 360,
-        "programDataRentLamports": 450, "transactions": rows})
+        "programDataRentLamports": 450, "transactions": rows, "upgrade": upgrade})
 }
 
 fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {

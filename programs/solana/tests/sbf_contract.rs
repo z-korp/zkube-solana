@@ -9,6 +9,8 @@ use session_keys::SessionTokenV2;
 use solana_account::Account;
 
 use solana as zkube;
+#[path = "../examples/daily_rules/hash.rs"]
+mod daily_rules;
 use zkube::state::arcade::*;
 use zkube::state::protocol::*;
 
@@ -1248,6 +1250,8 @@ fn prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op() {
         )
         .0
     );
+    // The operator's checks tell a Daily's catalogue by this same hash.
+    assert_eq!(after.rules_hash, daily_rules::prepared(today));
     // Both boards exist from preparation as empty headers bound to the day.
     let header_rent =
         anchor_lang::prelude::Rent::default().minimum_balance(ArenaBoard::HEADER_SIZE);
