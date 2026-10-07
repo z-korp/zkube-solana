@@ -767,7 +767,7 @@ namespace ZKube.Integration.Execution.Tests
             private readonly JObject rpc, solana, plans; private readonly string owner;
             public ConcurrentQueue<JObject> Requests => Transport.Requests;
             public string Confirmation = "confirmed"; public ulong AccountSlot = 1000, Height = 400;
-            public ulong Fee = 5400, Balance = 1000000000, Rent = 890880;
+            public ulong Fee = 5400, Balance = 1000000000, Rent = ZKube.Core.Generated.Protocol.SystemAccountRentLamports;
             public bool ThrowAfterSend, AbsentNonPlayer;
             public JToken StatusError, SimulationError;
             // How many reads at a minimum slot find the node behind it; how many status requests see nothing yet.

@@ -130,7 +130,7 @@ namespace ZKube.Integration.App.Tests
                     case "getAccountInfo": result = TestHttp.Context(Account((string)request["params"][0])); break;
                     case "getSignatureStatuses": result = TestHttp.Context(new JArray { Confirmation == null ? JValue.CreateNull() : new JObject { ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() } }); break;
                     case "getBlockHeight": result = new JValue(BlockHeight); break;
-                    case "getMinimumBalanceForRentExemption": result = new JValue(890880); break;
+                    case "getMinimumBalanceForRentExemption": result = new JValue(ZKube.Core.Generated.Protocol.SystemAccountRentLamports); break;
                     case "getLatestBlockhash" when AllowFeeQuote: result = TestHttp.Context(new JObject { ["blockhash"] = Blockhash, ["lastValidBlockHeight"] = 500 }); break;
                     case "getFeeForMessage" when AllowFeeQuote: result = TestHttp.Context(new JValue(5400)); break;
                     case "getBalance" when AllowFeeQuote: result = TestHttp.Context(new JValue(0)); break;

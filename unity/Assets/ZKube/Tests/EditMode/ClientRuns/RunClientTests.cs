@@ -265,9 +265,9 @@ namespace ZKube.Integration.Client.Runs.Tests
             // but not for the larger fee a finalization's limit asks: those sizes
             // step down, unsimulated, and the claims ride the entry.
             var env = await TodayWithBacklogAndClaims();
-            // Rent floor 890,880 and a 5,000 reserve: the entry at 400,000 units costs
-            // 5,400 in fees (901,280); one finalization states 480,000 (901,360), two 560,000.
-            env.Http.ActualDeviceBalance = 901300;
+            // The rent floor and a 5,000 reserve: the entry at 400,000 units costs 5,400 in
+            // fees; one finalization states 480,000 units, 80 lamports more, two 560,000.
+            env.Http.ActualDeviceBalance = ZKube.Core.Generated.Protocol.SystemAccountRentLamports + 5000UL + 5400UL + 20UL;
             Assert.That((await env.Client.StartDaily()).Phase, Is.EqualTo("delegated"));
             Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "enter_arena", "delegate_active_run" }));
             Assert.That(env.Http.Simulated.Select(names => string.Join(" ", names)), Is.EqualTo(new[] {
@@ -741,7 +741,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                         if (FailClaims && request["params"][0].Count() > 3 && !request["params"][0].Values<string>().Contains((string)player["address"]))
                             throw new IOException("Synthetic optional board batch unavailable");
                         result = Context(new JArray(request["params"][0].Values<string>().Select(Account))); break;
-                    case "getMinimumBalanceForRentExemption": result = new JValue(890880); break;
+                    case "getMinimumBalanceForRentExemption": result = new JValue(ZKube.Core.Generated.Protocol.SystemAccountRentLamports); break;
                     case "getDelegationStatus":
                         string requestedMode = Mode((string)request["params"][0]);
                         if (commitWaiting == requestedMode && CopybackPolls > 0 && --CopybackPolls == 0)

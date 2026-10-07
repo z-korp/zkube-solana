@@ -1,0 +1,721 @@
+{
+ "source": "Devnet, 2026-10-06, after the delegation program's upgrade at slot 508073380: one run of device wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk, and an earlier first entry of a day",
+ "rentLamportsPerByte": 5080,
+ "delegationDeploySlot": 508073380,
+ "entry": {
+  "slot": 508201888,
+  "transaction": {
+   "signatures": [
+    "4dffGv7jL5BGGRWTZ77Y6Wf1XXbDxctt1gy93aikiowFCciLG5XgN7F1tPWA7xth7DSzZnoSYnytVqqPzxihNJm9"
+   ],
+   "message": {
+    "accountKeys": [
+     {
+      "pubkey": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+      "signer": true
+     },
+     {
+      "pubkey": "FkU9v8LdwKwA97cjfDggUg8U3k4txeUpS8c57WEafUa9",
+      "signer": false
+     },
+     {
+      "pubkey": "3hzY4xY6SskEmqP2ekZLNRUFJRmgEFocmCvP4bv4JCcJ",
+      "signer": false
+     },
+     {
+      "pubkey": "CBhJN4SSZXVbqAPb54nR9QY8uTkAeShYehqvQywwzuna",
+      "signer": false
+     },
+     {
+      "pubkey": "93jsa7urk9kY8AVPhLtPT81UVmi6Vjrx97YcLDR5YBJS",
+      "signer": false
+     },
+     {
+      "pubkey": "5WpurWAPzjaYnx6VBkC6yQyJRryU9E6UZVLv7Byy4XDX",
+      "signer": false
+     },
+     {
+      "pubkey": "Ag1xTpg67ebNCpiMZ8bpTPFprgvt6sp1u3wkEyRkwRyT",
+      "signer": false
+     },
+     {
+      "pubkey": "HuBTULUhoxdqCp6bqYr21NKrYtEXZWumZhYc2m47JAuN",
+      "signer": false
+     },
+     {
+      "pubkey": "EqX6jZCWr1QNhcZ7toingdobfP654vEjMsjk2En5ampL",
+      "signer": false
+     },
+     {
+      "pubkey": "B95WnyowZt8jYqwPviTPqBkuVKy8WdpNTZVyVti7VZ2U",
+      "signer": false
+     },
+     {
+      "pubkey": "8MCC3rzyawWfnKkpU7j9htmi3Lu9LT2WV4vuXJ6ei18B",
+      "signer": false
+     },
+     {
+      "pubkey": "Geivpvn9WYPUQVPnEm7GCkbKwFLDPTePqHGpmSGGJBnW",
+      "signer": false
+     },
+     {
+      "pubkey": "4VWLRnx3uVJSswsi2CXoLJvFHE9aLo1ED2AxEumfWRPQ",
+      "signer": false
+     },
+     {
+      "pubkey": "ComputeBudget111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+      "signer": false
+     },
+     {
+      "pubkey": "FqudApHvA5UibFJjjaMp3M77Bov9Cp9snmFk9i7WHG6D",
+      "signer": false
+     },
+     {
+      "pubkey": "7GW18xKTpUqiXm6o23Q7FzocyUWtSyb7NU5rhtEaWtCm",
+      "signer": false
+     },
+     {
+      "pubkey": "11111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+      "signer": false
+     },
+     {
+      "pubkey": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+      "signer": false
+     }
+    ]
+   }
+  },
+  "meta": {
+   "err": null,
+   "fee": 5400,
+   "preBalances": [
+    13400599,
+    1605280,
+    37376680,
+    1798320,
+    1651000,
+    1651000,
+    3632071880,
+    198904240,
+    0,
+    1614178480,
+    0,
+    0,
+    0,
+    1,
+    833120,
+    1437640,
+    1381760,
+    1,
+    1141440,
+    15466889521
+   ],
+   "postBalances": [
+    7766879,
+    1605280,
+    46376680,
+    1798320,
+    1651000,
+    1651000,
+    3632071880,
+    189904240,
+    2357120,
+    1614178480,
+    0,
+    1559040,
+    1712160,
+    1,
+    833120,
+    1437640,
+    1381760,
+    1,
+    1141440,
+    15466889521
+   ],
+   "logMessages": [
+    "Program log: Instruction: EnterArena",
+    "Program log: Instruction: DelegateActiveRun"
+   ],
+   "innerInstructions": [
+    {
+     "index": 2,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 2357120,
+         "newAccount": "EqX6jZCWr1QNhcZ7toingdobfP654vEjMsjk2En5ampL",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      }
+     ]
+    },
+    {
+     "index": 3,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 0,
+         "newAccount": "8MCC3rzyawWfnKkpU7j9htmi3Lu9LT2WV4vuXJ6ei18B",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1559040,
+         "newAccount": "Geivpvn9WYPUQVPnEm7GCkbKwFLDPTePqHGpmSGGJBnW",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 96
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 3
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1712160,
+         "newAccount": "4VWLRnx3uVJSswsi2CXoLJvFHE9aLo1ED2AxEumfWRPQ",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 118
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 3
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "undelegation": {
+  "slot": 508202626,
+  "transaction": {
+   "signatures": [
+    "43LM3nEw6tt5RWGubzLeHoTU1vSWRMv8wu1jUM5SDoruKCADE23SRTzmJS8LzTLovTqWX55z4pCPTzdafEYAdrwK"
+   ],
+   "message": {
+    "accountKeys": [
+     {
+      "pubkey": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+      "signer": true
+     },
+     {
+      "pubkey": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+      "signer": false
+     },
+     {
+      "pubkey": "4VWLRnx3uVJSswsi2CXoLJvFHE9aLo1ED2AxEumfWRPQ",
+      "signer": false
+     },
+     {
+      "pubkey": "7EUuuQDZRKar7dUESDynEEKkXity3TeqGdq1TNqefaAn",
+      "signer": false
+     },
+     {
+      "pubkey": "7JrkjmZPprHwtuvtuGTXp9hwfGYFAQLnLeFM52kqAgXg",
+      "signer": false
+     },
+     {
+      "pubkey": "DgGb7XLAboBGC79xdws56GhXVR3h1UrUPiFrWZUCxRut",
+      "signer": false
+     },
+     {
+      "pubkey": "EBXaJ7yXFg5XbFxcix78iJzAYXF8jh8kr4L3tEVJ7pA6",
+      "signer": false
+     },
+     {
+      "pubkey": "EqX6jZCWr1QNhcZ7toingdobfP654vEjMsjk2En5ampL",
+      "signer": false
+     },
+     {
+      "pubkey": "GcD5Qj7yN4NH4xu4u39Q2ev2XGfKtJeFefnzfnSvyEec",
+      "signer": false
+     },
+     {
+      "pubkey": "Geivpvn9WYPUQVPnEm7GCkbKwFLDPTePqHGpmSGGJBnW",
+      "signer": false
+     },
+     {
+      "pubkey": "11111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "ComputeBudget111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
+      "signer": false
+     },
+     {
+      "pubkey": "4t4dKFHsEV6i1Ld2ABmAN9uYK2XsQYvkgNxKgb6pkCb3",
+      "signer": false
+     },
+     {
+      "pubkey": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+      "signer": false
+     },
+     {
+      "pubkey": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+      "signer": false
+     }
+    ]
+   }
+  },
+  "meta": {
+   "err": null,
+   "fee": 33800,
+   "preBalances": [
+    15466768921,
+    7766879,
+    1712160,
+    36509880,
+    11065343707,
+    0,
+    0,
+    2357120,
+    0,
+    1559040,
+    1,
+    1,
+    1141440,
+    0,
+    1141440,
+    833120
+   ],
+   "postBalances": [
+    15466735121,
+    8038079,
+    0,
+    39209880,
+    11065643707,
+    0,
+    0,
+    2357120,
+    0,
+    0,
+    1,
+    1,
+    1141440,
+    0,
+    1141440,
+    833120
+   ],
+   "logMessages": [
+    "Program log: Instruction: ProcessUndelegation"
+   ],
+   "innerInstructions": [
+    {
+     "index": 2,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 2357120,
+         "newAccount": "EBXaJ7yXFg5XbFxcix78iJzAYXF8jh8kr4L3tEVJ7pA6",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1097280,
+         "newAccount": "DgGb7XLAboBGC79xdws56GhXVR3h1UrUPiFrWZUCxRut",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+         "space": 88
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      }
+     ]
+    },
+    {
+     "index": 4,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 2357120,
+         "newAccount": "GcD5Qj7yN4NH4xu4u39Q2ev2XGfKtJeFefnzfnSvyEec",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 2357120,
+         "newAccount": "EqX6jZCWr1QNhcZ7toingdobfP654vEjMsjk2En5ampL",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 3
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "consume": {
+  "slot": 508202634,
+  "transaction": {
+   "signatures": [
+    "388W1enkQquZzViu5NvMJi7r5uakGGErfFNrzCWYpXquDd6M2QxtpzXyJudzFBwVpr4k4MrmTQAYsxV9Hd6MNWrr"
+   ],
+   "message": {
+    "accountKeys": [
+     {
+      "pubkey": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+      "signer": true
+     },
+     {
+      "pubkey": "FkU9v8LdwKwA97cjfDggUg8U3k4txeUpS8c57WEafUa9",
+      "signer": false
+     },
+     {
+      "pubkey": "3hzY4xY6SskEmqP2ekZLNRUFJRmgEFocmCvP4bv4JCcJ",
+      "signer": false
+     },
+     {
+      "pubkey": "CBhJN4SSZXVbqAPb54nR9QY8uTkAeShYehqvQywwzuna",
+      "signer": false
+     },
+     {
+      "pubkey": "EqX6jZCWr1QNhcZ7toingdobfP654vEjMsjk2En5ampL",
+      "signer": false
+     },
+     {
+      "pubkey": "93jsa7urk9kY8AVPhLtPT81UVmi6Vjrx97YcLDR5YBJS",
+      "signer": false
+     },
+     {
+      "pubkey": "5WpurWAPzjaYnx6VBkC6yQyJRryU9E6UZVLv7Byy4XDX",
+      "signer": false
+     },
+     {
+      "pubkey": "ComputeBudget111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+      "signer": false
+     }
+    ]
+   }
+  },
+  "meta": {
+   "err": null,
+   "fee": 5400,
+   "preBalances": [
+    8038079,
+    1605280,
+    46376680,
+    1798320,
+    2357120,
+    1651000,
+    1651000,
+    1,
+    833120
+   ],
+   "postBalances": [
+    10389799,
+    1605280,
+    46376680,
+    1798320,
+    0,
+    1651000,
+    1651000,
+    1,
+    833120
+   ],
+   "logMessages": [
+    "Program log: Instruction: ConsumeArenaRun"
+   ],
+   "innerInstructions": []
+  }
+ },
+ "firstEntryOfADay": {
+  "slot": 508022304,
+  "transaction": {
+   "signatures": [
+    "3J3ffhUEait3bVBwMLLB6kjWWKVMBLK96NFVy4N3FUH57kPQUMKQYga5LgVgDUZNtFDXbHfReptJJuZ2XYqTbGdP"
+   ],
+   "message": {
+    "accountKeys": [
+     {
+      "pubkey": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+      "signer": true
+     },
+     {
+      "pubkey": "FkU9v8LdwKwA97cjfDggUg8U3k4txeUpS8c57WEafUa9",
+      "signer": false
+     },
+     {
+      "pubkey": "3hzY4xY6SskEmqP2ekZLNRUFJRmgEFocmCvP4bv4JCcJ",
+      "signer": false
+     },
+     {
+      "pubkey": "CBhJN4SSZXVbqAPb54nR9QY8uTkAeShYehqvQywwzuna",
+      "signer": false
+     },
+     {
+      "pubkey": "93jsa7urk9kY8AVPhLtPT81UVmi6Vjrx97YcLDR5YBJS",
+      "signer": false
+     },
+     {
+      "pubkey": "5WpurWAPzjaYnx6VBkC6yQyJRryU9E6UZVLv7Byy4XDX",
+      "signer": false
+     },
+     {
+      "pubkey": "Ag1xTpg67ebNCpiMZ8bpTPFprgvt6sp1u3wkEyRkwRyT",
+      "signer": false
+     },
+     {
+      "pubkey": "HuBTULUhoxdqCp6bqYr21NKrYtEXZWumZhYc2m47JAuN",
+      "signer": false
+     },
+     {
+      "pubkey": "9wZgqvhgLy5e24gK1EhCZbMidPxFCvKsyX9u1VpRQtQk",
+      "signer": false
+     },
+     {
+      "pubkey": "B95WnyowZt8jYqwPviTPqBkuVKy8WdpNTZVyVti7VZ2U",
+      "signer": false
+     },
+     {
+      "pubkey": "75eXf3hSB7E48vK9TRHAZGZR9Crb64NnKpEvagdtnAgj",
+      "signer": false
+     },
+     {
+      "pubkey": "FTkdUKQXmDieyoLY3aSZYKc2eDXWHqD42ixBfwmb2XHd",
+      "signer": false
+     },
+     {
+      "pubkey": "H7P5t5sPtjfbXTDc1L3wv2QL62WUugWcuwfrCgRiVo7o",
+      "signer": false
+     },
+     {
+      "pubkey": "ComputeBudget111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+      "signer": false
+     },
+     {
+      "pubkey": "FqudApHvA5UibFJjjaMp3M77Bov9Cp9snmFk9i7WHG6D",
+      "signer": false
+     },
+     {
+      "pubkey": "7GW18xKTpUqiXm6o23Q7FzocyUWtSyb7NU5rhtEaWtCm",
+      "signer": false
+     },
+     {
+      "pubkey": "11111111111111111111111111111111",
+      "signer": false
+     },
+     {
+      "pubkey": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+      "signer": false
+     },
+     {
+      "pubkey": "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e",
+      "signer": false
+     }
+    ]
+   }
+  },
+  "meta": {
+   "err": null,
+   "fee": 5400,
+   "preBalances": [
+    18852919,
+    1605280,
+    10376680,
+    0,
+    1219200,
+    1219200,
+    3632935480,
+    225904240,
+    0,
+    1614178480,
+    0,
+    0,
+    0,
+    1,
+    833120,
+    1437640,
+    1381760,
+    1,
+    1141440,
+    15484358440
+   ],
+   "postBalances": [
+    12304479,
+    1605280,
+    19376680,
+    1798320,
+    1651000,
+    1651000,
+    3632071880,
+    216904240,
+    2357120,
+    1614178480,
+    0,
+    1137920,
+    1249680,
+    1,
+    833120,
+    1437640,
+    1381760,
+    1,
+    1141440,
+    15484358440
+   ],
+   "logMessages": [
+    "Program log: Instruction: EnterArena",
+    "Program log: Instruction: DelegateActiveRun"
+   ],
+   "innerInstructions": [
+    {
+     "index": 2,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1798320,
+         "newAccount": "CBhJN4SSZXVbqAPb54nR9QY8uTkAeShYehqvQywwzuna",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 226
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 2357120,
+         "newAccount": "9wZgqvhgLy5e24gK1EhCZbMidPxFCvKsyX9u1VpRQtQk",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      }
+     ]
+    },
+    {
+     "index": 3,
+     "instructions": [
+      {
+       "parsed": {
+        "info": {
+         "lamports": 0,
+         "newAccount": "75eXf3hSB7E48vK9TRHAZGZR9Crb64NnKpEvagdtnAgj",
+         "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 336
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 2
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1137920,
+         "newAccount": "FTkdUKQXmDieyoLY3aSZYKc2eDXWHqD42ixBfwmb2XHd",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 96
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 3
+      },
+      {
+       "parsed": {
+        "info": {
+         "lamports": 1249680,
+         "newAccount": "H7P5t5sPtjfbXTDc1L3wv2QL62WUugWcuwfrCgRiVo7o",
+         "owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+         "source": "wc9FQ6g5NWPRxkWk9A5cJ8bDtacJ8HZ44EiTphiCKKk",
+         "space": 118
+        },
+        "type": "createAccount"
+       },
+       "program": "system",
+       "programId": "11111111111111111111111111111111",
+       "stackHeight": 3
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -10,10 +10,12 @@ namespace ZKube.Core.Generated
         public const ulong FinalizationRowUnits = 240UL;
         public const ulong FinalizationFollowingReserveUnits = 400000UL;
         public const ulong TransactionComputeUnits = 1400000UL;
-        public const ulong FirstEntryPeakRentLamports = 12193920UL;
-        public const ulong ArenaPlayerRentLamports = 2463840UL;
+        public const ulong FirstEntryPeakRentLamports = 7426640UL;
+        public const ulong ArenaPlayerRentLamports = 1798320UL;
+        public const ulong DelegationChargeLamports = 3000000UL;
+        public const ulong DeviceDepositRuns = 4UL;
         public const ulong PayoutUnitLamports = 1000000UL;
-        public const ulong SystemAccountRentLamports = 890880UL;
+        public const ulong SystemAccountRentLamports = 650240UL;
         public const uint ArenaBoardCapacity = 1536U;
         public const uint DailyMaxMoves = 100U;
         public const uint ProtocolAccountVersion = 8U;

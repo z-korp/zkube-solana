@@ -11,10 +11,12 @@ import { quoteBundle, quoteLaunch, readBundle } from "./operatorPlan.js";
 import { executeBundle } from "./operatorRuntime.js";
 import { observeDeposits, readGovernance } from "./operatorState.js";
 import { loadPinnedKeypair, saveBundle } from "./operatorTransaction.js";
+import { readLatestRun, requireRunCosts } from "./runCosts.js";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const HELP = `zKube Devnet operator
   build-release
+  check-run-costs
   plan deploy --bundle build/chain/deploy.json
   plan launch --bundle build/chain/launch.json
   plan top-up --launch-bundle build/chain/launch.json --top-up daily:current:1SOL --bundle build/chain/top-up.json
@@ -25,6 +27,8 @@ Planning reads public state and writes one fingerprinted bundle. It loads no key
 All plans accept SOLANA_DEVNET_RPC_URL (default: the shared Devnet endpoint).
 build-release builds the program offline from a clean target with the pinned tools and
   records the result under build/chain/release. It is the only ELF a deploy plan quotes.
+check-run-costs reads the cluster's rent, the delegation program's deploy slot and the latest
+  settled run, and fails naming every stated run cost figure the cluster no longer charges.
 Deploy inputs: ZKUBE_SBF_SHA256 (the reviewed hash of that build), ZKUBE_DEPLOYER_PUBLIC_KEY,
   ZKUBE_PROGRAM_BUFFER_PUBLIC_KEY, ZKUBE_PROGRAM_UPGRADE_AUTHORITY.
 Launch inputs: ZKUBE_CLUSTER=devnet, ZKUBE_DEPLOYER_PUBLIC_KEY,
@@ -49,6 +53,7 @@ function required(env: Env, name: string): string {
 export function parseOperatorArgs(args: string[]) {
   if (args.includes("--help") || !args.length) return { help: true as const };
   if (args.length === 1 && args[0] === "build-release") return { help: false as const, mode: "build-release" as const };
+  if (args.length === 1 && args[0] === "check-run-costs") return { help: false as const, mode: "check-run-costs" as const };
   const mode = args.shift();
   if (mode !== "plan" && mode !== "execute") throw new Error("Use plan or execute");
   const operation = mode === "plan" ? args.shift() : undefined;
@@ -88,6 +93,12 @@ export async function runOperator(args: string[], env: Env = process.env) {
   const command = parseOperatorArgs([...args]);
   if (command.help) return HELP;
   if (command.mode === "build-release") return JSON.stringify(buildRelease(ROOT));
+  if (command.mode === "check-run-costs") {
+    const connection = devnetConnection(env.SOLANA_DEVNET_RPC_URL?.trim() || SOLANA_ENDPOINT);
+    const run = await readLatestRun(connection);
+    return JSON.stringify({ run: run.entry.transaction.signatures[0], slot: run.entry.slot,
+      delegationDeploySlot: run.delegationDeploySlot, figures: requireRunCosts(run) }, null, 1);
+  }
   const { bundle: path, options } = command;
   if (command.mode === "execute") {
     const result = await executeBundle(readFileSync(path, "utf8"), {
