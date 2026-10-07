@@ -18,7 +18,7 @@ namespace ZKube.Core.Generated
         public const uint DailyMaxMoves = 100U;
         public const uint ProtocolAccountVersion = 8U;
         public const uint PlayerStateAccountVersion = 4U;
-        public const uint CatalogVersion = 3U;
+        public const uint CatalogVersion = 4U;
         public const uint MaxEmblemId = 12U;
         public const uint MaxFrameTier = 4U;
         public static readonly ushort[] CampaignTargets = { 10, 14, 18, 22, 27, 32, 37, 42, 46, 50 };
@@ -59,7 +59,7 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(2, new byte[] { 1, 2, 8 }, new byte[] { 12, 0, 10 }),
                 new LevelDefinition(3, new byte[] { 8, 0, 20 }, new byte[] { 16, 0, 1 }),
             }),
-            new RealmDefinition(2, new ushort[] { 1, 4, 2, 6 }, new LevelDefinition[]
+            new RealmDefinition(2, new ushort[] { 1, 2, 6, 6 }, new LevelDefinition[]
             {
                 new LevelDefinition(1, new byte[] { 17, 5, 2 }, new byte[] { 11, 1, 3 }),
                 new LevelDefinition(1, new byte[] { 8, 0, 3 }, new byte[] { 9, 2, 1 }),
@@ -68,8 +68,8 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(2, new byte[] { 17, 7, 2 }, new byte[] { 9, 3, 1 }),
                 new LevelDefinition(2, new byte[] { 7, 0, 4 }, new byte[] { 12, 0, 9 }),
                 new LevelDefinition(3, new byte[] { 17, 7, 5 }, new byte[] { 12, 0, 10 }),
-                new LevelDefinition(3, new byte[] { 6, 0, 5 }, new byte[] { 11, 1, 4 }),
-                new LevelDefinition(4, new byte[] { 17, 8, 4 }, new byte[] { 16, 0, 1 }),
+                new LevelDefinition(3, new byte[] { 6, 0, 6 }, new byte[] { 11, 1, 4 }),
+                new LevelDefinition(4, new byte[] { 17, 8, 5 }, new byte[] { 16, 0, 1 }),
                 new LevelDefinition(4, new byte[] { 8, 0, 8 }, new byte[] { 11, 1, 5 }),
             }),
             new RealmDefinition(3, new ushort[] { 2, 8, 10, 4 }, new LevelDefinition[]
@@ -98,7 +98,7 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(5, new byte[] { 18, 2, 2 }, new byte[] { 16, 0, 1 }),
                 new LevelDefinition(5, new byte[] { 6, 0, 3 }, new byte[] { 11, 1, 6 }),
             }),
-            new RealmDefinition(5, new ushort[] { 3, 2, 7, 5 }, new LevelDefinition[]
+            new RealmDefinition(5, new ushort[] { 3, 7, 2, 5 }, new LevelDefinition[]
             {
                 new LevelDefinition(2, new byte[] { 1, 2, 2 }, new byte[] { 11, 1, 3 }),
                 new LevelDefinition(2, new byte[] { 5, 3, 2 }, new byte[] { 12, 2, 4 }),
@@ -107,7 +107,7 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(3, new byte[] { 5, 3, 4 }, new byte[] { 13, 0, 1 }),
                 new LevelDefinition(5, new byte[] { 1, 2, 4 }, new byte[] { 14, 6, 1 }),
                 new LevelDefinition(5, new byte[] { 8, 0, 6 }, new byte[] { 11, 2, 2 }),
-                new LevelDefinition(5, new byte[] { 6, 0, 3 }, new byte[] { 9, 3, 1 }),
+                new LevelDefinition(5, new byte[] { 6, 0, 2 }, new byte[] { 9, 3, 1 }),
                 new LevelDefinition(5, new byte[] { 1, 3, 2 }, new byte[] { 16, 0, 1 }),
                 new LevelDefinition(6, new byte[] { 1, 2, 3 }, new byte[] { 15, 1, 1 }),
             }),
@@ -124,46 +124,46 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(6, new byte[] { 8, 0, 12 }, new byte[] { 11, 2, 2 }),
                 new LevelDefinition(6, new byte[] { 6, 0, 3 }, new byte[] { 15, 1, 1 }),
             }),
-            new RealmDefinition(7, new ushort[] { 1, 4, 3, 4 }, new LevelDefinition[]
+            new RealmDefinition(7, new ushort[] { 1, 8, 8, 4 }, new LevelDefinition[]
             {
                 new LevelDefinition(3, new byte[] { 18, 3, 2 }, new byte[] { 10, 2, 1 }),
                 new LevelDefinition(3, new byte[] { 4, 2, 2 }, new byte[] { 12, 3, 2 }),
                 new LevelDefinition(4, new byte[] { 18, 2, 2 }, new byte[] { 13, 0, 1 }),
-                new LevelDefinition(4, new byte[] { 4, 2, 3 }, new byte[] { 12, 0, 8 }),
-                new LevelDefinition(4, new byte[] { 4, 2, 4 }, new byte[] { 16, 0, 1 }),
+                new LevelDefinition(4, new byte[] { 6, 0, 2 }, new byte[] { 11, 1, 3 }),
+                new LevelDefinition(4, new byte[] { 4, 2, 3 }, new byte[] { 16, 0, 1 }),
                 new LevelDefinition(5, new byte[] { 18, 3, 3 }, new byte[] { 9, 3, 1 }),
-                new LevelDefinition(5, new byte[] { 18, 3, 4 }, new byte[] { 11, 2, 2 }),
-                new LevelDefinition(6, new byte[] { 4, 2, 2 }, new byte[] { 12, 4, 2 }),
-                new LevelDefinition(6, new byte[] { 18, 2, 2 }, new byte[] { 12, 0, 8 }),
+                new LevelDefinition(5, new byte[] { 8, 0, 4 }, new byte[] { 11, 2, 2 }),
+                new LevelDefinition(6, new byte[] { 4, 2, 4 }, new byte[] { 12, 4, 2 }),
+                new LevelDefinition(6, new byte[] { 18, 2, 2 }, new byte[] { 15, 1, 1 }),
                 new LevelDefinition(7, new byte[] { 6, 0, 2 }, new byte[] { 16, 0, 1 }),
             }),
-            new RealmDefinition(8, new ushort[] { 2, 1, 3, 6 }, new LevelDefinition[]
+            new RealmDefinition(8, new ushort[] { 3, 9, 4, 6 }, new LevelDefinition[]
             {
                 new LevelDefinition(4, new byte[] { 17, 6, 2 }, new byte[] { 9, 2, 1 }),
                 new LevelDefinition(4, new byte[] { 1, 2, 2 }, new byte[] { 12, 0, 7 }),
-                new LevelDefinition(4, new byte[] { 17, 6, 4 }, new byte[] { 13, 0, 1 }),
-                new LevelDefinition(5, new byte[] { 1, 2, 3 }, new byte[] { 12, 3, 3 }),
-                new LevelDefinition(5, new byte[] { 17, 7, 3 }, new byte[] { 12, 3, 3 }),
-                new LevelDefinition(5, new byte[] { 17, 7, 4 }, new byte[] { 11, 1, 5 }),
-                new LevelDefinition(6, new byte[] { 6, 0, 2 }, new byte[] { 12, 0, 8 }),
-                new LevelDefinition(6, new byte[] { 1, 2, 4 }, new byte[] { 13, 0, 1 }),
-                new LevelDefinition(6, new byte[] { 8, 0, 8 }, new byte[] { 13, 0, 1 }),
+                new LevelDefinition(4, new byte[] { 17, 6, 4 }, new byte[] { 9, 3, 1 }),
+                new LevelDefinition(5, new byte[] { 8, 0, 6 }, new byte[] { 11, 2, 2 }),
+                new LevelDefinition(5, new byte[] { 17, 7, 4 }, new byte[] { 12, 0, 9 }),
+                new LevelDefinition(5, new byte[] { 6, 0, 2 }, new byte[] { 9, 2, 1 }),
+                new LevelDefinition(6, new byte[] { 6, 0, 2 }, new byte[] { 15, 1, 1 }),
+                new LevelDefinition(6, new byte[] { 17, 7, 5 }, new byte[] { 12, 3, 3 }),
+                new LevelDefinition(6, new byte[] { 8, 0, 8 }, new byte[] { 14, 6, 1 }),
                 new LevelDefinition(7, new byte[] { 6, 0, 2 }, new byte[] { 16, 0, 1 }),
             }),
-            new RealmDefinition(9, new ushort[] { 2, 7, 2, 4 }, new LevelDefinition[]
+            new RealmDefinition(9, new ushort[] { 2, 2, 8, 4 }, new LevelDefinition[]
             {
                 new LevelDefinition(4, new byte[] { 1, 2, 2 }, new byte[] { 12, 0, 7 }),
                 new LevelDefinition(4, new byte[] { 1, 2, 3 }, new byte[] { 13, 0, 1 }),
                 new LevelDefinition(5, new byte[] { 8, 0, 5 }, new byte[] { 11, 1, 4 }),
                 new LevelDefinition(5, new byte[] { 1, 2, 4 }, new byte[] { 11, 1, 3 }),
                 new LevelDefinition(5, new byte[] { 6, 0, 2 }, new byte[] { 12, 3, 3 }),
-                new LevelDefinition(6, new byte[] { 1, 2, 2 }, new byte[] { 12, 3, 3 }),
+                new LevelDefinition(6, new byte[] { 1, 2, 3 }, new byte[] { 12, 3, 3 }),
                 new LevelDefinition(6, new byte[] { 8, 0, 8 }, new byte[] { 9, 3, 1 }),
-                new LevelDefinition(7, new byte[] { 1, 2, 3 }, new byte[] { 15, 1, 1 }),
-                new LevelDefinition(7, new byte[] { 6, 0, 2 }, new byte[] { 11, 1, 5 }),
-                new LevelDefinition(7, new byte[] { 1, 2, 4 }, new byte[] { 16, 0, 1 }),
+                new LevelDefinition(7, new byte[] { 1, 2, 4 }, new byte[] { 15, 1, 1 }),
+                new LevelDefinition(7, new byte[] { 6, 0, 3 }, new byte[] { 11, 1, 5 }),
+                new LevelDefinition(7, new byte[] { 1, 2, 5 }, new byte[] { 16, 0, 1 }),
             }),
-            new RealmDefinition(10, new ushort[] { 1, 4, 4, 4 }, new LevelDefinition[]
+            new RealmDefinition(10, new ushort[] { 1, 7, 3, 4 }, new LevelDefinition[]
             {
                 new LevelDefinition(5, new byte[] { 2, 4, 3 }, new byte[] { 10, 2, 1 }),
                 new LevelDefinition(5, new byte[] { 17, 6, 2 }, new byte[] { 12, 4, 2 }),
@@ -173,8 +173,8 @@ namespace ZKube.Core.Generated
                 new LevelDefinition(7, new byte[] { 4, 2, 2 }, new byte[] { 11, 2, 2 }),
                 new LevelDefinition(7, new byte[] { 17, 8, 2 }, new byte[] { 10, 2, 1 }),
                 new LevelDefinition(7, new byte[] { 2, 4, 9 }, new byte[] { 11, 1, 5 }),
-                new LevelDefinition(7, new byte[] { 2, 4, 10 }, new byte[] { 13, 0, 1 }),
-                new LevelDefinition(7, new byte[] { 17, 8, 4 }, new byte[] { 16, 0, 1 }),
+                new LevelDefinition(7, new byte[] { 6, 0, 2 }, new byte[] { 15, 1, 1 }),
+                new LevelDefinition(7, new byte[] { 17, 8, 3 }, new byte[] { 16, 0, 1 }),
             }),
         };
     }

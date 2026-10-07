@@ -107,6 +107,12 @@ tree, and a change reaches Devnet only through an approved upgrade; no migration
 upgrade, funding and keeper enablement still needs its own exact approval. Specification approval is not
 deployment or spending approval.
 
+This tree's catalogue is version 4: six realms earn their bonus by another rule (Egypt, China, Japan, Mayan,
+Serengeti, Inca; owner, 2026-10-07). The program on Devnet was built with version 3 and keeps the old six until an
+approved upgrade. A run's rules are the snapshot its ActiveRun holds, so an Arena run plays and scores by the
+deployed program's rule whatever the client; until the upgrade, a client built from this tree names the new rule
+on the lobby of those six realms' days and plays the old one on the board.
+
 | Area | Source status and guard |
 | --- | --- |
 | Core | One deterministic Rust engine at 1.0.0; `one_run_drives_campaign_and_daily` |
@@ -684,10 +690,11 @@ size stay goals. The Daily's objectives are the protocol's and are not held to t
 to earn and use a bonus, which leaves four facts for ten realms (a low stack, a high stack, two-line moves, blocks
 of one size): that is why three realms may share an opening.
 `every_realm_asks_for_goals_of_its_own` guards the committed table and each rule's refusal. The earn rules have
-the same class and its rule is written, `every_realm_earns_its_bonus_its_own_way`: no two realms share a bonus
-and a trigger family, N or more and exactly N lines in one move being one family, and a family serves at most two
-realms, three or more apart. The committed earn rows do not keep it yet: changing them is a program upgrade, which
-waits for the owner's decision, and the test holds the rows proposed for it.
+the same class (owner, 2026-10-07): no two realms share a bonus and a trigger family, N or more and exactly N
+lines in one move being one family, and a family serves at most two realms, three or more apart.
+`every_realm_earns_its_bonus_its_own_way` holds the committed rows to it. The generator plays its fixtures with
+the core it was built with, so a catalogue whose earn rules are not that core's writes the core's table alone and
+asks for a second run; `a_catalogue_with_other_earn_rules_than_the_core_is_noticed` guards the check.
 
 One Rust Run owns grid, guardians, scoring, pressure, metrics, clocks, payouts and replay. The native host
 owns safe codecs; zkube-core-ffi is the unsafe shell. The program reconstructs Arcade through that same

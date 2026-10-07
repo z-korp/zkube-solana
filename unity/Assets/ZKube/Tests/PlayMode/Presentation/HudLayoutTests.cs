@@ -509,13 +509,17 @@ namespace ZKube.Presentation.Tests
                     var plan = HudLayout.Build(new SkinUi(Art(), density, 1), board.State, board.Session, safe, density, screen);
                     var layout = plan.Layout; string at = fixture + " on " + name;
                     float cell = layout.Cell / density, widest = BoardLayout.WidestCellDp(safe.width / density);
-                    Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.0} dp");
+                    Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.00} dp, earn {layout.EarnPanel.height / density:0.00} dp");
                     if (name == "Seeker") Assert.AreEqual(Mathf.Floor(widest * density) / density, cell, .01f, at + ": the cells take the width");
                     if (name == "emulator") Assert.GreaterOrEqual(cell, 46, at + ": the cells grow into the old header");
                     // Review 2: the guardian grows into the header without the board giving a pixel.
                     float header = (safe.yMax - layout.Rim.yMax) / density;
-                    var (cells, rim) = name == "Seeker" ? (50.0f, 197.6f) : name == "emulator" ? (47.0f, 140.9f) : (34.33f, 98.6f);
-                    Assert.AreEqual(cells, cell, .05f, at + ": the board's cells are as they were"); Assert.AreEqual(rim, header, .15f, at + ": the board's top is where it was");
+                    // The board's top is where it was under an Earn panel at its drawn height; a longer earning rule makes the
+                    // panel taller, and the board rises by no more than that.
+                    var (cells, rim, panel) = name == "Seeker" ? (50.0f, 197.6f, 50f) : name == "emulator" ? (47.0f, 140.9f, 49.22f) : (34.33f, 98.6f, 44.94f);
+                    float taller = Mathf.Max(0, layout.EarnPanel.height / density - panel);
+                    Assert.AreEqual(cells, cell, .05f, at + ": the board's cells are as they were");
+                    Assert.That(header, Is.InRange(rim - taller - .15f, rim + .15f), at + ": the board's top is where it was, less only what a longer earning rule takes");
                     Assert.LessOrEqual(plan.Guardian.width / density, HudLayout.GuardianMaxDp + .01f, at);
                     if (name != "360 x 640") Assert.GreaterOrEqual(plan.Guardian.width / density, plan.Campaign ? 140 : 120, at + ": the guardian takes the header's free space");
                     // Its painted figure stays between the tablet and the plates, under the crown.

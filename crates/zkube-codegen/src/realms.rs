@@ -167,14 +167,13 @@ pub fn failures(catalog: &CampaignCatalog) -> Vec<String> {
             failures.push(format!("{kind:?} is never asked"));
         }
     }
+    let rules: Vec<[u16; 4]> = catalog.maps.iter().map(|map| map.rules).collect();
+    failures.extend(earn_failures(&rules));
     failures
 }
 
 // The earn rules' own class: every realm earns its bonus its own way. Two
 // trigger kinds that read "N lines in one move" are one way to a player.
-// The committed rows are held to this once the earn rules change; until then
-// it is the written rule, checked against the rows proposed for it.
-#[cfg(test)]
 fn earn_failures(rules: &[[u16; 4]]) -> Vec<String> {
     let family = |trigger: u16| if trigger == 4 { 1 } else { trigger };
     let mut failures = Vec::new();
@@ -277,22 +276,19 @@ mod tests {
 
     #[test]
     fn every_realm_earns_its_bonus_its_own_way() {
-        // The rows proposed for the earn rules (2026-10-06) keep the rule.
-        let proposed = [
-            [3, 1, 2, 4], [1, 2, 6, 6], [2, 8, 10, 4], [1, 9, 3, 6], [3, 7, 2, 5],
-            [2, 6, 0, 4], [1, 8, 8, 4], [3, 9, 4, 6], [2, 2, 8, 4], [1, 7, 3, 4],
-        ];
-        assert_eq!(earn_failures(&proposed), Vec::<String>::new());
+        let catalog = committed();
+        let committed: Vec<[u16; 4]> = catalog.maps.iter().map(|map| map.rules).collect();
+        assert_eq!(earn_failures(&committed), Vec::<String>::new());
         // "N+ lines" and "exactly N lines" in one move are one way; three realms on it are one too many.
-        let mut alike = proposed;
-        alike[1] = [1, 4, 2, 6];
-        alike[6] = [1, 1, 3, 4];
-        let failures = earn_failures(&alike);
-        assert!(failures.iter().any(|f| f.contains("realms [2, 7] earn the same bonus the same way")));
-        assert!(failures.iter().any(|f| f.contains("trigger family 1 serves realms [1, 2, 7]")));
+        let mut alike = catalog.clone();
+        alike.maps[1].rules = [1, 4, 2, 6];
+        alike.maps[6].rules = [1, 1, 3, 4];
+        assert!(fails(&alike, "realms [2, 7] earn the same bonus the same way"));
+        assert!(fails(&alike, "trigger family 1 serves realms [1, 2, 7]"));
+        assert!(crate::validate_catalog(&alike).is_err());
         // Two realms of one family side by side.
-        let mut close = proposed;
-        close[3] = [1, 8, 9, 6];
-        assert!(earn_failures(&close).iter().any(|f| f.contains("trigger family 8 serves realms [3, 4, 7]")));
+        let mut close = catalog.clone();
+        close.maps[3].rules = [1, 8, 9, 6];
+        assert!(fails(&close, "trigger family 8 serves realms [3, 4, 7]"));
     }
 }

@@ -515,15 +515,16 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         .find(|map| map.map_id == 8)
         .ok_or("missing published Mayan realm")?;
     let mayan_rules = campaign_rules(mayan, 1, mayan.levels[0])?;
-    if mayan_rules.guardian
-        != (Guardian {
-            bonus: Bonus::Totem,
-            trigger: 1,
-            threshold: 3,
-        })
+    // Its guardian comes for a line on each of several moves in a row: the
+    // earned case stands one clearing move short of that.
+    if mayan_rules.guardian.bonus != Bonus::Wave
+        || mayan_rules.guardian.trigger != 9
+        || mayan_rules.guardian.threshold < 2
     {
-        return Err("Mayan evidence requires its published three-line Totem trigger".into());
+        return Err("Mayan evidence requires its published moves-in-a-row Wave trigger".into());
     }
+    let one_short = u8::try_from(mayan_rules.guardian.threshold - 1)
+        .map_err(|_| "Mayan evidence streak exceeds u8")?;
     let before_pressure = zkube_core::PRESSURE_STEP
         .checked_sub(1)
         .ok_or("pressure evidence requires a positive step")?;
@@ -543,7 +544,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
             0_u8,
             0_u8,
         ),
-        ("mayan-earned-totem", 3, 9, 0, 0, 0, 0, 6, 1, 1, 0),
+        ("mayan-earned-wave", 3, 9, 0, 0, 0, 0, 6, 1, 1, 0),
         (
             "daily-pressure-crossing",
             1,
@@ -586,6 +587,9 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         run.engine.level_lines_cleared = prior_lines;
         run.engine.combo_counter = prior_combo;
         run.engine.max_combo = if prior_combo > 0 { 2 } else { 0 };
+        if charges > 0 {
+            run.engine.streak = one_short;
+        }
         run.objective_total = u64::from(prior_combo);
         let mut t = Trajectory::new(name, cfg, Some(run))?;
         // One top-row drag clears the prepared full rows without a perfect clear.

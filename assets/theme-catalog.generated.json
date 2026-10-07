@@ -694,10 +694,10 @@
     },
     {
       "bonus": 1,
-      "chip": "=2",
-      "pictogram": "goal-burst-lines-2",
-      "threshold": 2,
-      "trigger": 4,
+      "chip": "",
+      "pictogram": "goal-lines",
+      "threshold": 6,
+      "trigger": 2,
       "words": {
         "description": 666,
         "effect": 284,
@@ -733,10 +733,10 @@
     },
     {
       "bonus": 3,
-      "chip": "",
-      "pictogram": "goal-lines",
-      "threshold": 7,
-      "trigger": 2,
+      "chip": "2+",
+      "pictogram": "goal-burst-lines-2",
+      "threshold": 2,
+      "trigger": 7,
       "words": {
         "description": 672,
         "effect": 294,
@@ -759,10 +759,10 @@
     },
     {
       "bonus": 1,
-      "chip": "=3",
-      "pictogram": "goal-burst-lines-3",
-      "threshold": 3,
-      "trigger": 4,
+      "chip": "×8",
+      "pictogram": "goal-burst-break-any",
+      "threshold": 8,
+      "trigger": 8,
       "words": {
         "description": 676,
         "effect": 284,
@@ -771,24 +771,24 @@
       }
     },
     {
-      "bonus": 2,
-      "chip": "3+",
-      "pictogram": "goal-burst-lines-3",
-      "threshold": 3,
-      "trigger": 1,
+      "bonus": 3,
+      "chip": "×4",
+      "pictogram": "goal-streak",
+      "threshold": 4,
+      "trigger": 9,
       "words": {
         "description": 678,
-        "effect": 289,
-        "name": 290,
+        "effect": 294,
+        "name": 295,
         "sentence": 679
       }
     },
     {
       "bonus": 2,
-      "chip": "2+",
-      "pictogram": "goal-burst-lines-2",
-      "threshold": 2,
-      "trigger": 7,
+      "chip": "",
+      "pictogram": "goal-lines",
+      "threshold": 8,
+      "trigger": 2,
       "words": {
         "description": 680,
         "effect": 289,
@@ -798,10 +798,10 @@
     },
     {
       "bonus": 1,
-      "chip": "=4",
-      "pictogram": "goal-burst-lines-3",
-      "threshold": 4,
-      "trigger": 4,
+      "chip": "2+",
+      "pictogram": "goal-burst-lines-2",
+      "threshold": 3,
+      "trigger": 7,
       "words": {
         "description": 682,
         "effect": 284,

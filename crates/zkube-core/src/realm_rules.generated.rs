@@ -12,8 +12,8 @@ pub const REALM_RULES: [RealmRules; CAMPAIGN_MAP_COUNT] = [
     RealmRules {
         guardian: Guardian {
             bonus: Bonus::Hammer,
-            trigger: 4,
-            threshold: 2,
+            trigger: 2,
+            threshold: 6,
         },
         starting_height: 6,
     },
@@ -36,8 +36,8 @@ pub const REALM_RULES: [RealmRules; CAMPAIGN_MAP_COUNT] = [
     RealmRules {
         guardian: Guardian {
             bonus: Bonus::Wave,
-            trigger: 2,
-            threshold: 7,
+            trigger: 7,
+            threshold: 2,
         },
         starting_height: 5,
     },
@@ -52,32 +52,32 @@ pub const REALM_RULES: [RealmRules; CAMPAIGN_MAP_COUNT] = [
     RealmRules {
         guardian: Guardian {
             bonus: Bonus::Hammer,
-            trigger: 4,
-            threshold: 3,
+            trigger: 8,
+            threshold: 8,
         },
         starting_height: 4,
     },
     RealmRules {
         guardian: Guardian {
-            bonus: Bonus::Totem,
-            trigger: 1,
-            threshold: 3,
+            bonus: Bonus::Wave,
+            trigger: 9,
+            threshold: 4,
         },
         starting_height: 6,
     },
     RealmRules {
         guardian: Guardian {
             bonus: Bonus::Totem,
-            trigger: 7,
-            threshold: 2,
+            trigger: 2,
+            threshold: 8,
         },
         starting_height: 4,
     },
     RealmRules {
         guardian: Guardian {
             bonus: Bonus::Hammer,
-            trigger: 4,
-            threshold: 4,
+            trigger: 7,
+            threshold: 3,
         },
         starting_height: 4,
     },

@@ -85,6 +85,22 @@ fn run(cli: &Cli) -> Result<String, String> {
     let catalog: CampaignCatalog = serde_json::from_str(&source)
         .map_err(|error| format!("invalid {}: {error}", fixture_path.display()))?;
     validate_catalog(&catalog)?;
+    // The fixtures are played by the core this generator was built with. A
+    // catalogue whose earn rules are not that core's table writes the table
+    // alone; the next run, built with it, renders everything else.
+    if !earn_rules_are_this_cores(&catalog) {
+        let table = "crates/zkube-core/src/realm_rules.generated.rs";
+        if matches!(cli.command, Command::Generate) {
+            fs::write(cli.root.join(table), render_realm_rules_rust(&catalog))
+                .map_err(|error| error.to_string())?;
+            return Err(format!(
+                "the earn rules changed: {table} is written; run generate again so the fixtures are played with it"
+            ));
+        }
+        return Err(format!(
+            "{table} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`"
+        ));
+    }
     let mut outputs = native_client::outputs(&catalog)?;
     let art_source = fs::read_to_string(cli.root.join("assets/catalog.json"))
         .map_err(|error| error.to_string())?;
@@ -219,6 +235,18 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
         Some(failure) => Err(failure),
         None => Ok(()),
     }
+}
+
+fn earn_rules_are_this_cores(catalog: &CampaignCatalog) -> bool {
+    let compiled = zkube_core::REALM_RULES.iter().map(|realm| {
+        [
+            u16::from(realm.guardian.bonus.tag()),
+            u16::from(realm.guardian.trigger),
+            realm.guardian.threshold,
+            u16::from(realm.starting_height),
+        ]
+    });
+    catalog.maps.iter().map(|map| map.rules).eq(compiled)
 }
 
 fn render_realm_rules_rust(catalog: &CampaignCatalog) -> String {
@@ -363,6 +391,17 @@ mod tests {
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
         assert!(versions.contains("PRESSURE_STEP = 15"));
         assert!(versions.contains("TIER_BLOCK_WEIGHTS = [[25, 30, 25, 15, 5]"));
+    }
+
+    // The generator plays its fixtures with the core it is built with, so it
+    // must notice a catalogue whose earn rules are not that core's.
+    #[test]
+    fn a_catalogue_with_other_earn_rules_than_the_core_is_noticed() {
+        let source = include_str!("../../../fixtures/campaign-catalog.json");
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        assert!(earn_rules_are_this_cores(&catalog));
+        catalog.maps[7].rules[2] += 1;
+        assert!(!earn_rules_are_this_cores(&catalog));
     }
 
     #[test]
