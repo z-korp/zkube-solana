@@ -107,6 +107,12 @@ tree, and a change reaches Devnet only through an approved upgrade; no migration
 upgrade, funding and keeper enablement still needs its own exact approval. Specification approval is not
 deployment or spending approval.
 
+This tree's catalogue is version 4: six realms earn their bonus by another rule (Egypt, China, Japan, Mayan,
+Serengeti, Inca; owner, 2026-10-07). The program on Devnet was built with version 3 and keeps the old six until an
+approved upgrade. A run's rules are the snapshot its ActiveRun holds, so an Arena run plays and scores by the
+deployed program's rule whatever the client; until the upgrade, a client built from this tree names the new rule
+on the lobby of those six realms' days and plays the old one on the board.
+
 | Area | Source status and guard |
 | --- | --- |
 | Core | One deterministic Rust engine at 1.0.0; `one_run_drives_campaign_and_daily` |
@@ -673,7 +679,11 @@ Each attempt draws and persists fresh platform randomness before its first actio
 seed and accepted log through Rust on that device; only lifetime stars cross devices. Lost devices replay
 the level. `campaign_seed_is_fresh_per_attempt_and_replays_on_resume`,
 `local_campaign_run_survives_process_death` and `campaign_action_is_accepted_only_after_durable_write` guard
-both identities and acceptance after persistence. Tests may inject seeds.
+both identities and acceptance after persistence. Tests may inject seeds. A saved run records the rules it was
+started under and resumes only as that run: one saved under other rules than its level has now (a level's goals
+can change with the app), one saved before runs recorded their rules, one of another catalogue, and one whose log
+does not replay to a run still in play are let go at start. Nothing throws, the level opens fresh and no star
+moves. `a_saved_campaign_run_that_is_no_longer_the_same_run_is_let_go_at_start` guards it.
 
 Three independent sources—score, cumulative Shape and moment Blow—latch in any order, with one action able
 to latch all three. Absent constraints earn no source; complete means all authored sources latched, while
@@ -682,13 +692,33 @@ exhaustion retains earlier stars. `constraint_stars_latch_in_any_order`,
 and `exhausted_runs_keep_latched_stars` guard those transitions.
 
 The core score ladder and tier derive the move budget; the catalog authors tier and both constraints, not
-target or budget. Primary facts are cumulative with count at least two; secondary facts are moments, not the
-primary fact or the realm guardian's own trigger. ComboOfAtLeast, ComboOfExactly, AllWidthsInMove, BigMove,
+target or budget. Primary facts are cumulative with count at least two; secondary facts are moments, never the
+primary fact. The core refuses the realm guardian's own trigger as a second goal only beside Trigger the guardian;
+the catalogue refuses it on every level. ComboOfAtLeast, ComboOfExactly, AllWidthsInMove, BigMove,
 BonusLinesInMove and PerfectClear carry count one; Streak and BreakInMove retain their in-action N.
 `campaign_move_budget_is_derived_from_the_ladder_and_tier`, `campaign_catalog_rejects_an_authored_budget`,
 `campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
 `codegen_enforces_constraint_class_per_slot` and `constraint_classes_and_tags_are_exhaustive_and_stable`
 guard the catalog and engine. `committed_catalog_validates_and_emits_protocol_constants` checks its version.
+
+Each realm asks for goals of its own (owner, 2026-10-06, after ten realms that differed by a tier and a number).
+The codegen holds the level table to it, in the terms a player sees: a goal's face is the picture on its plate
+and its fact is that picture without its block size or bonus; a points goal is the lines goal it equals, since
+only lines score. On level 1 a first-goal fact opens at most three realms, any two of them three or more realms
+apart, with different second goals; on any level number no two realms show the same pair of faces; within a realm
+no pair repeats; the fact that opens a realm is the first goal of at least three of its levels; a second goal is
+never the guardian's own trigger; and every goal kind but Clear lines is asked somewhere. A goal asks for
+something the score does not already reward (owner, 2026-10-07): every clear takes lines and blocks, so no goal is
+Clear lines and no first goal is Clear blocks of any size, while lines taken a particular way and blocks of one
+size stay goals. The Daily's objectives are the protocol's and are not held to this. A level 1 has too few moves
+to earn and use a bonus, which leaves four facts for ten realms (a low stack, a high stack, two-line moves, blocks
+of one size): that is why three realms may share an opening.
+`every_realm_asks_for_goals_of_its_own` guards the committed table and each rule's refusal. The earn rules have
+the same class (owner, 2026-10-07): no two realms share a bonus and a trigger family, N or more and exactly N
+lines in one move being one family, and a family serves at most two realms, three or more apart.
+`every_realm_earns_its_bonus_its_own_way` holds the committed rows to it. The generator plays its fixtures with
+the core it was built with, so a catalogue whose earn rules are not that core's writes the core's table alone and
+asks for a second run; `a_catalogue_with_other_earn_rules_than_the_core_is_noticed` guards the check.
 
 One Rust Run owns grid, guardians, scoring, pressure, metrics, clocks, payouts and replay. The native host
 owns safe codecs; zkube-core-ffi is the unsafe shell. The program reconstructs Arcade through that same
@@ -1240,7 +1270,25 @@ keeper authority. The approval boundary above applies to every execution.
   program deposit path, into today's Daily only. `operator_top_up_rejects_seeded_balance_drift_and_a_closed_window` and `routes a
   chosen amount to the exact selected prize-pool PDA` guard target and drift.
 - **Suspension plan:** plan set-suspension uses the pinned authority and chosen day; `sets the explicit
-  suspension boundary and seeds cadence funding` guards the instruction.
+  suspension boundary and seeds cadence funding` guards the instruction. After an upgrade, a suspension is not lifted
+  for the day of the upgrade if the replaced program prepared its Daily: that day stays suspended and the next
+  opens by itself.
+  `a_suspension_is_not_lifted_for_a_day_whose_daily_another_catalogue_prepared` guards the refusal.
+- **Upgrade plan:** NO_DNA=1 pnpm chain plan upgrade --bundle build/chain/upgrade.json replaces the deployed
+  program in place: the same address, ProgramData allocation and upgrade authority, the recorded release build
+  at the reviewed hash through the same gate, a buffer written like a deployment's, then the loader's Upgrade,
+  which returns the buffer's lamports to the payer. The plan binds the program it replaces and refuses any
+  other; a build larger than the allocation is refused. Preparing a Daily stores a rules hash made from the
+  realm table and every entry reads that table again, so the Upgrade is sent only while no entry can be made:
+  every day it could land on, the next two minutes, is suspended. The buffer can be written on any day
+  (--until the last write). Top-up and set-suspension plans made for after an upgrade take --upgrade-bundle
+  and bind the upgraded program; they cannot run before it lands. NO_DNA=1 pnpm chain check-release shows
+  whether the deployed program is the reviewed build and whether today's Daily was prepared by it.
+  `upgrade_instruction_bytes_and_accounts_match_the_rust_loader`,
+  `an_upgrade_lands_only_while_no_entry_can_reach_a_daily_the_replaced_program_prepared`,
+  `an_upgrade_bundle_runs_against_the_program_it_replaces_and_resumes_once_it_has_landed`,
+  `plans_made_for_after_an_upgrade_bind_the_upgraded_program_and_wait_for_it` and
+  `the_release_check_says_whether_the_deployed_program_is_the_build_and_prepared_todays_daily` guard it.
 - **Execute:** after exact approval, ZKUBE_APPROVAL and execute --bundle rebuild the public plan before
   loading signer files. `operator_missing_fingerprint_loads_no_keypair`,
   `operator_rebuild_rejects_changed_instruction_bytes_before_loading_a_signer` and

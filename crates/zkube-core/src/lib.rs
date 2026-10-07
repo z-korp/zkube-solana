@@ -44,7 +44,7 @@ include!("tier_weights.generated.rs");
 include!("realm_rules.generated.rs");
 
 /// Version of the protocol-owned realm and level catalog.
-pub const CATALOG_VERSION: u32 = 3;
+pub const CATALOG_VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RealmRules {

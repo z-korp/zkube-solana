@@ -5,11 +5,11 @@ import { Connection, PublicKey, SystemProgram, Transaction, VersionedTransaction
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 import { accountCoder, assertDevnetRelease, devnetConnection, programDataAddress, UPGRADEABLE_LOADER } from "./chainRelease.js";
-import { parseDeposit, parseOperatorArgs, runOperator } from "./cli.js";
-import { deploymentRelease, deploymentTransactions, type DeploymentInput } from "./deploymentPlan.js";
+import { checkRelease, parseDeposit, parseOperatorArgs, runOperator } from "./cli.js";
+import { deploymentRelease, deploymentTransactions, upgradeRelease, upgradeTransactions, type DeploymentInput, type UpgradeInput } from "./deploymentPlan.js";
 import { quoteBundle, readBundle, type OperatorBundle } from "./operatorPlan.js";
 import { executeBundle } from "./operatorRuntime.js";
-import { checkFreshTransaction, checkLaunchWindow, observeDeposits } from "./operatorState.js";
+import { assertUpgradeRelease, checkFreshTransaction, checkLaunchWindow, observeDeposits, LANDING_SECONDS } from "./operatorState.js";
 import { deriveProtocolConfigPda } from "./pdas.js";
 import { executeTransaction, fingerprint, loadPinnedKeypair, publicTransaction, type TransactionReceipt } from "./operatorTransaction.js";
 import { dailyWindow } from "../../services/src/zkubeCore.js";
@@ -74,6 +74,45 @@ function releaseConnection() {
     getBalance: vi.fn(async () => 10_000_000_000),
   };
   return { calls, connection: calls as unknown as Connection, release, protocol, info };
+}
+
+/**
+ * A deployed program and the upgrade planned against it: ProgramData holds 2,048 bytes of an older
+ * program, the artifact is the fixture's, and the protocol, the clock and today's Daily are the test's.
+ */
+function upgradeState() {
+  const state = releaseConnection();
+  const expected = fixture.deployment;
+  mkdirSync(scratch, { recursive: true });
+  const artifactPath = scratch + "/upgrade.so", artifact = Buffer.from(expected.artifact, "base64");
+  writeFileSync(artifactPath, artifact);
+  const older = Buffer.alloc(2048, 9);
+  const input: UpgradeInput = { artifactPath, artifactBytes: artifact.length,
+    artifactSha256: createHash("sha256").update(artifact).digest("hex"), payer: expected.payer, buffer: expected.buffer,
+    authority: expected.authority, bufferRentLamports: expected.bufferRentLamports,
+    deployed: { programDataSha256: createHash("sha256").update(older).digest("hex"), allocationBytes: older.length } };
+  const release = upgradeRelease(input, "https://api.devnet.solana.com");
+  const world = { held: older as Buffer, buffer: false, suspendedUntilDay: 0, now: opens(20740) + 3600,
+    daily: undefined as Buffer | undefined, deployedSlot: 7, deployedAt: opens(20740) + 600 };
+  const program = Buffer.alloc(36); program.writeUInt32LE(2); programDataAddress().toBuffer().copy(program, 4);
+  const programData = () => {
+    const header = Buffer.alloc(45); header.writeUInt32LE(3); header.writeBigUInt64LE(BigInt(world.deployedSlot), 4);
+    header[12] = 1; new PublicKey(expected.authority).toBuffer().copy(header, 13);
+    return state.info(Buffer.concat([header, world.held]));
+  };
+  const calls = { ...state.calls, getSlot: vi.fn(async () => 1),
+    getBlockTime: vi.fn(async (slot: number) => slot === world.deployedSlot ? world.deployedAt : world.now),
+    getMultipleAccountsInfo: vi.fn(async () => [state.info(program, true), programData()]),
+    getAccountInfo: vi.fn(async (address: PublicKey) => {
+      if (address.equals(programDataAddress())) return programData();
+      if (address.toBase58() === expected.buffer) return world.buffer ? state.info(Buffer.alloc(37)) : null;
+      if (address.equals(deriveProtocolConfigPda())) {
+        return state.info(await accountCoder.encode("protocolConfig",
+          { ...state.protocol, authority: payer, suspendedUntilDay: world.suspendedUntilDay }), false, ZKUBE_PROGRAM_ID);
+      }
+      return world.daily ? state.info(world.daily, false, ZKUBE_PROGRAM_ID) : null;
+    }) };
+  return { calls, connection: calls as unknown as Connection, input, release, world, artifact, state };
 }
 
 describe("one operator plan and execution pipeline", () => {
@@ -279,13 +318,170 @@ describe("one operator plan and execution pipeline", () => {
     expect(() => deploymentTransactions(input)).toThrow("Frozen SBF artifact differs");
   });
 
+  it("upgrade_instruction_bytes_and_accounts_match_the_rust_loader", () => {
+    const { input, release, artifact } = upgradeState();
+    const plans = upgradeTransactions(input).map(plan => publicTransaction(plan.label, plan.payer, plan.transaction,
+      { maximumFeeLamports: 0, maximumSpendLamports: 0, reserveLamports: 0 }).instructions);
+    // The same buffer as a deployment, then the loader's own Upgrade: same program, ProgramData and authority.
+    expect(plans.slice(0, -1)).toEqual(fixture.deployment.transactions.slice(0, -1));
+    expect(plans.at(-1)).toEqual(fixture.deployment.upgrade);
+    // ProgramData keeps its allocation: the new bytes, then zeros.
+    expect(release).toMatchObject({ allocationBytes: 2048, upgradeAuthority: input.authority,
+      programDataSha256: createHash("sha256").update(Buffer.concat([artifact, Buffer.alloc(2048 - artifact.length)])).digest("hex") });
+    expect(() => upgradeRelease({ ...input, deployed: { ...input.deployed, allocationBytes: artifact.length - 5 } }, release.rpc))
+      .toThrow("Program needs 5 more bytes than its ProgramData holds");
+    writeFileSync(input.artifactPath, Buffer.alloc(artifact.length));
+    expect(() => upgradeTransactions(input)).toThrow("Frozen SBF artifact differs");
+  });
+
+  it("an_upgrade_lands_only_while_no_entry_can_reach_a_daily_the_replaced_program_prepared", async () => {
+    const test = upgradeState();
+    const bundle = await quoteBundle({ kind: "upgrade", input: test.input }, test.release, test.connection);
+    const last = bundle.payload.transactions.length - 1, today = 20740;
+    expect(bundle.payload.transactions[last]!.label).toBe("Upgrade the program in place");
+    // The buffer is written whatever the day is: it changes nothing a player can reach.
+    await checkFreshTransaction(test.connection, bundle, 0);
+    await checkFreshTransaction(test.connection, bundle, 1);
+    test.world.buffer = true;
+    await expect(checkFreshTransaction(test.connection, bundle, 0)).rejects.toThrow("Upgrade buffer address is occupied");
+    // The upgrade itself is refused while today can be entered, suspended or not yesterday.
+    for (const until of [0, today - 1, today]) {
+      test.world.suspendedUntilDay = until;
+      await expect(checkFreshTransaction(test.connection, bundle, last)).rejects.toThrow(`Day ${today} is not suspended`);
+    }
+    test.world.suspendedUntilDay = today + 1;
+    await checkFreshTransaction(test.connection, bundle, last);
+    // Too close to a day that can be entered, it could land there: refused, until that day is suspended too.
+    test.world.now = opens(today + 1) - LANDING_SECONDS + 1;
+    await expect(checkFreshTransaction(test.connection, bundle, last)).rejects.toThrow(`Day ${today + 1} is not suspended`);
+    test.world.now = opens(today + 1) - LANDING_SECONDS - 1;
+    await checkFreshTransaction(test.connection, bundle, last);
+    test.world.suspendedUntilDay = today + 2; test.world.now = opens(today + 1) - 1;
+    await checkFreshTransaction(test.connection, bundle, last);
+    // A program that is no longer the one the plan replaces is never upgraded by it.
+    test.world.held = Buffer.alloc(2048, 8);
+    await expect(checkFreshTransaction(test.connection, bundle, last)).rejects.toThrow("differs from the release");
+  });
+
+  it("an_upgrade_bundle_runs_against_the_program_it_replaces_and_resumes_once_it_has_landed", async () => {
+    const test = upgradeState(), run = io();
+    const calls = { ...run.calls, ...test.calls, getBalance: run.calls.getBalance };
+    const connection = calls as unknown as Connection;
+    const bundle = await quoteBundle({ kind: "upgrade", input: test.input }, test.release, connection);
+    const last = bundle.payload.transactions.length - 1;
+    const options = { approval: bundle.fingerprint, connect: () => connection, loadSigner: run.loadSigner,
+      persist: (saved: OperatorBundle) => run.persist(saved.receipts[Math.max(...Object.keys(saved.receipts).map(Number))]!) };
+    // The buffer is written on an ordinary day; the upgrade waits for a suspended one.
+    const written = await executeBundle(JSON.stringify(bundle), { ...options, until: last - 1 });
+    expect(Object.keys(written.receipts)).toHaveLength(last);
+    await expect(executeBundle(JSON.stringify(written), options)).rejects.toThrow("is not suspended");
+    expect(calls.sendRawTransaction).toHaveBeenCalledTimes(last);
+    test.world.suspendedUntilDay = 20741;
+    const done = await executeBundle(JSON.stringify(written), options);
+    expect(Object.keys(done.receipts)).toHaveLength(last + 1);
+    expect(calls.sendRawTransaction).toHaveBeenCalledTimes(last + 1);
+    // Once it has landed the cluster holds the upgraded bytes: a rerun finds every receipt and signs nothing.
+    test.world.held = Buffer.concat([test.artifact, Buffer.alloc(2048 - test.artifact.length)]);
+    await assertUpgradeRelease(connection, test.release, test.input.deployed);
+    run.loadSigner.mockClear(); calls.sendRawTransaction.mockClear();
+    await executeBundle(JSON.stringify(done), options);
+    expect(run.loadSigner).not.toHaveBeenCalled(); expect(calls.sendRawTransaction).not.toHaveBeenCalled();
+    // Any other bytes at the program stop the bundle before a key is loaded.
+    test.world.held = Buffer.alloc(2048, 8);
+    await expect(executeBundle(JSON.stringify(bundle), options)).rejects.toThrow("differs from the release");
+    expect(run.loadSigner).not.toHaveBeenCalled();
+  });
+
+  it("a_suspension_is_not_lifted_for_a_day_whose_daily_another_catalogue_prepared", async () => {
+    const test = upgradeState(), today = 20740;
+    const daily = accountCoder.decode("arenaDaily", Buffer.from(fixture.plans.accounts.daily.data, "base64"));
+    const stored = Buffer.from(daily.rulesHash).toString("hex"), other = "5".repeat(64);
+    const launchDayId = test.state.protocol.launchDayId;
+    const lift = async (untilDay: number, rulesHash: string) => checkFreshTransaction(test.connection,
+      await quoteBundle({ kind: "set-suspension", authority: payer.toBase58(), launchDayId, untilDay }, test.release, test.connection),
+      0, () => rulesHash);
+    test.world.suspendedUntilDay = today + 1;
+    // No Daily today: the first entry after the lift prepares it with the program now deployed.
+    await lift(today, other);
+    // A Daily today that this build would prepare identically is as good as new.
+    test.world.daily = Buffer.from(fixture.plans.accounts.daily.data, "base64");
+    await lift(today, stored); await lift(0, stored);
+    // One prepared under another catalogue keeps its hash: today stays suspended, tomorrow opens by itself.
+    await expect(lift(today, other)).rejects.toThrow(`Day ${today}'s Daily was prepared under another catalogue`);
+    await expect(lift(0, other)).rejects.toThrow("leave the day suspended");
+    await lift(today + 1, other); await lift(today + 3, other);
+    // A day that is not suspended is not being lifted.
+    test.world.suspendedUntilDay = today;
+    await lift(today - 2, other);
+    // A program deployed on an earlier day prepared today's Daily itself, whatever this checkout would compute:
+    // an upgrade that never landed leaves the suspension free to lift.
+    test.world.suspendedUntilDay = today + 1; test.world.deployedAt = opens(today) - 1;
+    await lift(today, other);
+  });
+
+  it("plans_made_for_after_an_upgrade_bind_the_upgraded_program_and_wait_for_it", async () => {
+    const test = upgradeState();
+    const launchDayId = test.state.protocol.launchDayId;
+    const upgrade = await quoteBundle({ kind: "upgrade", input: test.input }, test.release, test.connection);
+    const launch = structuredClone(upgrade);
+    launch.payload.operation = { kind: "launch", input: { authority: payer.toBase58(), launchDayId } } as never;
+    launch.payload.release = { ...test.release, ...test.input.deployed };
+    launch.fingerprint = fingerprint(launch.payload);
+    const launchPath = scratch + "/launch.json", upgradePath = scratch + "/upgrade.json", path = scratch + "/lift.json";
+    writeFileSync(launchPath, JSON.stringify(launch)); writeFileSync(upgradePath, JSON.stringify(upgrade));
+    // Planned before the upgrade has landed, against the program as it will be.
+    vi.mocked(devnetConnection).mockReturnValue(test.connection);
+    await runOperator(["plan", "set-suspension", "--launch-bundle", launchPath, "--upgrade-bundle", upgradePath,
+      "--until-day", "20740", "--bundle", path], { SOLANA_DEVNET_RPC_URL: test.release.rpc });
+    const planned = readBundle(readFileSync(path, "utf8"));
+    expect(planned.payload.release).toEqual(test.release);
+    // Until the upgrade lands it cannot run; afterwards the plan the launch bundle alone would give cannot.
+    const loadSigner = vi.fn();
+    await expect(executeBundle(JSON.stringify(planned), { approval: planned.fingerprint,
+      connect: () => test.connection, loadSigner, persist: vi.fn() })).rejects.toThrow("differs from the release");
+    expect(loadSigner).not.toHaveBeenCalled();
+    await expect(runOperator(["plan", "set-suspension", "--launch-bundle", launchPath, "--upgrade-bundle", launchPath,
+      "--until-day", "20740", "--bundle", scratch + "/other.json"], { SOLANA_DEVNET_RPC_URL: test.release.rpc }))
+      .rejects.toThrow("--upgrade-bundle must be an upgrade bundle");
+    test.world.held = Buffer.concat([test.artifact, Buffer.alloc(2048 - test.artifact.length)]);
+    await expect(runOperator(["plan", "set-suspension", "--launch-bundle", launchPath,
+      "--until-day", "20740", "--bundle", scratch + "/stale.json"], { SOLANA_DEVNET_RPC_URL: test.release.rpc }))
+      .rejects.toThrow("differs from the release");
+    vi.mocked(devnetConnection).mockReset();
+  });
+
+  it("the_release_check_says_whether_the_deployed_program_is_the_build_and_prepared_todays_daily", async () => {
+    const test = upgradeState(), today = 20740;
+    const artifact = { artifactPath: test.input.artifactPath, artifactSha256: test.input.artifactSha256 };
+    const daily = accountCoder.decode("arenaDaily", Buffer.from(fixture.plans.accounts.daily.data, "base64"));
+    const stored = Buffer.from(daily.rulesHash).toString("hex");
+    // Before the upgrade the cluster holds the older program: the check fails and says what it found.
+    await expect(checkRelease(test.connection, artifact, () => stored)).rejects.toThrow("The deployed program is not the reviewed release build");
+    test.world.held = Buffer.concat([test.artifact, Buffer.alloc(2048 - test.artifact.length)]);
+    test.world.suspendedUntilDay = today + 1;
+    expect(await checkRelease(test.connection, artifact, () => stored)).toMatchObject({ deployedIsTheReviewedBuild: true,
+      reviewedBuildSha256: test.input.artifactSha256, deployedProgramDataSha256: test.release.programDataSha256,
+      today, todaySuspended: true, todaysDaily: "not prepared yet: the day's first entry prepares it", todaysDailyRulesHash: null });
+    test.world.daily = Buffer.from(fixture.plans.accounts.daily.data, "base64"); test.world.suspendedUntilDay = 0;
+    expect(await checkRelease(test.connection, artifact, () => stored)).toMatchObject({ todaySuspended: false,
+      todaysDaily: "prepared by this build's catalogue", todaysDailyRulesHash: stored });
+    expect(await checkRelease(test.connection, artifact, () => "5".repeat(64))).toMatchObject({
+      todaysDaily: "prepared under another catalogue: the day must stay suspended" });
+    // Bytes after the program's own are part of what is deployed.
+    test.world.held = Buffer.concat([test.artifact, Buffer.alloc(2048 - test.artifact.length, 1)]);
+    await expect(checkRelease(test.connection, artifact, () => stored)).rejects.toThrow("not the reviewed release build");
+  });
+
   it("operator_cli_options_and_exact_amounts_fail_closed", async () => {
     expect(parseDeposit("daily:current:0.001000001SOL")).toEqual({ selector: "current", lamports: "1000001" });
     for (const bad of ["daily:current:1", "daily:current:0SOL", "daily:current:1.0000000001SOL", "daily:current:-1SOL"]) {
       expect(() => parseDeposit(bad)).toThrow();
     }
     expect(() => parseOperatorArgs(["execute", "--bundle", "x", "--until-day", "4"])).toThrow("not valid");
-    expect(() => parseOperatorArgs(["plan", "upgrade", "--bundle", "x"])).toThrow("Choose");
+    expect(() => parseOperatorArgs(["plan", "migrate", "--bundle", "x"])).toThrow("Choose");
+    expect(parseOperatorArgs(["plan", "upgrade", "--bundle", "build/x"])).toMatchObject({ mode: "plan", operation: "upgrade" });
+    expect(() => parseOperatorArgs(["plan", "upgrade", "--bundle", "x", "--upgrade-bundle", "y"])).toThrow("not valid");
+    expect(parseOperatorArgs(["check-release"])).toEqual({ help: false, mode: "check-release" });
     expect(() => readBundle(JSON.stringify({ schema: "old", fingerprint: "0".repeat(64) }))).toThrow("fingerprint or shape");
     expect(await runOperator(["--help"], {})).toContain("inclusive transaction index");
   });

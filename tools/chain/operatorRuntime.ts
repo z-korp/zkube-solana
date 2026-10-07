@@ -3,7 +3,7 @@ import { type Connection, type Keypair, type SignatureStatus } from "@solana/web
 /** The most signatures one getSignatureStatuses call takes. */
 const STATUS_BATCH = 256;
 import { assertDevnetRelease, requireInteger, OPERATOR_RESERVE_LAMPORTS } from "./chainRelease.js";
-import { checkFreshTransaction, checkLaunchResult, checkLaunchWindow } from "./operatorState.js";
+import { assertUpgradeRelease, checkFreshTransaction, checkLaunchResult, checkLaunchWindow } from "./operatorState.js";
 import { readBundle, rebuildTransactions, type OperatorBundle } from "./operatorPlan.js";
 import { executeTransaction, fingerprint, publicTransaction } from "./operatorTransaction.js";
 
@@ -38,7 +38,8 @@ export async function executeBundle(source: string, options: {
       reserveLamports: requireInteger(reserveLamports, "Payer reserve") });
     if (fingerprint(expected) !== fingerprint(plan)) throw new Error("Rebuilt transaction differs from the approved public plan");
   }
-  await assertDevnetRelease(connection, release, operation.kind === "deploy");
+  if (operation.kind === "upgrade") await assertUpgradeRelease(connection, release, operation.input.deployed);
+  else await assertDevnetRelease(connection, release, operation.kind === "deploy");
   await checkLaunchWindow(connection, operation);
   // A resumed run has a receipt per transaction already sent: their statuses
   // are read together, in batches the endpoint accepts, not one call each.

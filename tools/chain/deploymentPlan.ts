@@ -38,21 +38,17 @@ export function deploymentRelease(input: DeploymentInput, rpc: string) {
     programDataSha256: sha256(Buffer.concat([bytes, Buffer.alloc(DEPLOYMENT_HEADROOM_BYTES)])) };
 }
 
-/** Encodings and account order follow the loader's InitializeBuffer, Write and DeployWithMaxDataLen instructions. */
-export function deploymentTransactions(input: DeploymentInput): PlannedTransaction[] {
-  const artifact = frozenArtifact(input);
-  for (const [name, value] of Object.entries({ bufferRent: input.bufferRentLamports,
-    programRent: input.programRentLamports, programDataRent: input.programDataRentLamports })) {
-    requireInteger(value, name);
-  }
-  const payer = new PublicKey(input.payer), buffer = new PublicKey(input.buffer), authority = new PublicKey(input.authority);
-  const account = (pubkey: PublicKey, isWritable: boolean, isSigner = false) => ({ pubkey, isWritable, isSigner });
-  const loader = (data: Buffer, keys: TransactionInstruction["keys"]) =>
-    new TransactionInstruction({ programId: UPGRADEABLE_LOADER, data, keys });
+const account = (pubkey: PublicKey, isWritable: boolean, isSigner = false) => ({ pubkey, isWritable, isSigner });
+const loader = (data: Buffer, keys: TransactionInstruction["keys"]) =>
+  new TransactionInstruction({ programId: UPGRADEABLE_LOADER, data, keys });
+
+/** A buffer holding the artifact: created and initialized, then written 512 bytes at a time. */
+function bufferTransactions(artifact: Buffer, payer: PublicKey, buffer: PublicKey, authority: PublicKey,
+  bufferRentLamports: number): PlannedTransaction[] {
   const plans: PlannedTransaction[] = [{ label: "Create and initialize program buffer", payer,
-    spend: input.bufferRentLamports,
+    spend: bufferRentLamports,
     transaction: new Transaction().add(SystemProgram.createAccount({ fromPubkey: payer,
-      newAccountPubkey: buffer, lamports: input.bufferRentLamports, space: 37 + artifact.length,
+      newAccountPubkey: buffer, lamports: bufferRentLamports, space: 37 + artifact.length,
       programId: UPGRADEABLE_LOADER }), loader(Buffer.alloc(4), [account(buffer, true), account(authority, false)])) }];
   for (let offset = 0; offset < artifact.length; offset += DEPLOYMENT_WRITE_BYTES) {
     const bytes = artifact.subarray(offset, offset + DEPLOYMENT_WRITE_BYTES);
@@ -62,6 +58,18 @@ export function deploymentTransactions(input: DeploymentInput): PlannedTransacti
     plans.push({ label: `Write program bytes ${offset}..${offset + bytes.length}`, payer, spend: 0,
       transaction: new Transaction().add(loader(data, [account(buffer, true), account(authority, false, true)])) });
   }
+  return plans;
+}
+
+/** Encodings and account order follow the loader's InitializeBuffer, Write and DeployWithMaxDataLen instructions. */
+export function deploymentTransactions(input: DeploymentInput): PlannedTransaction[] {
+  const artifact = frozenArtifact(input);
+  for (const [name, value] of Object.entries({ bufferRent: input.bufferRentLamports,
+    programRent: input.programRentLamports, programDataRent: input.programDataRentLamports })) {
+    requireInteger(value, name);
+  }
+  const payer = new PublicKey(input.payer), buffer = new PublicKey(input.buffer), authority = new PublicKey(input.authority);
+  const plans = bufferTransactions(artifact, payer, buffer, authority, input.bufferRentLamports);
   const data = Buffer.alloc(12);
   data.writeUInt32LE(2); data.writeBigUInt64LE(BigInt(artifact.length + DEPLOYMENT_HEADROOM_BYTES), 4);
   plans.push({ label: "Deploy frozen program", payer,
@@ -71,6 +79,47 @@ export function deploymentTransactions(input: DeploymentInput): PlannedTransacti
       programId: UPGRADEABLE_LOADER }), loader(data, [account(payer, true, true), account(programDataAddress(), true),
       account(ZKUBE_PROGRAM_ID, true), account(buffer, true), account(SYSVAR_RENT_PUBKEY, false),
       account(SYSVAR_CLOCK_PUBKEY, false), account(SystemProgram.programId, false), account(authority, false, true)])) });
+  return plans;
+}
+
+/**
+ * An upgrade in place of the deployed program: the same program address, the
+ * same ProgramData and upgrade authority, new bytes. `deployed` is what it
+ * replaces, as read when it was planned; nothing else may be upgraded.
+ */
+export interface UpgradeInput {
+  artifactPath: string;
+  artifactSha256: string;
+  artifactBytes: number;
+  payer: string;
+  buffer: string;
+  authority: string;
+  bufferRentLamports: number;
+  deployed: { programDataSha256: string; allocationBytes: number };
+}
+
+/** What ProgramData holds once the upgrade has landed: the artifact, then zeros to the allocation it keeps. */
+export function upgradeRelease(input: UpgradeInput, rpc: string) {
+  const bytes = frozenArtifact(input);
+  const allocationBytes = requireInteger(input.deployed.allocationBytes, "ProgramData allocation");
+  if (bytes.length > allocationBytes) {
+    throw new Error(`Program needs ${bytes.length - allocationBytes} more bytes than its ProgramData holds; extend it first`);
+  }
+  return { rpc, allocationBytes, upgradeAuthority: input.authority,
+    programDataSha256: sha256(Buffer.concat([bytes, Buffer.alloc(allocationBytes - bytes.length)])) };
+}
+
+/** The buffer as for a deployment, then the loader's Upgrade, which returns the buffer's lamports to the payer. */
+export function upgradeTransactions(input: UpgradeInput): PlannedTransaction[] {
+  const artifact = frozenArtifact(input);
+  requireInteger(input.bufferRentLamports, "bufferRent");
+  const payer = new PublicKey(input.payer), buffer = new PublicKey(input.buffer), authority = new PublicKey(input.authority);
+  const plans = bufferTransactions(artifact, payer, buffer, authority, input.bufferRentLamports);
+  const data = Buffer.alloc(4); data.writeUInt32LE(3);
+  plans.push({ label: "Upgrade the program in place", payer, spend: 0,
+    transaction: new Transaction().add(loader(data, [account(programDataAddress(), true), account(ZKUBE_PROGRAM_ID, true),
+      account(buffer, true), account(payer, true), account(SYSVAR_RENT_PUBKEY, false),
+      account(SYSVAR_CLOCK_PUBKEY, false), account(authority, false, true)])) });
   return plans;
 }
 

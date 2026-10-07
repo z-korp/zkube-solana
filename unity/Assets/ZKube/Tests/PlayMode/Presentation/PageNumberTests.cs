@@ -29,7 +29,7 @@ namespace ZKube.Tests.Presentation
             public CampaignSummaryView CampaignSummary() => new CampaignSummaryView { Realm = 1, Stars = int.MaxValue, Levels = 10,
                 Trials = CampaignView().Trials, Map = new PageAction { Label = "Explore map" } };
             public LevelPageView LevelPage() => new LevelPageView { Realm = 1, Level = 3, Stars = 3, Moves = uint.MaxValue,
-                Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
+                Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 7, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
                 Play = new PageAction { Label = "Play" }, Map = new PageAction { Label = "Map" } };
             public DailyPageView Daily;
             public DailyPageView DailyPage() => Daily;
@@ -89,7 +89,7 @@ namespace ZKube.Tests.Presentation
             yield return Check("Daily result", () => views.Render(AppPage.Result));
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1,
                 Level = 3, Score = ulong.MaxValue, StarSources = 7, EndReason = 1, MovesLeft = uint.MaxValue, PrimaryProgress = uint.MaxValue,
-                Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
+                Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 7, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
             yield return Check("Campaign result", () => views.Render(AppPage.Result));
             yield return Check("Identity page", () => views.RenderPanel(new PanelPageView { Key = "Largest", Title = "Largest", Tab = AppPage.Home, Blocks = new[] {

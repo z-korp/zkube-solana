@@ -186,15 +186,37 @@ namespace ZKube.Local
             finally { restoring = false; }
         }
         private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(store.Read.Stars);
+        // A saved run resumes only as the run it was: under the rules it was started under, its whole
+        // log replayed, and still in play at the end of it. A level's rules can change with the app, and
+        // a log replayed under other rules is another run (it can end before its last move). Such a run,
+        // one saved before runs recorded their rules, and one this build cannot replay are let go: the
+        // level opens fresh, lifetime stars are untouched, and nothing here stops the app from starting.
         private void RestoreCampaign()
         {
             var saved = store.Read.CampaignRun;
             if (saved == null) return;
-            if (saved.CatalogVersion != Protocol.CatalogVersion) throw new InvalidOperationException("Saved Campaign catalog version is unsupported");
-            nextId = ulong.Parse(saved.Id, CultureInfo.InvariantCulture);
-            Replay(() => Start("campaign", saved.Realm, saved.Level, CampaignRules(saved.Realm, saved.Level),
-                Array.ConvertAll(saved.Seed, value => checked((byte)value)), null), saved.Actions);
-            if (!active.ContainsKey("campaign")) throw new InvalidOperationException("Saved Campaign log contains a terminal action");
+            bool resumed = false;
+            try
+            {
+                var rules = CampaignRules(saved.Realm, saved.Level);
+                if (saved.CatalogVersion == Protocol.CatalogVersion &&
+                    saved.Rules == Convert.ToBase64String(NativeEngine.Initialize(rules).Config))
+                {
+                    ulong next = nextId; nextId = ulong.Parse(saved.Id, CultureInfo.InvariantCulture);
+                    try
+                    {
+                        Replay(() => Start("campaign", saved.Realm, saved.Level, rules,
+                            Array.ConvertAll(saved.Seed, value => checked((byte)value)), null), saved.Actions);
+                        resumed = active.ContainsKey("campaign");
+                    }
+                    finally { if (!resumed) nextId = next; }
+                }
+            }
+            catch (Exception) { }
+            if (resumed) return;
+            foreach (var record in records.Values.Where(record => record.Mode == "campaign").ToArray()) records.Remove(record.Id);
+            active.Remove("campaign");
+            store.WriteCampaign(current => { var next = Copy(current); next.CampaignRun = null; return next; });
         }
         private void SaveCampaign(Record record, bool terminal)
         {
@@ -211,6 +233,7 @@ namespace ZKube.Local
                 }
                 else next.CampaignRun = new LocalCampaignRun { Id = record.Id, CatalogVersion = Protocol.CatalogVersion,
                     Realm = record.Realm, Level = record.Level, Seed = Array.ConvertAll(record.Seed, value => (int)value),
+                    Rules = Convert.ToBase64String(record.Token.Config),
                     Actions = new List<LocalCampaignAction>(record.Actions) };
                 return next;
             });

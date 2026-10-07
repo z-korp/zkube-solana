@@ -114,8 +114,8 @@ namespace ZKube.Presentation.Tests
         // they stand, the four settings and the band of three buttons, every word fitting and
         // every row and button 48 dp to touch, on the Seeker and a 360 x 640
         // phone at both text sizes, for a Campaign run and a Daily. The pause
-        // counts the spec's 21 words on Tiki's first level; the confirm, the
-        // question, its cost and the two buttons.
+        // counts fifteen words of its own and its level's two goals as they are
+        // worded; the confirm, the question, its cost and the two buttons.
         private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
         [UnityTest] public IEnumerator PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones()
         {
@@ -142,8 +142,11 @@ namespace ZKube.Presentation.Tests
                                 Canvas.ForceUpdateCanvases();
                                 var texts = dialog.GetComponentsInChildren<TMP_Text>().Where(text => !string.IsNullOrEmpty(text.text)).ToArray();
                                 string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+                                var goals = PageCatalog.Load(); var level = board.Session.Rules;
+                                int goalWords = Word.Matches(goals.Goal(level.PrimaryKind, level.PrimaryValue, level.PrimaryCount).text).Count +
+                                    Word.Matches(goals.Goal(level.SecondaryKind, level.SecondaryValue, level.SecondaryCount).text).Count;
                                 if (fixture == "realm-1-campaign" && scale == 1)
-                                    Assert.AreEqual(confirm ? 21 : 22, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
+                                    Assert.AreEqual(confirm ? 21 : 15 + goalWords, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
                                         at + " words: " + string.Join(" | ", texts.Select(text => Plain(text.text))));
                                 foreach (var text in texts)
                                 {
@@ -506,13 +509,17 @@ namespace ZKube.Presentation.Tests
                     var plan = HudLayout.Build(new SkinUi(Art(), density, 1), board.State, board.Session, safe, density, screen);
                     var layout = plan.Layout; string at = fixture + " on " + name;
                     float cell = layout.Cell / density, widest = BoardLayout.WidestCellDp(safe.width / density);
-                    Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.0} dp");
+                    Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.00} dp, earn {layout.EarnPanel.height / density:0.00} dp");
                     if (name == "Seeker") Assert.AreEqual(Mathf.Floor(widest * density) / density, cell, .01f, at + ": the cells take the width");
                     if (name == "emulator") Assert.GreaterOrEqual(cell, 46, at + ": the cells grow into the old header");
                     // Review 2: the guardian grows into the header without the board giving a pixel.
                     float header = (safe.yMax - layout.Rim.yMax) / density;
-                    var (cells, rim) = name == "Seeker" ? (50.0f, 197.6f) : name == "emulator" ? (47.0f, 140.9f) : (34.33f, 98.6f);
-                    Assert.AreEqual(cells, cell, .05f, at + ": the board's cells are as they were"); Assert.AreEqual(rim, header, .15f, at + ": the board's top is where it was");
+                    // The board's top is where it was under an Earn panel at its drawn height; a longer earning rule makes the
+                    // panel taller, and the board rises by no more than that.
+                    var (cells, rim, panel) = name == "Seeker" ? (50.0f, 197.6f, 50f) : name == "emulator" ? (47.0f, 140.9f, 49.22f) : (34.33f, 98.6f, 44.94f);
+                    float taller = Mathf.Max(0, layout.EarnPanel.height / density - panel);
+                    Assert.AreEqual(cells, cell, .05f, at + ": the board's cells are as they were");
+                    Assert.That(header, Is.InRange(rim - taller - .15f, rim + .15f), at + ": the board's top is where it was, less only what a longer earning rule takes");
                     Assert.LessOrEqual(plan.Guardian.width / density, HudLayout.GuardianMaxDp + .01f, at);
                     if (name != "360 x 640") Assert.GreaterOrEqual(plan.Guardian.width / density, plan.Campaign ? 140 : 120, at + ": the guardian takes the header's free space");
                     // Its painted figure stays between the tablet and the plates, under the crown.
@@ -659,7 +666,10 @@ namespace ZKube.Presentation.Tests
         private static Image[] Stars(BoardView view) => view.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" glyph", StringComparison.Ordinal) && image.name.StartsWith("Star ", StringComparison.Ordinal)).ToArray();
         [UnityTest] public IEnumerator EachGoalPlateShowsItsPictogramChipAndCounter()
         {
-            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var counters = new System.Collections.Generic.List<string>();
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-campaign" })
+            {
+            evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var rules = board.Session.Rules; var catalog = PageCatalog.Load();
             Image Named(string name) => board.View.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
             Assert.AreEqual(SkinSlots.GoalScore, SpriteName(Named("Goal plate 0 pictogram")));
@@ -670,15 +680,20 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(secondary.chip, Label("Goal plate 2 chip label").text);
             Assert.AreEqual(Math.Min(board.State.Score, rules.PointsRequired) + "/" + rules.PointsRequired, StripTags(Label("Score").text));
             Assert.AreEqual(board.State.PrimaryProgress + "/" + rules.PrimaryCount, StripTags(Label("Theme").text));
-            Assert.AreEqual("ring", secondary.counter);
-            Assert.IsTrue(Named("Secondary ring").enabled); Assert.IsFalse(Named("Secondary tick").enabled);
+            // The second goal's counter is its goal's own: a ring for one move, a bar for moves in a row.
+            counters.Add(secondary.counter);
+            Assert.IsTrue(Named(secondary.counter == "ring" ? "Secondary ring" : "Secondary track").enabled); Assert.IsFalse(Named("Secondary tick").enabled);
             Assert.AreEqual(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Earn trigger pictogram").sprite.name.Replace("(Clone)", ""),
                 PageCatalog.Load().guardianRules.Single(rule => rule.bonus == rules.BonusType && rule.trigger == rules.Trigger && rule.threshold == rules.TriggerThreshold).pictogram);
             Fits(Label("Earn caption"));
+            }
+            CollectionAssert.AreEquivalent(new[] { "bar", "ring" }, counters, "A moves-in-a-row goal and a one-move goal are both drawn");
         }
         [UnityTest] public IEnumerator AMetGoalReadsItsTargetWithItsTickAndAnOpenOneNeverTicks()
         {
-            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-campaign" })
+            {
+            evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var rules = board.Session.Rules; var state = board.State; var view = board.View;
             Image Named(string name) => view.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
             var saved = (state.LatchedStarSources, state.PrimaryProgress, state.Score);
@@ -694,7 +709,9 @@ namespace ZKube.Presentation.Tests
                     Assert.AreEqual(primary ? rules.PrimaryCount + "/" + rules.PrimaryCount : "0/" + rules.PrimaryCount, StripTags(Label("Theme").text),
                         latched + ": a ticked plate reads its target");
                     Assert.AreEqual(Named("Secondary tick").enabled, secondary);
-                    Assert.AreEqual(!secondary, Named("Secondary ring").enabled);
+                    // An open one-move goal shows its ring; a moves-in-a-row goal keeps its bar, met or not.
+                    var open = view.GetComponentsInChildren<Image>(true).Single(image => image.name == "Secondary ring" || image.name == "Secondary track");
+                    Assert.AreEqual(open.name == "Secondary track" || !secondary, open.enabled);
                 }
                 // The score plate ticks when its count reaches the target.
                 state.LatchedStarSources = 1; state.Score = rules.PointsRequired + 5;
@@ -704,6 +721,7 @@ namespace ZKube.Presentation.Tests
             }
             finally { (state.LatchedStarSources, state.PrimaryProgress, state.Score) = saved; view.Summary(state, board.Session, true); }
             yield return null;
+            }
         }
         [UnityTest] public IEnumerator HudNumeralsAreLilitaOneAndCaptionsNunito()
         {

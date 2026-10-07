@@ -36,6 +36,9 @@ namespace ZKube.Local
         [JsonProperty("realm")] public byte Realm { get; set; }
         [JsonProperty("level")] public byte Level { get; set; }
         [JsonProperty("seed")] public int[] Seed { get; set; }
+        // The rules the run was started under: its run configuration, as the core encodes it. A level's rules
+        // can change with the app; a run resumes only under the rules it was played under.
+        [JsonProperty("rules", NullValueHandling = NullValueHandling.Ignore)] public string Rules { get; set; }
         [JsonProperty("actions")] public List<LocalCampaignAction> Actions { get; set; } = new List<LocalCampaignAction>();
     }
 
