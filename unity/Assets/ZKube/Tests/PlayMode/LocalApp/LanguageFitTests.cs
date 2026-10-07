@@ -69,7 +69,7 @@ namespace ZKube.Tests
                         yield return Wait(() => !board.Busy && board.State.Phase == (byte)CorePhase.Finished, code + ": the run did not end");
                         yield return Page(StorePage.Result); yield return Shown("result ended");
                         // The other ways a level ends, by the stars it kept.
-                        var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+                        var goals = new CampaignGoals { Points = 60, PrimaryKind = 7, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
                         foreach (var (reason, stars, moves, name) in new[] { ((byte)2, (byte)1, 0u, "one star"), ((byte)2, (byte)3, 6u, "two stars"),
                             ((byte)2, (byte)0, 0u, "no star"), ((byte)1, (byte)7, 3u, "cleared") })
                         {

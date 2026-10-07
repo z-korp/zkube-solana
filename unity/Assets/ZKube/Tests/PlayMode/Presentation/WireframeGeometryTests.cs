@@ -29,7 +29,7 @@ namespace ZKube.Tests.Presentation
         private sealed class Wireframe : IAppPageSource
         {
             public LevelPageView Level = new LevelPageView { Realm = 1, Level = 1, Moves = 16,
-                Goals = new CampaignGoals { Points = 10, PrimaryKind = 3, PrimaryValue = 0, PrimaryCount = 6, SecondaryKind = 9, SecondaryValue = 2, SecondaryCount = 1 },
+                Goals = new CampaignGoals { Points = 10, PrimaryKind = 7, PrimaryValue = 0, PrimaryCount = 6, SecondaryKind = 9, SecondaryValue = 2, SecondaryCount = 1 },
                 Play = new PageAction { Label = "Play" }, Map = new PageAction { Label = "Map" } };
             public CampaignPageView CampaignView() => new CampaignPageView { Realm = 1, Stars = 6,
                 Previous = new PageAction { Label = "Previous", Name = "Previous" }, Next = new PageAction { Label = "Next", Name = "Next", Enabled = false },

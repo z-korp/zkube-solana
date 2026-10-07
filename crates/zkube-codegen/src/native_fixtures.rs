@@ -716,8 +716,10 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     ] {
         let stars = StarRules {
             points_required: target,
+            // Lines taken with a bonus: a goal the catalogue always publishes,
+            // so the client has its words. The one action below is a bonus.
             primary: Constraint {
-                kind: ConstraintKind::ClearLines,
+                kind: ConstraintKind::BonusLines,
                 value: 0,
                 required_count: primary_count,
             },
@@ -798,11 +800,21 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     // Display bounds are recovered snapshots, not claims that a 100-move run
     // can reach these metrics. Both configs still use published protocol rules.
     // Streak is Campaign-only; the Daily uses its actual TriggerFired theme.
-    let campaign_map = &catalog.maps[3];
-    let campaign = campaign_rules(campaign_map, 1, campaign_map.levels[0])?;
-    if campaign.stars.unwrap().secondary.kind != ConstraintKind::Streak {
-        return Err("display fixture requires the published long Campaign constraint".into());
-    }
+    // The long constraint is whichever published level asks for the most
+    // moves in a row, the first of them: no level is pinned by its number.
+    let streak = ConstraintKind::Streak.tag();
+    let (campaign_map, level) = catalog
+        .maps
+        .iter()
+        .flat_map(|map| (0..map.levels.len()).map(move |level| (map, level)))
+        .filter(|(map, level)| map.levels[*level].2[0] == streak)
+        .max_by_key(|(map, level)| (map.levels[*level].2[2], std::cmp::Reverse((map.map_id, *level))))
+        .ok_or("display fixture requires a published Campaign level asking for moves in a row")?;
+    let campaign = campaign_rules(
+        campaign_map,
+        u8::try_from(level + 1).map_err(|e| e.to_string())?,
+        campaign_map.levels[level],
+    )?;
     let daily = RunRules {
         tier: TierPolicy::Pressure,
         stars: None,

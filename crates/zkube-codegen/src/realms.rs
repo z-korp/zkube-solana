@@ -59,8 +59,8 @@ pub fn failures(catalog: &CampaignCatalog) -> Vec<String> {
         let (_, primary, secondary) = map.levels[level];
         (face(primary, bonus(map)), face(secondary, bonus(map)))
     };
-    // A first-goal fact opens at most two realms, and those two are at least
-    // three realms apart and ask for different second goals.
+    // A first-goal fact opens at most three realms; any two of them are at
+    // least three realms apart and ask for different second goals.
     let mut opening: BTreeMap<String, Vec<&CampaignMap>> = BTreeMap::new();
     for map in &catalog.maps {
         opening
@@ -70,13 +70,15 @@ pub fn failures(catalog: &CampaignCatalog) -> Vec<String> {
     }
     for (first, maps) in &opening {
         let ids: Vec<u8> = maps.iter().map(|map| map.map_id).collect();
-        let alike = maps.len() == 2
-            && (ids[1] - ids[0] < 3
-                || fact(maps[0].levels[0].2, bonus(maps[0]))
-                    == fact(maps[1].levels[0].2, bonus(maps[1])));
-        if maps.len() > 2 || alike {
+        let second = |map: &CampaignMap| fact(map.levels[0].2, bonus(map));
+        let alike = maps.iter().enumerate().any(|(index, earlier)| {
+            maps[index + 1..].iter().any(|later| {
+                later.map_id - earlier.map_id < 3 || second(earlier) == second(later)
+            })
+        });
+        if maps.len() > 3 || alike {
             failures.push(format!(
-                "level 1: realms {ids:?} open on the same goal ({first}); a goal opens at most two realms, three or more apart, with different second goals"
+                "level 1: realms {ids:?} open on the same goal ({first}); a goal opens at most three realms, three or more apart, with different second goals"
             ));
         }
     }
@@ -134,8 +136,28 @@ pub fn failures(catalog: &CampaignCatalog) -> Vec<String> {
             }
         }
     }
-    // Every goal kind the game has is asked somewhere.
-    for kind in (1..=u8::MAX).filter_map(ConstraintKind::from_tag) {
+    // A goal asks for something the score does not already reward. Every clear
+    // takes lines and blocks, so a plain count of either is the score in other
+    // words: no goal is Clear lines, and no first goal is Clear blocks of any
+    // size. Lines taken a particular way and blocks of one size are goals.
+    for map in &catalog.maps {
+        for (index, (_, primary, secondary)) in map.levels.iter().enumerate() {
+            let lines = ConstraintKind::ClearLines.tag();
+            let blocks = primary[0] == ConstraintKind::BreakBlocks.tag() && primary[1] == 0;
+            if primary[0] == lines || secondary[0] == lines || blocks {
+                failures.push(format!(
+                    "realm {} level {}: a goal counts lines or blocks, which the score already rewards",
+                    map.map_id,
+                    index + 1
+                ));
+            }
+        }
+    }
+    // Every other goal kind the game has is asked somewhere.
+    for kind in (1..=u8::MAX)
+        .filter_map(ConstraintKind::from_tag)
+        .filter(|kind| *kind != ConstraintKind::ClearLines)
+    {
         let asked = catalog.maps.iter().any(|map| {
             map.levels
                 .iter()
@@ -192,17 +214,24 @@ mod tests {
         assert_eq!(failures(&catalog), Vec::<String>::new());
         assert!(crate::validate_catalog(&catalog).is_ok());
 
-        // One level copied into the next realm: the same pair on that level, and a third realm on that opening.
+        // One level copied into the next realm: the same pair on that level, and a neighbour on that opening.
         let mut copied = committed();
         copied.maps[1].levels[0] = copied.maps[0].levels[0];
-        assert!(fails(&copied, "level 1: realms [1, 2, 8] open on the same goal"));
+        assert!(fails(&copied, "level 1: realms [1, 2, 4, 7] open on the same goal"));
         assert!(fails(&copied, "level 1: realms [1, 2] share the same pair"));
         assert!(crate::validate_catalog(&copied).is_err());
-        // Two realms may open on one goal, never neighbours: Egypt's opening given to Norse.
+        // Realms may share an opening, never neighbours: Egypt's opening given to Norse.
         let mut neighbours = committed();
-        neighbours.maps[9].levels[0].1 = [2, 4, 4];
         neighbours.maps[2].levels[0].1 = neighbours.maps[1].levels[0].1;
-        assert!(fails(&neighbours, "level 1: realms [2, 3] open on the same goal"));
+        assert!(fails(&neighbours, "level 1: realms [2, 3, 8] open on the same goal"));
+        // Never a fourth realm, however far apart: Inca opening as Tiki, Greece and Japan do.
+        let mut fourth = committed();
+        fourth.maps[9].levels[0] = (fourth.maps[9].levels[0].0, fourth.maps[3].levels[0].1, [13, 0, 1]);
+        assert!(fails(&fourth, "level 1: realms [1, 4, 7, 10] open on the same goal"));
+        // Never with the same second goal: Japan's level 1 asking for Tiki's.
+        let mut second = committed();
+        second.maps[6].levels[0].2 = [11, 1, 3];
+        assert!(fails(&second, "level 1: realms [1, 4, 7] open on the same goal"));
         // The same pair twice in one realm, with other numbers.
         let mut repeated = committed();
         let (_, mut primary, secondary) = repeated.maps[0].levels[0];
@@ -214,10 +243,10 @@ mod tests {
         assert_eq!(face([14, 10, 1], Bonus::Wave), face([9, 4, 1], Bonus::Wave));
         // A realm that opens on a goal and leaves it.
         let mut left = committed();
-        for level in [3, 6, 9] {
+        for level in [3, 6] {
             left.maps[0].levels[level].1 = [1, 2, left.maps[0].levels[level].1[2]];
         }
-        assert!(fails(&left, "realm 1: the goal that opens it (goal-lines) is a first goal on 1 levels"));
+        assert!(fails(&left, "realm 1: the goal that opens it (goal-stack-low) is a first goal on 1 levels"));
         // The guardian's own trigger as a second goal, on any level.
         let mut own = committed();
         own.maps[3].levels[4].2 = [11, 1, 3];
@@ -225,6 +254,15 @@ mod tests {
         let mut tiki = committed();
         tiki.maps[0].levels[0].2 = [9, 2, 1];
         assert!(fails(&tiki, "realm 1 level 1: the second goal is the guardian's own trigger"));
+        // A plain count of lines, anywhere, or of blocks of any size as a first goal. Blocks of one size are a goal.
+        let mut lines = committed();
+        lines.maps[0].levels[0].1 = [3, 0, 6];
+        assert!(fails(&lines, "realm 1 level 1: a goal counts lines or blocks"));
+        let mut blocks = committed();
+        assert_eq!(blocks.maps[2].levels[0].1[..2], [2, 2]);
+        blocks.maps[2].levels[0].1[1] = 0;
+        assert!(fails(&blocks, "realm 3 level 1: a goal counts lines or blocks"));
+        assert!(!fails(&committed(), "ClearLines is never asked"));
         // A kind nobody asks for any more.
         let mut dropped = committed();
         for map in &mut dropped.maps {

@@ -674,11 +674,15 @@ guard the catalog and engine. `committed_catalog_validates_and_emits_protocol_co
 Each realm asks for goals of its own (owner, 2026-10-06, after ten realms that differed by a tier and a number).
 The codegen holds the level table to it, in the terms a player sees: a goal's face is the picture on its plate
 and its fact is that picture without its block size or bonus; a points goal is the lines goal it equals, since
-only lines score. On level 1 a first-goal fact opens at most two realms, three or more realms apart, with
-different second goals; on any level number no two realms show the same pair of faces; within a realm no pair
-repeats; the fact that opens a realm is the first goal of at least three of its levels; a second goal is never
-the guardian's own trigger; and every goal kind is asked somewhere. A level 1 has too few moves to earn and use a
-bonus, which leaves seven facts for ten realms: that is why two realms may share an opening.
+only lines score. On level 1 a first-goal fact opens at most three realms, any two of them three or more realms
+apart, with different second goals; on any level number no two realms show the same pair of faces; within a realm
+no pair repeats; the fact that opens a realm is the first goal of at least three of its levels; a second goal is
+never the guardian's own trigger; and every goal kind but Clear lines is asked somewhere. A goal asks for
+something the score does not already reward (owner, 2026-10-07): every clear takes lines and blocks, so no goal is
+Clear lines and no first goal is Clear blocks of any size, while lines taken a particular way and blocks of one
+size stay goals. The Daily's objectives are the protocol's and are not held to this. A level 1 has too few moves
+to earn and use a bonus, which leaves four facts for ten realms (a low stack, a high stack, two-line moves, blocks
+of one size): that is why three realms may share an opening.
 `every_realm_asks_for_goals_of_its_own` guards the committed table and each rule's refusal. The earn rules have
 the same class and its rule is written, `every_realm_earns_its_bonus_its_own_way`: no two realms share a bonus
 and a trigger family, N or more and exactly N lines in one move being one family, and a family serves at most two
