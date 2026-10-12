@@ -185,6 +185,8 @@ namespace ZKube.Integration.App.Tests
         // and fails on chain: the run does not change.
         public void RefuseNextRunAction(string instruction = "") => refuseRunAction = instruction;
         private string refuseRunAction;
+        // The rollup has not taken the run's delegation yet: it fails this many opening requests as writes to a read-only copy.
+        public int RollupNotDelegatedYet;
         public void DeliverRow() => Http.Add(DailyRow("movedRow"));
         private JToken DailyRow(string phase) => Runs["cases"].Single(value => (string)value["id"] == "active-daily-" + phase);
         private bool refuseSimulation;
@@ -278,8 +280,11 @@ namespace ZKube.Integration.App.Tests
                     {
                         bool refused = refuseRunAction != null && (refuseRunAction == "" || TransactionSignatures.Describe(bytes).Instructions
                             .Where(value => value.ProgramId == Services.Protocol.ProgramId).Any(value => Services.Protocol.DecodeInstruction(value).Name == refuseRunAction));
-                        Http.StatusError = refused ? new JArray("InstructionError", 0) : null;
-                        if (refused) refuseRunAction = null; else AcceptDaily(bytes);
+                        bool early = RollupNotDelegatedYet > 0 && TransactionSignatures.Describe(bytes).Instructions
+                            .Where(value => value.ProgramId == Services.Protocol.ProgramId).Any(value => Services.Protocol.DecodeInstruction(value).Name == "request_vrf");
+                        if (early) RollupNotDelegatedYet--;
+                        Http.StatusError = early ? new JObject { ["InstructionError"] = new JArray(0, "ReadonlyDataModified") } : refused ? new JArray("InstructionError", 0) : null;
+                        if (refused) refuseRunAction = null; else if (!early) AcceptDaily(bytes);
                     }
                     return new JValue(signature);
                 default: return null;

@@ -846,6 +846,11 @@ every rent is the generated constant and no endpoint is asked for one. The test 
 for anything outside what the Devnet rollup was probed to answer. `EveryRollupPlanAsksTheRollupOnlyWhatItAnswers`
 guards the opening VRF, a row action, the finish and the commit, and
 `ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard` the recovery of a run entered without its opening VRF.
+A rollup that has not taken a delegation yet is a wait, not a failure: the opening request is the first write
+after a delegation, and one the rollup fails as a write to a read-only copy (ReadonlyDataModified) is made again
+by itself, a fresh message the device signs each time, after one, two and four seconds and no more, with one log
+line a repeat and nothing shown as failed meanwhile. Past that bound, or on any other failure, it is the failure
+the page shows. `AnOpeningRequestTheRollupHasNotTakenTheDelegationForIsMadeAgainAndBounded` guards it.
 A confirmation reads the accounts its transaction could have changed, less the rollup's Magic context: a commit
 names that account, it is five megabytes and holds no state of the game, so no reply carrying it fits a bound. The
 test doubles answer any read that names it with more than every bound.

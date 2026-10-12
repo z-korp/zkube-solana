@@ -300,6 +300,40 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // The opening request is the first write after a delegation, and a rollup that has not taken the
+        // delegation yet fails it as a write to a read-only copy. That is a wait: the request is made
+        // again by itself, a fresh message each time, three more times at most. Past that bound it is
+        // the failure the page shows; within it the board opens with nothing said.
+        [UnityTest] public IEnumerator AnOpeningRequestTheRollupHasNotTakenTheDelegationForIsMadeAgainAndBounded()
+        {
+            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = lines.Add;
+            try
+            {
+                environment.RollupNotDelegatedYet = 4;
+                yield return SessionClick("Resume run"); yield return Idle();
+                Assert.That(Asked("sendTransaction"), Is.EqualTo(4), "The request and three more: " + SessionText());
+                StringAssert.Contains("The transaction failed. Nothing changed.", SessionText());
+                Assert.That(Offers("Resume run"), Is.True);
+                Assert.That(lines.Where(line => line.Contains(" again=")), Is.EqualTo(new[] {
+                    "zKube timing: action=vrf-daily again=1 after=1000ms", "zKube timing: action=vrf-daily again=2 after=2000ms",
+                    "zKube timing: action=vrf-daily again=3 after=4000ms" }));
+
+                environment.RollupNotDelegatedYet = 1; lines.Clear();
+                yield return SessionClick("Resume run");
+                yield return BoardReady();
+                Assert.That(PlayedBoard().Session.Daily, Is.True);
+                Assert.That(Asked("sendTransaction"), Is.EqualTo(6), "Refused once, then taken");
+                StringAssert.DoesNotContain("The transaction failed", SessionText());
+                Assert.That(lines.Where(line => line.Contains(" again=")), Is.EqualTo(new[] { "zKube timing: action=vrf-daily again=1 after=1000ms" }));
+                Assert.That(lines.Any(line => line.Contains(environment.Owner)), Is.False);
+            }
+            finally { ZKube.Integration.Transport.ClientLog.Sink = sink; }
+            Assert.That(Asked("signTransactions"), Is.Zero, "The device asks; the wallet is not needed");
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // On a phone the wallet's pause retires the page's operation. A purchase
         // that confirms after the executor's first looks is then followed by the
         // page itself when the app is back: no wait declared over, no tap, the

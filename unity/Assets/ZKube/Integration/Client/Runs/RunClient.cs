@@ -183,7 +183,22 @@ namespace ZKube.Integration.Client.Runs
                 if (summary.Phase == (byte)CorePhase.Playing && pending == 0) return current;
                 if (pending == 0)
                 {
-                    await Execute(planner.RunAction(session.Actor, Snapshot(current), "vrf", Seed()), "vrf-daily", session, token, receipts).ConfigureAwait(false);
+                    // The first write after a delegation. A rollup that has not taken the delegation yet
+                    // still holds the run as a read-only copy and fails that write: a wait, not a failure.
+                    // The request is made again as a fresh message, after 1, 2 and 4 seconds and no more.
+                    for (int again = 0; ; again++)
+                    {
+                        try
+                        {
+                            await Execute(planner.RunAction(session.Actor, Snapshot(current), "vrf", Seed()), "vrf-daily", session, token, receipts).ConfigureAwait(false);
+                            break;
+                        }
+                        catch (RunExecutionException refused) when (again < 3 && NotDelegatedYet(refused.Result))
+                        {
+                            ClientLog.Again("vrf-daily", again + 1, 1000 << again);
+                            await Task.Delay(1000 << again, token).ConfigureAwait(false);
+                        }
+                    }
                     counter = checked(counter + 1);
                 }
                 else counter = pending;
@@ -326,6 +341,8 @@ namespace ZKube.Integration.Client.Runs
             if (result.Outcome != ExecutionOutcome.ConfirmedSuccess)
                 throw new RunExecutionException(result);
         }
+        private static bool NotDelegatedYet(ExecutionResult result) => result.Outcome == ExecutionOutcome.ConfirmedFailure &&
+            result.ChainError != null && result.ChainError.Contains("\"ReadonlyDataModified\"");
         private RunPlanSnapshot Snapshot(RunClientState state) => RunPlanSnapshot.Decode(accounts, state.Account, state.Marker.Owner);
         private static void RequireEr(RunClientState state)
         { if (state.Phase != "delegated" || state.Account == null) throw new InvalidOperationException("Wait for the run's resolved ER state"); }

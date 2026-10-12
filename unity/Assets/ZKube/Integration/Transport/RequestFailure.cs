@@ -178,6 +178,13 @@ namespace ZKube.Integration.Transport
         });
         public static void Shown(string signature) => Timing(signature, entry => entry.Settled ? entry.Action + " shown=+" + entry.Clock.ElapsedMilliseconds + "ms" : null, true);
 
+        // A request made again after a wait that is not a failure: which repeat it is and the wait before it.
+        public static void Again(string action, int attempt, int waitMilliseconds)
+        {
+            try { Sink("zKube timing: action=" + RequestFailure.Clean(action) + " again=" + attempt + " after=" + waitMilliseconds + "ms"); }
+            catch (Exception) { /* Logging never fails a request. */ }
+        }
+
         public static void Outcome(string action, string code, string chainError)
         {
             try { Sink("zKube request failed: action=" + RequestFailure.Clean(action) + " code=" + RequestFailure.Clean(code) +
