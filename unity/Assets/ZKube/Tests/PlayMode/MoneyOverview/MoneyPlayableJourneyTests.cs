@@ -55,6 +55,20 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.SentSignature, Is.Null);
             yield return SessionClick("Cancel entry"); yield return Idle();
             Assert.That(controller.ConfirmingDailyEntry, Is.False);
+            // An entry that cannot start says why on its card and leaves one line in the log; nothing is sent.
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = lines.Add;
+            try
+            {
+                environment.Store.Fail = true;
+                yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
+                yield return SessionClick("Confirm 1 Kredit"); yield return Idle();
+                Assert.That(Text("Daily reason"), Is.EqualTo("This request could not be prepared on this device."));
+                Assert.That(lines.Count(line => line.StartsWith("zKube request failed: action=start-daily kind=Local type=IOException message=")), Is.EqualTo(1), string.Join("\n", lines));
+                Assert.That(lines.Any(line => line.Contains(environment.Owner)), Is.False);
+                Assert.That(environment.SentSignature, Is.Null);
+            }
+            finally { environment.Store.Fail = false; ZKube.Integration.Transport.ClientLog.Sink = sink; }
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
             // From the Arcade into the board and back, no frame shows the clear colour.
             var watch = ZKube.Tests.Presentation.PaintWatch.On(host.GetComponent<PageShell>()); watch.Step = "the Daily's board";
@@ -169,10 +183,14 @@ namespace ZKube.Tests.MoneyOverview
         }
         // A run nobody resolved stands in the slot. Until its recovery deadline
         // the landing page offers to resume it; after it, the run can no longer
-        // score, the next entry retires it, and Resume is not what stands there.
+        // score and Enter is what stands there. That entry is sent, it retires
+        // the run left behind, still delegated, and the board of the new run opens.
         [UnityTest] public IEnumerator ARunPastItsRecoveryDeadlineNoLongerStandsInTheWayOfTheNextEntry()
         {
-            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("daily-entered");
+            // The player as that entry left them: the run after it is the next.
+            environment.Http.Add(environment.Runs["preparedPlayers"]["daily"]);
+            Click("Connect"); yield return Idle();
             Assert.That(Offers("Resume run"), Is.True);
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             var run = ((ZKube.Integration.Client.MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead",
@@ -185,6 +203,25 @@ namespace ZKube.Tests.MoneyOverview
             environment.AdvanceClock(1);
             yield return Wait(controller.RefreshOverview()); yield return Idle();
             Assert.That(Offers("Resume run"), Is.False, "Past recovery the run is retired by the next entry");
+            // The device still names the run left behind, and the rollup still holds it.
+            string left = run.Marker.ActiveRun, next = (string)environment.Runs["successor"]["address"];
+            var stored = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(stored);
+            Assert.That(stored.GetAwaiter().GetResult().ActiveRun, Is.EqualTo(left));
+            Assert.That(environment.Http.Delegated, Does.Contain(left));
+            yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
+            yield return SessionClick("Confirm 1 Kredit"); yield return Idle();
+            Assert.That(environment.SentTransaction, Is.Not.Null, "The entry is sent: " + SessionText());
+            Assert.That(ZKube.Integration.TransactionSignatures.Describe(environment.SentTransaction).Instructions
+                .Where(value => value.ProgramId == environment.Services.Protocol.ProgramId)
+                .Select(value => environment.Services.Protocol.DecodeInstruction(value).Name), Does.Contain("enter_arena"));
+            yield return BoardReady();
+            var board = host.GetComponent<MoneyBoardHost>().Board;
+            Assert.That(board.Session.Daily, Is.True);
+            Assert.That(board.Session.DailyFacts.ClosesAt, Is.GreaterThan(environment.Clock()), "The board is the new run's, whose day is open");
+            stored = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(stored);
+            Assert.That(stored.GetAwaiter().GetResult().ActiveRun, Is.EqualTo(next), "The device names the new run");
+            Assert.That(stored.GetAwaiter().GetResult().RunId, Is.EqualTo(run.Marker.RunId + 1));
+            Assert.That(environment.Http.Delegated, Does.Contain(left), "Nothing the client sent touched the run left behind");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         // A result that could not be saved says so on its page and is asked for

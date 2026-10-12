@@ -46,10 +46,11 @@ namespace ZKube.Integration.Tests
             var storage = new TestMemory(); var store = new RunStateStore(storage, accounts);
             await store.Save(marker); string first = storage.Peek(owner, "daily");
             await storage.Write(owner, "daily", null); await store.Save(other); string second = storage.Peek(owner, "daily");
+            // A marker that changed after Save read it is refused by the exchange, which replaces only what was read.
             await storage.Write(owner, "daily", second); storage.Reads = storage.Exchanges = 0;
-            storage.ReadOverride = (_, __, current) => storage.Reads == 1 ? second : first;
+            storage.ReadOverride = (_, __, current) => first;
             await AsyncAssert.Throws<InvalidOperationException>(() => store.Save(marker));
-            Assert.That(storage.Peek(owner, "daily"), Is.EqualTo(second)); Assert.That(storage.Reads, Is.EqualTo(1)); Assert.That(storage.Exchanges, Is.Zero);
+            Assert.That(storage.Peek(owner, "daily"), Is.EqualTo(second)); Assert.That(storage.Reads, Is.EqualTo(1)); Assert.That(storage.Exchanges, Is.EqualTo(1));
             var raw = fixture["accounts"].Single(t => (string)t["id"] == "player-valid");
             var player = new AccountEnvelope((string)raw["address"], (string)raw["owner"], false, Convert.FromBase64String((string)raw["data"]));
             await storage.Write(owner, "daily", second); storage.Reads = storage.Exchanges = 0;

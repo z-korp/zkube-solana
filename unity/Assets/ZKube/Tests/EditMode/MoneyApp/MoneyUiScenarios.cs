@@ -286,6 +286,14 @@ namespace ZKube.Integration.App.Tests
             }
         }
 
+        // The same account with its one deadline moved: the cluster dates what an entry writes by its own clock.
+        private static JToken Dated(JToken row, long from, long to)
+        {
+            var data = Convert.FromBase64String((string)row["data"]); var stamp = BitConverter.GetBytes(from);
+            int at = Enumerable.Range(0, data.Length - 7).Single(index => data.Skip(index).Take(8).SequenceEqual(stamp));
+            BitConverter.GetBytes(to).CopyTo(data, at);
+            var dated = row.DeepClone(); dated["data"] = Convert.ToBase64String(data); return dated;
+        }
         private void AcceptDaily(byte[] bytes)
         {
             var instructions = TransactionSignatures.Describe(bytes).Instructions
@@ -294,7 +302,18 @@ namespace ZKube.Integration.App.Tests
             if (instructions.Length == 0) return;
             string phase;
             if (instructions.Any(value => value.Name == "enter_arena"))
-            { Http.Add(Ui["enteredPlayer"]); phase = "playing"; }
+            {
+                // An entry made over a run left in the slot retires it and opens the run after it, which
+                // closes with the day it was entered on. The run left behind stays where it was, delegated.
+                var next = Runs["successor"];
+                if (Services.Planner.ActiveRun(Owner, (ulong)instructions.Single(value => value.Name == "enter_arena").Arguments["run_id"]) == (string)next["address"])
+                {
+                    long was = new ActiveRunReconciler(Services.Accounts).DeadlineAt(Envelope(next), Owner), closes = Now + was - (long)Plans["inputs"]["now"];
+                    Http.Add(Dated(Runs["successorPlayer"], was, closes)); Http.Add(Dated(next, was, closes));
+                    Http.Delegated.Add((string)next["address"]); return;
+                }
+                Http.Add(Ui["enteredPlayer"]); phase = "playing";
+            }
             else if (instructions.Any(value => value.Name == "request_reroll")) phase = "rerolled";
             else if (instructions.Any(value => value.Name == "play_move")) phase = RowsArriveLate ? "moved" : "movedRow";
             // The opening VRF is answered by the time the board looks.

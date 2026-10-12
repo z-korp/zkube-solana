@@ -112,8 +112,14 @@ namespace ZKube.Integration.Presentation
                 ShowReceipt(receipt.Result, receipt.Owner);
             if (!result.Value.CanBind)
             {
+                // A run that does not open because its operation failed says that reason. A transaction's
+                // outcome was logged where it was made; any other error leaves its one line here.
+                var error = result.Value.Operation.Error; string reason = null;
+                if (error is ZKube.Integration.Client.Runs.RunExecutionException execution) reason = MoneyReceiptText.Refusal(execution.Result);
+                else if (error != null && !(error is OperationCanceledException))
+                { ZKube.Integration.Transport.ClientLog.Failure(entered ? "start-daily" : "open-run", error); reason = Reason(error); }
                 await RefreshVisiblePage(epoch, token);
-                if (Current(epoch)) Inform(Words.ArenaRunNotReady);
+                if (Current(epoch)) Inform(reason ?? Words.ArenaRunNotReady);
                 return;
             }
             boardHost.Open(result.Value, injectedScale, (uint?)profile?["best_daily_score"], Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)),

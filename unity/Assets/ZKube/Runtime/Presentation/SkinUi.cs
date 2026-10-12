@@ -552,7 +552,8 @@ namespace ZKube.Presentation
 
         public T Rect<T>(string name, Rect rect, Transform parent) where T : Component
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(T));
+            // Asked for the rect itself, the object is made with it once: a second one is an error in the device log.
+            var go = typeof(T) == typeof(RectTransform) ? new GameObject(name, typeof(RectTransform)) : new GameObject(name, typeof(RectTransform), typeof(T));
             go.transform.SetParent(parent, false);
             Place(go.GetComponent<RectTransform>(), rect, parent);
             return go.GetComponent<T>();

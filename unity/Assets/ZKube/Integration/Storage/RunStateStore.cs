@@ -33,9 +33,10 @@ namespace ZKube.Integration
         public async Task Save(RunMarker marker)
         {
             Validate(marker);
+            // Whether the slot is free is the chain's rule, decided by the caller. This replaces
+            // exactly the valid marker it read, another run's included, and nothing that changed since.
             string priorJson = await storage.Read(marker.Owner, RunMarker.StorageKey);
-            var prior = Parse(marker.Owner, priorJson);
-            if (prior != null && prior.RunId != marker.RunId) throw new InvalidOperationException("An unresolved run already occupies this slot");
+            Parse(marker.Owner, priorJson);
             string json = new JObject {
                 ["version"] = 1, ["owner"] = marker.Owner, ["runId"] = marker.RunId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["mode"] = RunMarker.StorageKey, ["activeRun"] = marker.ActiveRun,
